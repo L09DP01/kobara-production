@@ -1,0 +1,17 @@
+{
+  "name": "Kobara Payments for WooCommerce",
+  "slug": "kobara-wordpress-plugin",
+  "author": "<a href=\"https://kobara.app\">Kobara Team</a>",
+  "author_profile": "https://kobara.app",
+  "version": "1.0.0",
+  "download_url": "https://kobara.app/downloads/kobara-wordpress-plugin.zip",
+  "requires": "5.0",
+  "tested": "6.4",
+  "requires_php": "7.4",
+  "added": "2024-01-01 00:00:00",
+  "last_updated": "2024-01-01 00:00:00",
+  "sections": {
+    "description": "Acceptez les paiements MonCash sur WooCommerce via l'API Kobara en toute sécurité.",
+    "changelog": "<h4>1.0.0</h4><ul><li>Version initiale avec système de mises à jour automatiques.</li></ul>"
+  }
+}

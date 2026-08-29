@@ -1,0 +1,46 @@
+export const siteConfig = {
+  name: "Kobara",
+  title: "Kobara - Passerelle de paiement Haiti pour MonCash et NatCash",
+  description:
+    "Kobara est une passerelle de paiement en Haiti pour accepter MonCash et NatCash sur un site web, une application, WooCommerce ou une API. Integrez une API MonCash, MonCash API, API NatCash ou NatCash API, creez des liens de paiement, automatisez vos webhooks et suivez vos transactions en HTG.",
+  shortDescription:
+    "Acceptez MonCash et NatCash en Haiti avec API MonCash, MonCash API, API NatCash, NatCash API, liens de paiement, WooCommerce et webhooks temps reel.",
+  url: process.env.NEXT_PUBLIC_APP_URL || "https://kobara.app",
+  ogImage: "/images/isometric.png",
+  links: {
+    twitter: "https://twitter.com/kobara",
+    github: "https://github.com/L09DP01/kobara-app",
+  },
+  keywords: [
+    "Kobara",
+    "Kobara Haiti",
+    "Kobara paiement",
+    "passerelle de paiement Haiti",
+    "paiement en ligne Haiti",
+    "paiement mobile Haiti",
+    "paiement HTG en ligne",
+    "API paiement Haiti",
+    "API MonCash Haiti",
+    "api moncash",
+    "API NatCash Haiti",
+    "api natcash",
+    "MonCash API",
+    "moncash api",
+    "NatCash API",
+    "natcash api",
+    "integration MonCash",
+    "integration NatCash",
+    "Paiement MonCash site web",
+    "Paiement NatCash site web",
+    "MonCash WordPress",
+    "WooCommerce MonCash Haiti",
+    "MonCash checkout",
+    "NatCash checkout",
+    "liens de paiement Haiti",
+    "webhooks paiement Haiti",
+    "Fintech Haiti",
+    "Kobara Payment Gateway",
+  ],
+};
+
+export type SiteConfig = typeof siteConfig;

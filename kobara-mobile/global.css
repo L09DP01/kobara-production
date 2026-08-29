@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent iOS auto-zoom when tapping on inputs */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
+/* Prevent double-tap to zoom */
+html, body {
+  touch-action: manipulation;
+}

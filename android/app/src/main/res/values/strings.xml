@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kobara</string>
+    <string name="title_activity_main">Kobara</string>
+    <string name="package_name">com.kobara.app</string>
+    <string name="custom_url_scheme">com.kobara.app</string>
+</resources>

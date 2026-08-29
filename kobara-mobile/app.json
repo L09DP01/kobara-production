@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Kobara",
+    "slug": "kobara-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "kobara",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kobara.merchantapp",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.kobara.merchantapp"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Kobara",
+      "shortName": "Kobara",
+      "themeColor": "#0F1729",
+      "backgroundColor": "#0F1729",
+      "display": "standalone",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Autoriser Kobara a utiliser Passkey pour proteger votre compte."
+        }
+      ],
+      "expo-notifications",
+      "expo-splash-screen",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2846499f-71f7-4291-9b7f-1f9e1d8a0f6a"
+      }
+    }
+  }
+}
