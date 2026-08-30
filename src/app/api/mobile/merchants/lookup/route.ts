@@ -31,15 +31,22 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Aucun marchand trouvé avec ces informations." }, { status: 404 });
     }
 
+    if (merchant.kyc_status !== 'approved' || merchant.status === 'suspended') {
+      return NextResponse.json({ error: "Ce marchand ne peut pas recevoir de transfert." }, { status: 403 });
+    }
+
     // Don't allow transferring to self
     const { data: sender } = await supabaseAdmin
       .from('merchants')
-      .select('id')
+      .select('id, kyc_status')
       .eq('user_id', payload.sub)
       .single();
 
     if (sender && sender.id === merchant.id) {
       return NextResponse.json({ error: "Vous ne pouvez pas vous transférer de l'argent à vous-même." }, { status: 400 });
+    }
+    if (sender?.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
     }
 
     return NextResponse.json({ 

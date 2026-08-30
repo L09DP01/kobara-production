@@ -174,7 +174,7 @@ export function Hero() {
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
-              href="/docs"
+              href="https://docs.kobara.app/docs/quickstart"
               className="inline-flex min-h-12 items-center justify-center rounded-md border border-[#31475D] bg-[#0A1724] px-6 py-3 text-sm font-bold text-white transition-colors hover:border-[#6D8297] hover:bg-[#102033] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               {t("home.viewDocs") || "Consulter la documentation"}

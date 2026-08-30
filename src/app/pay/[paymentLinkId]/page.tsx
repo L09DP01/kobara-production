@@ -24,7 +24,7 @@ export default async function PublicPaymentPage({
   
   const { data: linkBySlug } = await supabaseAdmin
     .from('payment_links')
-    .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account)')
+    .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account, kyc_status)')
     .eq('slug', resolvedParams.paymentLinkId)
     .single();
 
@@ -33,7 +33,7 @@ export default async function PublicPaymentPage({
   } else {
     const { data: linkById } = await supabaseAdmin
       .from('payment_links')
-      .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account)')
+      .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account, kyc_status)')
       .eq('id', resolvedParams.paymentLinkId)
       .single();
     
@@ -42,7 +42,7 @@ export default async function PublicPaymentPage({
     }
   }
 
-  if (!link) {
+  if (!link || link.environment !== 'live' || link.merchants?.kyc_status !== 'approved') {
     notFound();
   }
 

@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     // 2. Fetch Merchant Profile
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, current_environment")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
@@ -31,7 +31,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const environment = merchant.current_environment || 'test';
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
+    }
+
+    const environment = 'live';
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search');

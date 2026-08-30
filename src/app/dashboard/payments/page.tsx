@@ -18,7 +18,7 @@ export default async function PaymentsPage({
     .from('payments')
     .select('*, customers(name, email)')
     .eq('merchant_id', merchant.id)
-    .eq('environment', merchant.current_environment || 'test');
+    .eq('environment', 'live');
 
   if (filterStatus !== 'all') {
     query = query.eq('status', filterStatus);
@@ -41,7 +41,7 @@ export default async function PaymentsPage({
     .from('payments')
     .select('amount, net_amount, fee_amount, status, created_at')
     .eq('merchant_id', merchant.id)
-    .eq('environment', merchant.current_environment || 'test');
+    .eq('environment', 'live');
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

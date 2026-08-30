@@ -13,9 +13,9 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
-    { name: t("nav.developers") || "Développeurs", href: "/docs" },
+    { name: t("nav.developers") || "Développeurs", href: "https://docs.kobara.app/docs/quickstart" },
     { name: t("nav.pricing") || "Tarifs", href: "/pricing" },
-    { name: t("nav.documentation") || "Documentation", href: "/docs" },
+    { name: t("nav.documentation") || "Documentation", href: "https://docs.kobara.app/docs/quickstart" },
     { name: t("nav.contact") || "Contact", href: "/contact" },
   ];
 

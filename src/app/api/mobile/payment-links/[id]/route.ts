@@ -15,13 +15,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
     }
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     const { data: link, error: linkError } = await supabaseAdmin
       .from('payment_links')
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       `)
       .eq('id', id)
       .eq('merchant_id', merchant.id)
+      .eq('environment', 'live')
       .single();
 
     if (linkError) {
@@ -74,13 +76,14 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
     }
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     const body = await req.json();
     const { status, title, description, amount } = body;
@@ -91,6 +94,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       .select('id')
       .eq('id', id)
       .eq('merchant_id', merchant.id)
+      .eq('environment', 'live')
       .single();
 
     if (linkError || !link) {
@@ -135,13 +139,14 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
     }
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     // Since we have foreign key constraints, maybe we just set it to inactive instead of actually deleting,
     // or actually delete it if there are no payments.

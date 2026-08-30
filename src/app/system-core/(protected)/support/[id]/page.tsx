@@ -55,13 +55,14 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
       metadata: { status },
     });
 
-    const recipient = ticket.merchants?.email;
+    const recipient = ticket.requester_email || ticket.merchants?.email;
     if (recipient) {
       const { sendEmail } = await import('@/lib/server/mail');
       await sendEmail({
         to: recipient,
-        subject: `Réponse Kobara : ${ticket.subject}`,
+        subject: `[${ticket.public_id}] Réponse Kobara : ${ticket.subject}`,
         text: message,
+        replyTo: 'support@kobara.app',
       });
     }
     revalidatePath(`/system-core/support/${id}`);
@@ -76,14 +77,14 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
         </Link>
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-white break-words">{ticket.subject}</h1>
-          <p className="text-xs text-slate-500 mt-1">{ticket.merchants?.business_name || 'Marchand inconnu'} · {ticket.category || 'other'} · {ticket.status}</p>
+          <p className="text-xs text-slate-500 mt-1">{ticket.public_id || id} · {ticket.merchants?.business_name || ticket.requester_name || 'Visiteur'} · {ticket.requester_email || ticket.merchants?.email || 'E-mail indisponible'} · {ticket.category || 'other'} · {ticket.status}</p>
         </div>
       </div>
 
       <div className="space-y-3">
         {(messages || []).map((message) => (
           <div key={message.id} className={`max-w-3xl p-4 rounded border ${message.sender_type === 'admin' ? 'ml-auto bg-red-950/20 border-red-900/40' : 'bg-slate-900 border-slate-800'}`}>
-            <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">{message.sender_type === 'admin' ? 'Administration Kobara' : ticket.merchants?.business_name}</div>
+            <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">{message.sender_type === 'admin' ? 'Administration Kobara' : ticket.merchants?.business_name || ticket.requester_name || message.sender_email || 'Visiteur'}</div>
             <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{message.message}</p>
             <div className="text-[10px] text-slate-600 mt-2">{new Date(message.created_at).toLocaleString('fr-FR')}</div>
           </div>
@@ -91,7 +92,7 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
       </div>
 
       <form action={reply} className="bg-slate-900 border border-slate-800 p-5 rounded space-y-4">
-        <textarea name="message" required rows={5} placeholder="Réponse au marchand..." className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-sm text-white resize-y" />
+        <textarea name="message" required rows={5} placeholder="Réponse au demandeur..." className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-sm text-white resize-y" />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <select name="status" defaultValue="pending_merchant" className="bg-slate-950 border border-slate-700 rounded px-3 py-2 text-sm text-white">
             <option value="pending_merchant">En attente du marchand</option>

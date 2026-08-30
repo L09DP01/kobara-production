@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
-import { auth } from "@/auth";
 import { getKycMerchantId } from "@/lib/server/auth/handoff-auth";
-import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -50,23 +48,10 @@ export async function POST(request: NextRequest) {
       await supabase.storage.from('kyc_documents').upload(fileName, buffer, { contentType: 'image/webp', upsert: false });
     }
 
-    // Server-side Liveness Analysis (MVP placeholder)
-    // In a real robust system, we would send these frames to a Vision API to check movement & face
-    // Here we simulate a high pass rate since it's an MVP, but if it was static images we'd catch it.
-    
-    // Add some simple randomness to simulate analysis
-    const randomFactor = Math.random();
-    let livenessScore = 85; 
-    let status = 'passed';
-    
-    // Let's say 5% chance of failing, 15% chance of review just for realism in MVP
-    if (randomFactor > 0.95) {
-      livenessScore = 40;
-      status = 'failed';
-    } else if (randomFactor > 0.8) {
-      livenessScore = 70;
-      status = 'in_review';
-    }
+    // No local heuristic can prove liveness. Keep the evidence for the
+    // configured KYC provider or an administrator and fail closed meanwhile.
+    const livenessScore = 0;
+    const status = 'in_review';
 
     // Update challenge
     await supabase.from('kyc_liveness_challenges').update({

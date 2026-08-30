@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     // 1. Fetch Merchant
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, business_name, available_balance, available_balance_test, available_balance_usd, available_balance_usd_test, current_environment, paypal_enabled, has_usd_account")
+      .select("id, business_name, available_balance, available_balance_usd, kyc_status, paypal_enabled, has_usd_account")
       .eq("user_id", userId)
       .single();
 
@@ -22,10 +22,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Profil marchand introuvable.", code: "MERCHANT_NOT_FOUND" }, { status: 404 });
     }
 
-    const isTest = merchant.current_environment === 'test';
-    const balance = isTest ? merchant.available_balance_test : merchant.available_balance;
-    const balanceUsd = isTest ? merchant.available_balance_usd_test : merchant.available_balance_usd;
-    const environment = merchant.current_environment || 'test';
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
+    }
+
+    const balance = merchant.available_balance;
+    const balanceUsd = merchant.available_balance_usd;
+    const environment = 'live';
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
     const balances: Record<string, number> = { HTG: Number(balance || 0) };
     if (usdAccount.isActive) balances.USD = Number(balanceUsd || 0);

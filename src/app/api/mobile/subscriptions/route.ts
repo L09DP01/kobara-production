@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, current_environment, business_name")
+      .select("id, kyc_status, business_name")
       .eq("user_id", userId)
       .single();
 
@@ -21,7 +21,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Profil marchand introuvable.", code: "MERCHANT_NOT_FOUND" }, { status: 404 });
     }
 
-    const environment = merchant.current_environment || 'test';
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
+    }
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search');

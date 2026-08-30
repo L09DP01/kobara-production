@@ -49,6 +49,24 @@ export async function processPayment(formData: FormData) {
     throw new Error("Lien de paiement invalide");
   }
 
+  if (linkInfo.environment !== 'live') {
+    throw new Error("Ce lien Sandbox doit etre utilise sur test.kobara.app.");
+  }
+
+  const { data: verifiedMerchant } = await supabaseAdmin
+    .from('merchants')
+    .select('kyc_status, status, account_access')
+    .eq('id', merchantId)
+    .maybeSingle();
+
+  if (
+    verifiedMerchant?.kyc_status !== 'approved'
+    || verifiedMerchant.status === 'suspended'
+    || ['suspended', 'permanently_closed'].includes(verifiedMerchant.account_access || '')
+  ) {
+    throw new Error("Ce marchand ne peut pas accepter de paiements pour le moment.");
+  }
+
   if (isInternational) {
     const { data: merchant } = await supabaseAdmin
       .from('merchants')
@@ -272,35 +290,6 @@ export async function processPayment(formData: FormData) {
         methodType = 'ussd';
       }
     }
-    // --- MODE TEST / SANDBOX AUTONOME ---
-    // En mode test, le paiement est validé instantanément sans passer par Pay'm ou Bazik
-    if (linkInfo.environment === 'test' && !isInternational) {
-      await supabaseAdmin.from('payments').update({
-        status: 'succeeded',
-        paid_at: new Date().toISOString(),
-        provider,
-        payment_method: provider,
-        metadata: {
-          ...(payment.metadata || {}),
-          mode: 'test_sandbox',
-          customer_name: customerName,
-          customer_email: customerEmail,
-          customer_phone: customerPhone,
-        },
-      }).eq('id', payment.id);
-
-      const { onPaymentSucceeded } = await import('@/lib/server/payments/on-payment-succeeded');
-      await onPaymentSucceeded(payment.id);
-
-      const successTarget = payment.metadata?.is_subscription_upgrade
-        ? `${basePath}/plan-success?payment_id=${encodeURIComponent(payment.id)}`
-        : `${basePath}/success?reference=${encodeURIComponent(txRef)}&amount=${encodeURIComponent(String(grossAmount))}`;
-
-      return {
-        redirectUrl: successTarget,
-      };
-    }
-
     if (isInternational) {
       await supabaseAdmin.from('payments').update({
         provider: 'paypal',
@@ -334,7 +323,7 @@ export async function processPayment(formData: FormData) {
         paymentMethodType: methodType,
         phoneNumber: customerPhone,
         description: `Paiement pour ${customerName}`,
-        environment: linkInfo.environment as "test" | "live",
+        environment: 'live',
       });
     } catch (initializationError) {
       if (!isReusedPayment) {

@@ -254,13 +254,15 @@ export async function notifyPlanActivation(merchantId: string, email: string, pl
 }
 
 // 3. Rappel KYC
-export async function notifyKycReminder(merchantId: string, email: string) {
-  await createNotification(
+export async function notifyKycReminder(merchantId: string, email: string, reminderDate?: string) {
+  return createNotification(
     merchantId,
     'kyc_reminder',
-    'Action requise : Vérification KYC',
-    `Veuillez compléter votre vérification d'identité (KYC) pour débloquer toutes les fonctionnalités de votre compte et pouvoir effectuer des retraits.`,
-    email
+    'Terminez la verification de votre compte Kobara',
+    `Votre tableau de bord Production reste verrouille jusqu'a la validation de votre verification KYC. Connectez-vous pour terminer les etapes restantes : https://dashboard.kobara.app/kyc`,
+    email,
+    reminderDate ? `kyc-reminder-${reminderDate}` : undefined,
+    { forceEmail: true },
   );
 }
 

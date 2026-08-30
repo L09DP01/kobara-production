@@ -26,10 +26,16 @@ export async function GET(req: NextRequest) {
     }
 
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
+    const {
+      available_balance_test: _availableBalanceTest,
+      available_balance_usd_test: _availableBalanceUsdTest,
+      ...productionMerchant
+    } = merchant;
     const safeMerchant = {
-      ...merchant,
-      available_balance_usd: usdAccount.isActive ? merchant.available_balance_usd : null,
-      available_balance_usd_test: usdAccount.isActive ? merchant.available_balance_usd_test : null,
+      ...productionMerchant,
+      current_environment: 'live',
+      available_balance: merchant.kyc_status === 'approved' ? merchant.available_balance : null,
+      available_balance_usd: merchant.kyc_status === 'approved' && usdAccount.isActive ? merchant.available_balance_usd : null,
       usd_account: {
         created: usdAccount.hasAccount,
         active: usdAccount.isActive,
@@ -91,10 +97,16 @@ export async function PATCH(req: NextRequest) {
     }
 
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
+    const {
+      available_balance_test: _availableBalanceTest,
+      available_balance_usd_test: _availableBalanceUsdTest,
+      ...productionMerchant
+    } = merchant;
     const safeMerchant = {
-      ...merchant,
-      available_balance_usd: usdAccount.isActive ? merchant.available_balance_usd : null,
-      available_balance_usd_test: usdAccount.isActive ? merchant.available_balance_usd_test : null,
+      ...productionMerchant,
+      current_environment: 'live',
+      available_balance: merchant.kyc_status === 'approved' ? merchant.available_balance : null,
+      available_balance_usd: merchant.kyc_status === 'approved' && usdAccount.isActive ? merchant.available_balance_usd : null,
       usd_account: {
         created: usdAccount.hasAccount,
         active: usdAccount.isActive,

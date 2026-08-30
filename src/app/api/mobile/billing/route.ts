@@ -18,12 +18,16 @@ export async function GET(request: NextRequest) {
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Merchant not found" }, { status: 404 });
+    }
+
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
     }
 
     const { plan, subscription, merchant: merchantData, entitlement } = await getMerchantCurrentPlan(merchant.id);

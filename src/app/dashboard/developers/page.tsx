@@ -2,24 +2,14 @@ import { auth } from "@/auth";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { DevelopersClient } from "./developers-client";
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
+import { redirect } from 'next/navigation';
 
 export default async function DevelopersPage() {
   const session = await auth();
   const user = session?.user as any;
 
-  // ── Guest (not logged in) ── show generic sandbox data, no real keys
   if (!user) {
-    return (
-      <DevelopersClient
-        merchant={null}
-        testPublicKey="kobara_pk_test_xxxxxxxxxxxxxxxxxxxxxxxx"
-        livePublicKey="kobara_pk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
-        webhook={{ configured: false, url: null }}
-        usage={{ apiCallsToday: 0, paymentsThisMonth: 0, planLimit: 10 }}
-        subscription={{ plan: "Free", status: "active" }}
-        isGuest={true}
-      />
-    );
+    redirect('/login');
   }
 
   // ── Authenticated user ── fetch real data using admin client
@@ -27,27 +17,15 @@ export default async function DevelopersPage() {
 
   const { data: merchant } = await supabase
     .from('merchants')
-    .select('id, business_name, status, plan_slug, current_environment')
+    .select('id, business_name, status, plan_slug, kyc_status')
     .eq('user_id', user.id)
     .maybeSingle();
 
   if (!merchant) {
-    // Logged in but no merchant record yet → show sandbox data
-    return (
-      <DevelopersClient
-        merchant={null}
-        testPublicKey="kobara_pk_test_xxxxxxxxxxxxxxxxxxxxxxxx"
-        livePublicKey="kobara_pk_live_xxxxxxxxxxxxxxxxxxxxxxxx"
-        webhook={{ configured: false, url: null }}
-        usage={{ apiCallsToday: 0, paymentsThisMonth: 0, planLimit: 10 }}
-        subscription={{ plan: "Sandbox (Gratuit)", status: "active" }}
-        isGuest={true}
-      />
-    );
+    redirect('/onboarding');
   }
 
   const merchantId = merchant.id;
-  const currentEnvironment = merchant.current_environment === 'live' ? 'live' : 'test';
   const subscriptionAccess = await getMerchantSubscriptionEntitlement(merchantId);
   const effectivePlan = subscriptionAccess.plan;
 
@@ -58,13 +36,10 @@ export default async function DevelopersPage() {
     .eq('merchant_id', merchantId)
     .order('created_at', { ascending: false });
 
-  let testPublicKey = 'kobara_pk_test_...';
   let livePublicKey = 'kobara_pk_live_...';
 
   if (apiKeys) {
-    const testKey = apiKeys.find(k => k.environment === 'test');
     const liveKey = apiKeys.find(k => k.environment === 'live');
-    if (testKey) testPublicKey = testKey.prefix + '...';
     if (liveKey) livePublicKey = liveKey.prefix + '...';
   }
 
@@ -73,7 +48,7 @@ export default async function DevelopersPage() {
     .from('webhook_endpoints')
     .select('url, status')
     .eq('merchant_id', merchantId)
-    .eq('environment', currentEnvironment)
+    .eq('environment', 'live')
     .eq('status', 'active')
     .limit(1);
 
@@ -98,7 +73,7 @@ export default async function DevelopersPage() {
     .from('payments')
     .select('*', { count: 'exact', head: true })
     .eq('merchant_id', merchantId)
-    .eq('environment', currentEnvironment)
+    .eq('environment', 'live')
     .gte('created_at', startOfMonth);
 
   const usage = {
@@ -107,7 +82,7 @@ export default async function DevelopersPage() {
     planLimit: effectivePlan?.monthly_payment_limit ?? 1000
   };
 
-  let planName = "Sandbox (Gratuit)";
+  let planName = "Free";
   if (effectivePlan?.name) planName = effectivePlan.name;
 
   const subscription = {
@@ -122,12 +97,10 @@ export default async function DevelopersPage() {
   return (
     <DevelopersClient
       merchant={merchant}
-      testPublicKey={testPublicKey}
       livePublicKey={livePublicKey}
       webhook={webhook}
       usage={usage}
       subscription={subscription}
-      isGuest={false}
     />
   );
 }

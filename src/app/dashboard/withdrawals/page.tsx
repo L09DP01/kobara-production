@@ -24,7 +24,7 @@ export default async function WithdrawalsPage() {
     .from('withdrawals')
     .select('*')
     .eq('merchant_id', merchant.id)
-    .eq('environment', merchant.current_environment || 'test')
+    .eq('environment', 'live')
     .order('created_at', { ascending: false });
 
   const { data: settings } = await supabase
@@ -42,9 +42,7 @@ export default async function WithdrawalsPage() {
   const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
   const safeMerchant = {
     available_balance: merchant.available_balance,
-    available_balance_test: merchant.available_balance_test,
     available_balance_usd: usdAccount.isActive ? merchant.available_balance_usd : 0,
-    available_balance_usd_test: usdAccount.isActive ? merchant.available_balance_usd_test : 0,
     pending_balance: merchant.pending_balance,
   };
 

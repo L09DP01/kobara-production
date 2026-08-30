@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
-import { createAdminClient } from "@/utils/supabase/admin";
+import { createSupportConversation } from "@/lib/server/support/tickets";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,18 +16,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Le message ne peut pas être vide" }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
-
-    // Insérer dans notifications ou support_tickets
-    await supabase.from("risk_alerts").insert({
-      merchant_id: merchant?.id || null,
-      alert_type: "support_emergency_appeal",
-      severity: "high",
-      status: "open",
-      description: `[Demande Support Compte Suspendu] ${subject || 'Aide d\'urgence'} : ${message.substring(0, 500)}`,
+    const result = await createSupportConversation({
+      merchantId: merchant?.id,
+      requesterName: merchant?.business_name || user?.user_metadata?.full_name,
+      requesterEmail: merchant?.email || user?.email || '',
+      recipientEmail: 'support@kobara.app',
+      subject: subject || "Aide d'urgence",
+      category,
+      priority,
+      message,
+      source: 'suspended_account',
     });
 
-    return NextResponse.json({ success: true, message: "Demande d'aide transmise avec succès" });
+    return NextResponse.json({
+      success: true,
+      message: "Demande d'aide transmise avec succès",
+      reference: result.publicId,
+    });
   } catch (error) {
     console.error("Support ticket creation error:", error);
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });

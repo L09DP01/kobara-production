@@ -7,12 +7,11 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const name = String(body.name || '').trim();
-    const environment = body.environment === 'live' ? 'live' : 'test';
     if (!name) {
       return NextResponse.json({ error: 'Veuillez entrer un nom pour la clé API.' }, { status: 400 });
     }
 
-    const result = await generateApiKey(name, environment);
+    const result = await generateApiKey(name, 'live');
     return NextResponse.json(result, { status: result.error ? 400 : 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur interne lors de la création de la clé.';

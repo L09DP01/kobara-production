@@ -16,13 +16,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, business_name")
+      .select("id, business_name, kyc_status")
       .eq("user_id", userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
     }
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     const { data: subscription, error: subError } = await supabaseAdmin
       .from('subscriptions')

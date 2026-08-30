@@ -17,12 +17,16 @@ export async function GET(
     // 2. Get merchant profile
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from('merchants')
-      .select('id')
+      .select('id, kyc_status')
       .eq('user_id', userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Marchand introuvable" }, { status: 404 });
+    }
+
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
     }
 
     // 3. Get payment details with customer and payment link info
@@ -43,6 +47,7 @@ export async function GET(
         )
       `)
       .eq('merchant_id', merchant.id)
+      .eq('environment', 'live')
       .eq('id', id)
       .single();
 

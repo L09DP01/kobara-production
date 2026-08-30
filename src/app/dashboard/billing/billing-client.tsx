@@ -190,30 +190,12 @@ export function BillingClient() {
   }
 
   const { merchant, plan, subscription, entitlement, usage } = data;
-  const isKycApproved = merchant.kyc_status === 'approved';
-
   return (
     <div className="space-y-8 max-w-6xl">
       <div>
         <h1 className="text-2xl font-bold text-white">Facturation & Plans</h1>
         <p className="text-slate-400 mt-1">Gérez votre abonnement et vos limites d'utilisation.</p>
       </div>
-
-      {/* KYC Alert */}
-      {!isKycApproved && (
-        <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-4">
-          <AlertTriangle className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-bold text-amber-400">Vérification KYC requise</h3>
-            <p className="text-amber-500 text-sm mt-1 mb-3">
-              Votre compte est actuellement en mode test. Vous devez compléter votre profil et faire valider votre KYC pour choisir un plan et passer en mode Live.
-            </p>
-            <button className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors">
-              Compléter mon profil
-            </button>
-          </div>
-        </div>
-      )}
 
       {(entitlement?.isGracePeriod || entitlement?.isExpired || entitlement?.reason === 'invalid_period') && (
         <div className={`flex items-start justify-between gap-4 rounded-lg border p-5 ${entitlement.isGracePeriod ? 'border-amber-500/30 bg-amber-500/10' : 'border-red-500/30 bg-red-500/10'}`}>
@@ -237,7 +219,7 @@ export function BillingClient() {
           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Plan Actuel</h3>
           <div className="flex items-end gap-3 mb-2">
             <span className="text-3xl font-black text-white">
-              {plan ? plan.name : 'Mode Test'}
+              {plan ? plan.name : 'Free'}
             </span>
             {plan && (
               <span className="text-sm font-medium text-slate-400 mb-1">
@@ -247,7 +229,7 @@ export function BillingClient() {
             )}
           </div>
           <p className="text-sm text-slate-400 mb-6">
-            {plan ? plan.description : 'Le mode test vous permet de tester l\'intégration de Kobara sans frais.'}
+            {plan ? plan.description : 'Les limites du plan gratuit sont appliquees a votre compte.'}
           </p>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
@@ -337,7 +319,7 @@ export function BillingClient() {
               entitlement?.reason === 'grace_period'
             );
             const isExactCurrentActive = isExactCurrent && !isPlanExpiredOrGrace;
-            const isActionDisabled = isExactCurrentActive || upgrading || (!isKycApproved && p.slug !== 'free');
+            const isActionDisabled = isExactCurrentActive || upgrading;
 
             let buttonLabel = 'Choisir ce plan';
             if (isExactCurrent) {
@@ -374,9 +356,9 @@ export function BillingClient() {
                   disabled={isActionDisabled}
                   onClick={() => handleUpgradeClick(p)}
                   className={`w-full py-2.5 rounded-xl font-bold transition-all shadow-sm
-                    ${isExactCurrentActive ? 'bg-white/10 text-slate-500 cursor-not-allowed shadow-none' : 
-                      (!isKycApproved && p.slug !== 'free' ? 'bg-white/10 text-slate-500 cursor-not-allowed shadow-none' :
-                      'bg-orange-500 text-white hover:bg-orange-600')}
+                    ${isExactCurrentActive
+                      ? 'bg-white/10 text-slate-500 cursor-not-allowed shadow-none'
+                      : 'bg-orange-500 text-white hover:bg-orange-600'}
                   `}
                 >
                   {buttonLabel}

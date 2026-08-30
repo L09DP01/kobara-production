@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useTranslation } from "@/context/LanguageContext";
 
 const CODE_SNIPPET = `import kobara from 'kobara-sdk';
-const client = kobara('sk_test_...');
+const client = kobara('kbr_sk_live_...');
 
 // Create a payment charge
 const charge = await kobara.charges.create({
@@ -31,13 +31,13 @@ export function DeveloperSection() {
   const listItems = language === "fr" ? [
     "Documentation API complète et interactive",
     "SDKs officiels pour Node, PHP, Python",
-    "Outils de test d'événements en temps réel",
-    "Environnement de sandbox hautement sécurisé"
+    "Suivi des événements en temps réel",
+    "Authentification et signatures sécurisées"
   ] : [
     "Comprehensive and interactive API documentation",
     "Official SDKs for Node, PHP, Python",
-    "Real-time event testing tools",
-    "Secure sandbox development environment"
+    "Real-time event monitoring",
+    "Secure authentication and signatures"
   ];
 
   return (

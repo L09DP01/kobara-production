@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, current_environment")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
@@ -20,7 +20,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Profil marchand introuvable.", code: "MERCHANT_NOT_FOUND" }, { status: 404 });
     }
 
-    const environment = merchant.current_environment || 'test';
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
+    }
+
+    const environment = 'live';
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
     const search = searchParams.get('search');
@@ -93,12 +97,16 @@ export async function POST(req: NextRequest) {
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, current_environment")
+      .select("id, kyc_status")
       .eq("user_id", userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable.", code: "MERCHANT_NOT_FOUND" }, { status: 404 });
+    }
+
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -108,7 +116,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Le titre et le montant sont requis." }, { status: 400 });
     }
 
-    const environment = merchant.current_environment || 'test';
+    const environment = 'live';
     const randomSlug = Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
     
     const parsedShippingFee = shipping_fee ? parseFloat(shipping_fee) : 0;

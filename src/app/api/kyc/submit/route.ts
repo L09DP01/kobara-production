@@ -152,7 +152,9 @@ Retourne uniquement :
     // 2. Update Merchant Status
     await supabase.from('merchants').update({
       kyc_status: decision.status,
-      ...(decision.status === 'approved' ? { kyc_verified_at: new Date().toISOString() } : {})
+      ...(decision.status === 'approved'
+        ? { kyc_verified_at: new Date().toISOString(), current_environment: 'live' }
+        : {})
     }).eq('id', merchantId);
 
     // 3. Post-Decision Actions & Notifications

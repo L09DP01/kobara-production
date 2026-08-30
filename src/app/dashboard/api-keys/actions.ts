@@ -7,9 +7,13 @@ import { ApiKeySecurity } from "@/lib/server/security/api-keys";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { notifyApiKeyRevoked } from "@/lib/server/notifications";
 
-export async function generateApiKey(name: string, environment: 'live' | 'test' = 'test') {
+export async function generateApiKey(name: string, environment: 'live' | 'test' = 'live') {
   try {
     const { user, merchant, supabase } = await getCurrentUserAndMerchant();
+
+    if (environment !== 'live') {
+      return { error: "Les clés Sandbox sont disponibles uniquement sur test.kobara.app." };
+    }
 
     // For API keys, the user should be owner/admin. Let's assume standard role for now as per MVP.
     let role = 'owner';
@@ -29,7 +33,7 @@ export async function generateApiKey(name: string, environment: 'live' | 'test' 
     }
 
     // Generate a random key
-    const prefix = environment === 'live' ? "kbr_sk_live_" : "kbr_sk_test_";
+    const prefix = "kbr_sk_live_";
     const { rawKey, keyHash } = ApiKeySecurity.generateKey(prefix);
 
     const adminClient = createAdminClient();
@@ -41,7 +45,7 @@ export async function generateApiKey(name: string, environment: 'live' | 'test' 
         name: name,
         prefix: prefix,
         key_hash: keyHash,
-        environment: environment
+        environment: 'live'
       });
 
     if (error) {
@@ -55,7 +59,7 @@ export async function generateApiKey(name: string, environment: 'live' | 'test' 
 
     revalidatePath('/dashboard/api-keys');
 
-    return { rawKey, name, environment };
+    return { rawKey, name, environment: 'live' as const };
   } catch (err: any) {
     console.error("API Key Gen Error:", err);
     return { error: err.message || "Une erreur interne est survenue." };

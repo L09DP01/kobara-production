@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authError || "Unauthorized" }, { status: 401 });
     }
 
-    const accessCheck = await canCreatePayment(merchantId, environment as 'test' | 'live');
+    const accessCheck = await canCreatePayment(merchantId, 'live');
     if (!accessCheck.allowed) {
       const expired = accessCheck.reason === 'subscription_expired';
       const message = expired
@@ -355,27 +355,7 @@ export async function POST(request: NextRequest) {
       }
     } catch(e) { console.error("Notification failed", e); }
 
-    // 3.5 Auto-simulate test payment if requested in test environment
-    const shouldSimulateSuccess = environment === 'test' && (
-      Boolean(body.simulate_success) ||
-      Boolean(body.auto_approve) ||
-      Boolean(body.auto_complete) ||
-      request.headers.get('x-simulate-payment') === 'true'
-    );
-
-    let finalPayment = payment;
-
-    if (shouldSimulateSuccess) {
-      const { handleSimulateTestPayment } = await import('@/lib/server/payments/simulate-payment');
-      const simResult = await handleSimulateTestPayment({
-        paymentId: payment.id,
-        merchantId,
-        targetStatus: 'succeeded'
-      });
-      if (simResult.success && simResult.payment) {
-        finalPayment = simResult.payment;
-      }
-    }
+    const finalPayment = payment;
 
     const { headers } = await import("next/headers");
     const headersList = await headers();
@@ -386,7 +366,7 @@ export async function POST(request: NextRequest) {
 
     paymentUrl = resolveApiCheckoutUrl({
       requestedProvider: provider,
-      environment: environment as 'test' | 'live',
+      environment: 'live',
       paymentId: finalPayment.id,
       checkoutBaseUrl,
       processor: gatewayResult?.processor,

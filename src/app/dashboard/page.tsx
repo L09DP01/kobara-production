@@ -96,14 +96,9 @@ export default async function DashboardPage() {
   const usdMerchant = merchant as typeof merchant & {
     has_usd_account?: boolean;
     available_balance_usd?: number | string | null;
-    available_balance_usd_test?: number | string | null;
   };
-  const environment = merchant.current_environment || "test";
-  const availableBalanceUsd = Number(
-    environment === "test"
-      ? usdMerchant.available_balance_usd_test || 0
-      : usdMerchant.available_balance_usd || 0,
-  );
+  const environment = "live";
+  const availableBalanceUsd = Number(usdMerchant.available_balance_usd || 0);
 
   const { data: recentPayments } = await supabase
     .from("payments")
@@ -143,7 +138,7 @@ export default async function DashboardPage() {
   const apiSuccessRate = apiTotal > 0 ? ((apiSuccess / apiTotal) * 100).toFixed(1) : "0";
 
   const stats: DashboardStats = { recentPayments, succeededPayments, totalEncaisse, successRate, monthlyRevenue, webhooksTotal, webhooksSuccess, webhooksFailed, apiTotal, apiErrors, apiSuccessRate };
-  const soldeDisponible = environment === "test" ? Number(merchant.available_balance_test || 0) : Number(merchant.available_balance || 0);
+  const soldeDisponible = Number(merchant.available_balance || 0);
   const monthLabel = now.toLocaleDateString("fr-FR", { month: "long" });
 
   return (
@@ -151,8 +146,8 @@ export default async function DashboardPage() {
       <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
-            <span className={`h-2 w-2 rounded-full ${environment === "live" ? "bg-emerald-400" : "bg-amber-400"}`} />
-            Environnement {environment === "live" ? "Live" : "Test"}
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            Production
           </div>
           <h1 className="truncate text-2xl font-bold text-white sm:text-[28px]">{merchant.business_name}</h1>
           <p className="mt-1 text-sm text-slate-400">Pilotez vos encaissements et surveillez la santé de votre intégration.</p>

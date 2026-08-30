@@ -7,6 +7,40 @@ const deploymentId =
 const nextConfig = {
   deploymentId,
   poweredByHeader: false,
+  async redirects() {
+    return [
+      {
+        source: '/',
+        has: [{ type: 'host', value: 'docs.kobara.app' }],
+        destination: '/docs/quickstart',
+        permanent: false,
+      },
+      {
+        source: '/docs',
+        has: [{ type: 'host', value: 'kobara.app' }],
+        destination: 'https://docs.kobara.app/docs/quickstart',
+        permanent: true,
+      },
+      {
+        source: '/docs/:path*',
+        has: [{ type: 'host', value: 'kobara.app' }],
+        destination: 'https://docs.kobara.app/docs/:path*',
+        permanent: true,
+      },
+      {
+        source: '/docs',
+        has: [{ type: 'host', value: 'www.kobara.app' }],
+        destination: 'https://docs.kobara.app/docs/quickstart',
+        permanent: true,
+      },
+      {
+        source: '/docs/:path*',
+        has: [{ type: 'host', value: 'www.kobara.app' }],
+        destination: 'https://docs.kobara.app/docs/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

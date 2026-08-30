@@ -29,18 +29,28 @@ export async function GET() {
         // Synchroniser merchants.kyc_status
         await supabase
           .from('merchants')
-          .update({ kyc_status: 'approved', kyc_verified_at: new Date().toISOString() })
+          .update({ kyc_status: 'approved', kyc_verified_at: new Date().toISOString(), current_environment: 'live' })
           .eq('id', merchant.id);
       }
     }
 
-    const canUseLive = isApproved;
-    // Si approuvé, autoriser l'environnement choisi (ou live), sinon forcer test
-    const environment = canUseLive ? (merchant.current_environment || 'live') : 'test';
+    if (!isApproved) {
+      return NextResponse.json(
+        { error: 'kyc_required', message: 'La vérification KYC est requise pour accéder à Production.' },
+        { status: 403 }
+      );
+    }
+
+    if (merchant.current_environment !== 'live') {
+      await supabase
+        .from('merchants')
+        .update({ current_environment: 'live' })
+        .eq('id', merchant.id);
+    }
 
     return NextResponse.json({
-      environment,
-      canUseLive,
+      environment: 'live',
+      canUseLive: true,
       kycStatus: currentKycStatus
     });
   } catch (error) {
@@ -58,10 +68,11 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const requestedEnvironment = body.environment;
-
-    if (!['test', 'live'].includes(requestedEnvironment)) {
-      return NextResponse.json({ error: 'Invalid environment' }, { status: 400 });
+    if (body.environment && body.environment !== 'live') {
+      return NextResponse.json(
+        { error: 'production_only', message: 'Utilisez test.kobara.app pour le Sandbox.' },
+        { status: 400 }
+      );
     }
 
     const supabase = createAdminClient();
@@ -79,25 +90,24 @@ export async function POST(request: Request) {
         isApproved = true;
         await supabase
           .from('merchants')
-          .update({ kyc_status: 'approved', kyc_verified_at: new Date().toISOString() })
+          .update({ kyc_status: 'approved', kyc_verified_at: new Date().toISOString(), current_environment: 'live' })
           .eq('id', merchant.id);
       }
     }
 
-    if (requestedEnvironment === 'live' && !isApproved) {
+    if (!isApproved) {
       return NextResponse.json(
         { 
           error: 'kyc_required', 
-          message: 'Veuillez vérifier votre compte pour activer le Live Mode.' 
+          message: 'Veuillez vérifier votre compte pour accéder à Production.'
         }, 
         { status: 403 }
       );
     }
 
-    // Mettre à jour current_environment
     const { error: updateError } = await supabase
       .from('merchants')
-      .update({ current_environment: requestedEnvironment })
+      .update({ current_environment: 'live' })
       .eq('id', merchant.id);
 
     if (updateError) {
@@ -105,7 +115,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to update environment' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, environment: requestedEnvironment });
+    return NextResponse.json({ success: true, environment: 'live' });
   } catch (error) {
     console.error('Error in POST /api/dashboard/environment:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -36,6 +36,24 @@ export async function authenticateApiRequest(request: NextRequest) {
         return { merchantId: null, error: "API Key has been revoked" };
       }
 
+      if (keyRecord.environment !== 'live') {
+        return { merchantId: null, error: "Sandbox keys are not accepted by the Production API" };
+      }
+
+      const { data: merchant } = await supabaseAdmin
+        .from('merchants')
+        .select('kyc_status, status, account_access')
+        .eq('id', keyRecord.merchant_id)
+        .maybeSingle();
+
+      if (!merchant || merchant.kyc_status !== 'approved') {
+        return { merchantId: null, error: "KYC approval is required" };
+      }
+
+      if (merchant.status === 'suspended' || ['suspended', 'permanently_closed'].includes(merchant.account_access || '')) {
+        return { merchantId: null, error: "Merchant account is not active" };
+      }
+
       // Update last used timestamp (non-blocking)
       supabaseAdmin
         .from('api_keys')
@@ -47,7 +65,7 @@ export async function authenticateApiRequest(request: NextRequest) {
 
       return { 
         merchantId: keyRecord.merchant_id, 
-        environment: keyRecord.environment, 
+        environment: 'live' as const,
         error: null 
       };
     }
@@ -61,12 +79,12 @@ export async function authenticateApiRequest(request: NextRequest) {
     const supabaseAdmin = createAdminClient();
     const { data: merchant } = await supabaseAdmin
       .from('merchants')
-      .select('id, current_environment')
+      .select('id, kyc_status, status, account_access')
       .eq('user_id', user.id)
       .single();
       
-    if (merchant) {
-      return { merchantId: merchant.id, environment: merchant.current_environment || 'test', error: null };
+    if (merchant?.kyc_status === 'approved' && merchant.status !== 'suspended' && !['suspended', 'permanently_closed'].includes(merchant.account_access || '')) {
+      return { merchantId: merchant.id, environment: 'live' as const, error: null };
     }
   }
 

@@ -18,7 +18,7 @@ function getLiveDocsContext(): string {
       for (const file of files) {
         const slug = file.replace('.md', '');
         const content = fs.readFileSync(path.join(docsDir, file), 'utf8');
-        context += `[DOCUMENTATION: ${file} | URL: https://kobara.app/docs/${slug}]\n${content}\n\n`;
+        context += `[DOCUMENTATION: ${file} | URL: https://docs.kobara.app/docs/${slug}]\n${content}\n\n`;
       }
     }
 
@@ -53,17 +53,17 @@ Tu as accès à l'intégralité de la documentation et de la spécification Open
 
 3. LIENS DE RÉFÉRENCE DE LA DOCUMENTATION :
 À la fin de tes réponses techniques, inclus TOUJOURS les liens exacts vers la documentation Kobara correspondante :
-- Quickstart : https://kobara.app/docs/quickstart
-- Créer des paiements : https://kobara.app/docs/payments
-- Liens de paiement : https://kobara.app/docs/payment-links
-- Webhooks & Sécurité : https://kobara.app/docs/webhooks
-- Module WooCommerce / WordPress : https://kobara.app/docs/wordpress-plugin
-- SDK Node.js : https://kobara.app/docs/nodejs-sdk
-- SDK PHP : https://kobara.app/docs/php-sdk
-- SDK Python : https://kobara.app/docs/python-sdk
-- Clés API : https://kobara.app/docs/api-keys
-- Retraits : https://kobara.app/docs/withdrawals
-- Gestion des erreurs : https://kobara.app/docs/errors
+- Quickstart : https://docs.kobara.app/docs/quickstart
+- Créer des paiements : https://docs.kobara.app/docs/payments
+- Liens de paiement : https://docs.kobara.app/docs/payment-links
+- Webhooks & Sécurité : https://docs.kobara.app/docs/webhooks
+- Module WooCommerce / WordPress : https://docs.kobara.app/docs/wordpress-plugin
+- SDK Node.js : https://docs.kobara.app/docs/nodejs-sdk
+- SDK PHP : https://docs.kobara.app/docs/php-sdk
+- SDK Python : https://docs.kobara.app/docs/python-sdk
+- Clés API : https://docs.kobara.app/docs/api-keys
+- Retraits : https://docs.kobara.app/docs/withdrawals
+- Gestion des erreurs : https://docs.kobara.app/docs/errors
 
 4. LANGUES & TON :
 - Réponds avec clarté, pédagogie et professionnalisme en Français (ou en Créole Haïtien si l'utilisateur s'exprime en créole).
@@ -83,7 +83,7 @@ export class TelegramAiAssistant {
     if (!apiKey) {
       return (
         "Bonjour ! Notre assistant IA technique est temporairement indisponible.\n\n" +
-        "👉 Vous pouvez consulter la documentation officielle sur : https://kobara.app/docs\n" +
+        "👉 Vous pouvez consulter la documentation officielle sur : https://docs.kobara.app/docs/quickstart\n" +
         "🟢 Ou contacter notre support technique sur WhatsApp : +509 4003 5664 (https://wa.me/50940035664)"
       );
     }
@@ -106,7 +106,7 @@ export class TelegramAiAssistant {
       console.error('[TelegramAiAssistant] Gemini error:', error);
       return (
         "Désolé, une erreur est survenue lors de l'analyse de votre demande.\n\n" +
-        "👉 Consultez directement la documentation en ligne : https://kobara.app/docs\n" +
+        "👉 Consultez directement la documentation en ligne : https://docs.kobara.app/docs/quickstart\n" +
         "🟢 Ou contactez notre support WhatsApp : +509 4003 5664 (https://wa.me/50940035664)"
       );
     }

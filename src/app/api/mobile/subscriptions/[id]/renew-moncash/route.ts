@@ -21,7 +21,7 @@ export async function POST(
     const supabase = createAdminClient();
     const { data: merchant } = await supabase
       .from('merchants')
-      .select('id')
+      .select('id, kyc_status')
       .eq('user_id', userId)
       .single();
       
@@ -29,6 +29,7 @@ export async function POST(
     if (!merchantId) {
       return NextResponse.json({ error: "Profil marchand requis", code: "MERCHANT_REQUIRED" }, { status: 403 });
     }
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     // 2. Vérifier l'abonnement
     const { data: subscription, error: subError } = await supabase
@@ -65,6 +66,7 @@ export async function POST(
         status: 'pending',
         provider: 'moncash',
         payment_method: 'moncash',
+        environment: 'live',
         kobara_reference: reference,
         expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         success_url: returnUrl,
@@ -90,6 +92,7 @@ export async function POST(
         amount: subscription.amount_htg,
         reference,
         provider: 'moncash',
+        environment: 'live',
         description: `Renouvellement Abonnement Kobara - Plan ${subscription.plans?.name || ''}`,
         successUrl: returnUrl,
         cancelUrl: returnUrl,

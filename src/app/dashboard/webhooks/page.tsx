@@ -8,14 +8,14 @@ export default async function WebhooksPage() {
     .from('webhook_endpoints')
     .select('*')
     .eq('merchant_id', merchant.id)
-    .eq('environment', merchant.current_environment || 'test')
+    .eq('environment', 'live')
     .order('created_at', { ascending: false });
 
   const { data: events } = await supabase
     .from('webhook_events')
     .select('*')
     .eq('merchant_id', merchant.id)
-    .eq('environment', merchant.current_environment || 'test')
+    .eq('environment', 'live')
     .order('created_at', { ascending: false })
     .limit(50); // Fetch latest 50 logs for performance
 

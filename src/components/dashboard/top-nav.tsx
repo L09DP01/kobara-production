@@ -6,14 +6,12 @@ import { useRouter } from 'next/navigation';
 import { performFullLogout } from '@/lib/utils/logout-client';
 import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from './actions';
 import { siteConfig } from '@/config/site';
-import { useEnvironment } from '@/context/EnvironmentContext';
 
 export default function TopNav({ onToggleSidebar, merchant, user, initialNotifications = [], accessibleMerchants = [], userRole = 'owner' }: { onToggleSidebar: () => void, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string }) {
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>(initialNotifications);
-  const { currentEnvironment, setEnvironment, canUseLive, isLoading } = useEnvironment();
   
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -90,32 +88,6 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
             className="h-auto w-24 object-contain"
           />
         </a>
-
-        {/* Environment Switcher */}
-        {!isLoading && (
-          <div className="ml-2 hidden items-center gap-1 rounded-lg border border-[#2B3A51] bg-[#0D1828] p-1 sm:flex">
-            <button 
-              onClick={() => currentEnvironment === 'live' && setEnvironment('test')}
-              className={`flex min-h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold transition-colors duration-150 ${currentEnvironment === 'test' ? 'bg-[#253247] text-white' : 'text-slate-400 hover:text-white'}`}
-            >
-              <span className={`w-1.5 h-1.5 rounded-full ${currentEnvironment === 'test' ? 'bg-orange-500' : 'bg-transparent'}`}></span>
-              Test
-            </button>
-            <button 
-              onClick={() => currentEnvironment === 'test' && canUseLive && setEnvironment('live')}
-              disabled={!canUseLive}
-              title={!canUseLive ? "Vérifiez votre compte pour activer le mode Live" : ""}
-              className={`min-h-8 rounded-md px-3 text-xs font-bold transition-colors duration-150 ${currentEnvironment === 'live' ? 'bg-[#253247] text-white' : 'text-slate-400 hover:text-white'} ${!canUseLive ? 'cursor-not-allowed opacity-50' : ''}`}
-            >
-              Live
-            </button>
-            {!canUseLive && currentEnvironment === 'test' && (
-              <Link href="/kyc" className="ml-1 text-[10px] bg-red-50 text-red-600 px-2 py-0.5 rounded-full font-bold hover:bg-red-100 transition-colors">
-                KYC Requis
-              </Link>
-            )}
-          </div>
-        )}
 
       </div>
       
@@ -254,29 +226,6 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                   </div>
                 )}
                 
-                {!isLoading && (
-                  <div className="sm:hidden px-3 py-2 border-b border-border-subtle mb-2">
-                    <div className="flex items-center justify-between bg-surface-container-lowest px-3 py-2 rounded-xl border border-border-subtle shadow-sm mb-1">
-                      <span className={`text-xs font-bold ${currentEnvironment === 'test' ? 'text-amber-600' : 'text-text-secondary'}`}>Test</span>
-                      <button 
-                        onClick={() => setEnvironment(currentEnvironment === 'test' ? 'live' : 'test')}
-                        disabled={!canUseLive}
-                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${!canUseLive ? 'opacity-50 cursor-not-allowed bg-gray-300' : (currentEnvironment === 'live' ? 'bg-status-success' : 'bg-amber-500')}`}
-                      >
-                        <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${currentEnvironment === 'live' ? 'translate-x-4' : 'translate-x-1'}`} />
-                      </button>
-                      <span className={`text-xs font-bold ${currentEnvironment === 'live' ? 'text-status-success' : 'text-text-secondary'}`}>Live</span>
-                    </div>
-                    {!canUseLive && currentEnvironment === 'test' && (
-                      <div className="text-center mb-1">
-                        <Link href="/kyc" className="text-[10px] bg-status-error/10 text-status-error px-2 py-0.5 rounded-full font-bold hover:bg-status-error/20 transition-colors">
-                          KYC Requis pour Live
-                        </Link>
-                      </div>
-                    )}
-                  </div>
-                )}
-                
                 <div className="flex flex-col px-2">
                   <Link href="/settings" className="px-3 py-2 text-body-sm text-text-primary hover:bg-surface-container-low rounded-lg transition-colors flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px]">account_circle</span>
@@ -288,7 +237,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                       Plan Actuel
                     </div>
                     <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">
-                      {merchant?.plan_slug === 'test_only' ? 'TEST' : (merchant?.plan_slug || 'TEST')}
+                      {merchant?.plan_slug || 'FREE'}
                     </span>
                   </Link>
                   <Link href="/billing" className="px-3 py-2 text-xs text-primary hover:bg-primary/5 rounded-lg transition-colors flex items-center gap-2 font-medium">

@@ -8,7 +8,7 @@ export default async function AdminWithdrawalsPage() {
 
   const { data: withdrawals } = await supabase
     .from('withdrawals')
-    .select(`*, merchants ( business_name, email, available_balance, available_balance_test )`)
+    .select(`*, merchants ( business_name, email, available_balance )`)
     .eq('environment', 'live')
     .order('created_at', { ascending: false });
 

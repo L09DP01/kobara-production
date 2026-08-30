@@ -3,14 +3,12 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useEnvironment } from '@/context/EnvironmentContext';
 
 export function PaymentsFilter({ exportButton }: { exportButton?: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get('q') || '');
   const status = searchParams.get('status') || 'all';
-  const { currentEnvironment, setEnvironment, canUseLive } = useEnvironment();
 
   const updateFilters = (newQ: string, newStatus: string) => {
     const params = new URLSearchParams();
@@ -92,18 +90,6 @@ export function PaymentsFilter({ exportButton }: { exportButton?: React.ReactNod
         </button>
       </div>
 
-      {/* Mobile Environment Switcher */}
-      <div className="sm:hidden flex items-center justify-between bg-surface-container-low px-4 py-3 rounded-xl border border-border-subtle shadow-sm mt-2">
-        <span className={`text-sm font-bold ${currentEnvironment === 'test' ? 'text-amber-600' : 'text-text-secondary'}`}>Mode Test</span>
-        <button 
-          onClick={() => setEnvironment(currentEnvironment === 'test' ? 'live' : 'test')}
-          disabled={!canUseLive}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${!canUseLive ? 'opacity-50 cursor-not-allowed bg-gray-300' : (currentEnvironment === 'live' ? 'bg-status-success' : 'bg-amber-500')}`}
-        >
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${currentEnvironment === 'live' ? 'translate-x-6' : 'translate-x-1'}`} />
-        </button>
-        <span className={`text-sm font-bold ${currentEnvironment === 'live' ? 'text-status-success' : 'text-text-secondary'}`}>Mode Live</span>
-      </div>
     </div>
   );
 }

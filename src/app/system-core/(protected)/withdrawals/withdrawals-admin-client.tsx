@@ -173,9 +173,6 @@ export function AdminWithdrawalsClient({
                 <td className="px-5 py-4">
                   <div className="font-mono text-slate-200 text-xs">{w.kobara_reference || w.id.split('-')[0] + '...'}</div>
                   <div className="text-[10px] text-slate-500 mt-0.5">{new Date(w.created_at).toLocaleString('fr-FR')}</div>
-                  {w.environment === 'test' && (
-                    <span className="text-[9px] bg-yellow-500/10 text-yellow-400 px-1 rounded border border-yellow-500/20">TEST</span>
-                  )}
                 </td>
                 <td className="px-5 py-4">
                   <div className="font-semibold text-slate-300">{w.merchants?.business_name || 'Unknown'}</div>

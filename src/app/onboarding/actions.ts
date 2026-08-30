@@ -1,7 +1,6 @@
 'use server'
 
 import { createAdminClient } from "@/utils/supabase/admin";
-import { ApiKeySecurity } from "@/lib/server/security/api-keys";
 import { auth } from "@/auth";
 import {
   BUSINESS_NAME_TAKEN_MESSAGE,
@@ -101,46 +100,6 @@ export async function completeOnboarding(formData: {
     console.error("Erreur onboarding:", error);
     if (isBusinessNameConflict(error)) return { error: BUSINESS_NAME_TAKEN_MESSAGE };
     return { error: "Erreur lors de la configuration du profil marchand. " + error.message };
-  }
-
-  // 4. Generate default API keys for the merchant if they don't already exist
-  const { data: merchant } = await supabase
-    .from('merchants')
-    .select('id')
-    .eq('user_id', user.id)
-    .single();
-
-  if (merchant) {
-    // Check if keys already exist
-    const { count: keysCount } = await supabase
-      .from('api_keys')
-      .select('id', { count: 'exact', head: true })
-      .eq('merchant_id', merchant.id);
-
-    if (!keysCount || keysCount === 0) {
-      // Generate Test Key
-      const { rawKey: testKeyRaw, keyHash: testKeyHash } = ApiKeySecurity.generateKey("kbr_sk_test_");
-      
-      // Generate Live Key
-      const { rawKey: liveKeyRaw, keyHash: liveKeyHash } = ApiKeySecurity.generateKey("kbr_sk_live_");
-
-      await supabase.from('api_keys').insert([
-        { 
-          merchant_id: merchant.id, 
-          name: 'Clé Test par défaut', 
-          prefix: 'kbr_sk_test_', 
-          key_hash: testKeyHash, 
-          environment: 'test' 
-        },
-        { 
-          merchant_id: merchant.id, 
-          name: 'Clé Live par défaut', 
-          prefix: 'kbr_sk_live_', 
-          key_hash: liveKeyHash, 
-          environment: 'live' 
-        }
-      ]);
-    }
   }
 
   return { success: true };

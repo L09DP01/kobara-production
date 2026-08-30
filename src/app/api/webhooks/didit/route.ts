@@ -237,6 +237,7 @@ export async function POST(req: NextRequest) {
             account_access: 'active',
             kyc_status: 'approved',
             kyc_verified_at: new Date().toISOString(),
+            current_environment: 'live',
           })
           .eq('id', merchantId);
 

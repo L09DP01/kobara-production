@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sendWelcomeEmail, sendPasswordResetEmail } from '@/lib/server/mail'
+import { getMaintenanceState } from '@/lib/server/maintenance'
+import { isMaintenanceActive } from '@/lib/maintenance-state'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import dns from 'dns'
@@ -29,6 +31,9 @@ async function checkMxRecords(domain: string): Promise<boolean> {
 }
 
 export async function signup(formData: FormData) {
+  const maintenance = await getMaintenanceState();
+  if (isMaintenanceActive(maintenance)) redirect('/maintenance');
+
   // Rate limiting by real client IP
   const { headers } = await import('next/headers');
   const headersList = await headers();

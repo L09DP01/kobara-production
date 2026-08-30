@@ -118,7 +118,7 @@ async function scheduleEmailSend<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function sendEmailCore(
-  { to, subject, html, text }: { to: string; subject: string; html: string; text: string },
+  { to, subject, html, text, replyTo }: { to: string; subject: string; html: string; text: string; replyTo?: string },
 ): Promise<{ success: boolean; error?: string }> {
   const separator = "─".repeat(56);
   console.log(`
@@ -143,7 +143,8 @@ async function sendEmailCore(
     to: [to],
     subject: subject,
     html: html,
-    text: text
+    text: text,
+    ...(replyTo ? { reply_to: replyTo } : {}),
   };
 
   const maxRetries = 4;
@@ -190,11 +191,12 @@ async function sendEmailCore(
 
       console.error(`[RESEND ERROR] Échec de l'envoi à ${to} (${status}) :`, providerMessage);
       return { success: false, error: `Service e-mail indisponible (${status})` };
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erreur réseau inconnue';
       if (attempt < maxRetries) {
         const delayMs = 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 300);
         console.warn(
-          `⚠️ [RESEND NETWORK ERROR] Exception réseau pour ${to}. Tentative ${attempt}/${maxRetries} dans ${delayMs}ms... ${error.message}`
+          `⚠️ [RESEND NETWORK ERROR] Exception réseau pour ${to}. Tentative ${attempt}/${maxRetries} dans ${delayMs}ms... ${errorMessage}`
         );
         await sleep(delayMs);
         continue;
@@ -303,10 +305,84 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
 }
 
 // Fonction générique (pour la rétrocompatibilité)
-export async function sendEmail({ to, subject, html, text }: { to: string; subject: string; html?: string; text: string }) {
+export async function sendEmail({ to, subject, html, text, replyTo }: { to: string; subject: string; html?: string; text: string; replyTo?: string }) {
   const generatedHtml = html || renderEmailTemplate({
     subject,
     paragraphs: text.split('\n\n').filter(p => p.trim() !== '')
   });
-  return sendEmailCore({ to, subject, html: generatedHtml, text });
+  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo });
+}
+
+export async function sendBulkEmail({
+  recipients,
+  subject,
+  text,
+  html,
+  idempotencyKey,
+}: {
+  recipients: string[];
+  subject: string;
+  text: string;
+  html?: string;
+  idempotencyKey: string;
+}) {
+  const emails = [...new Set(recipients.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+  const generatedHtml = html || renderEmailTemplate({
+    subject,
+    paragraphs: text.split('\n\n').filter((paragraph) => paragraph.trim() !== ''),
+  });
+
+  if (!process.env.RESEND_API_KEY) {
+    return process.env.NODE_ENV === 'production'
+      ? { sent: 0, failed: emails.length, errors: ['Service e-mail non configuré'] }
+      : { sent: emails.length, failed: 0, errors: [] };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  const errors: string[] = [];
+  const from = process.env.RESEND_FROM_EMAIL || 'Kobara <noreply@kobara.app>';
+
+  for (let offset = 0; offset < emails.length; offset += 100) {
+    const batch = emails.slice(offset, offset + 100);
+    const batchNumber = Math.floor(offset / 100) + 1;
+    let delivered = false;
+
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        const response = await scheduleEmailSend(() => fetch('https://api.resend.com/emails/batch', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `${idempotencyKey}-${batchNumber}`.slice(0, 256),
+          },
+          body: JSON.stringify(batch.map((to) => ({ from, to: [to], subject, html: generatedHtml, text }))),
+        }));
+
+        if (response.ok) {
+          sent += batch.length;
+          delivered = true;
+          break;
+        }
+
+        const providerMessage = await response.text();
+        if ((response.status === 429 || response.status >= 500) && attempt < 4) {
+          await sleep(500 * Math.pow(2, attempt - 1));
+          continue;
+        }
+        errors.push(`Lot ${batchNumber}: ${response.status} ${providerMessage.slice(0, 180)}`);
+      } catch (error) {
+        if (attempt < 4) {
+          await sleep(500 * Math.pow(2, attempt - 1));
+          continue;
+        }
+        errors.push(`Lot ${batchNumber}: ${error instanceof Error ? error.message : 'Erreur réseau'}`);
+      }
+    }
+
+    if (!delivered) failed += batch.length;
+  }
+
+  return { sent, failed, errors };
 }

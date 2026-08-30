@@ -23,12 +23,16 @@ export async function POST(req: NextRequest) {
     // 1. Récupérer le marchand
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from('merchants')
-      .select('id, email, current_environment, paypal_enabled, has_usd_account')
+      .select('id, email, kyc_status, paypal_enabled, has_usd_account')
       .eq('user_id', userId)
       .single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Marchand introuvable" }, { status: 404 });
+    }
+
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
     }
 
     // 2. Vérifier les limites de forfait / KYC
@@ -62,8 +66,6 @@ export async function POST(req: NextRequest) {
       }, { status: 403 });
     }
 
-    const isTest = merchant.current_environment === 'test';
-
     // 3. Exécution via le service unifié atomique
     const result = await WithdrawalService.processWithdrawal({
       merchantId: merchant.id,
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
       sourceCurrency,
       receiver: reference,
       idempotencyKey: idempotency_key,
-      environment: isTest ? 'test' : 'live',
+      environment: 'live',
       description: 'Retrait Kobara (Mobile)',
     });
 

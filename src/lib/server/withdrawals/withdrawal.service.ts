@@ -43,7 +43,7 @@ export const WithdrawalService = {
       sourceCurrency = 'HTG',
       receiver,
       idempotencyKey,
-      environment = 'test',
+      environment = 'live',
       description = 'Retrait Kobara',
     } = params;
 

@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
-import { simulateTestPayment } from "./actions";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { CheckoutFormClient } from "./CheckoutFormClient";
 import { PaymentProcessingLoader } from "@/components/payments/PaymentProcessingLoader";
@@ -27,7 +26,7 @@ export default async function UnifiedCheckoutPage({
     .eq('id', resolvedParams.paymentId)
     .single();
 
-  if (!payment) {
+  if (!payment || payment.environment !== 'live') {
     notFound();
   }
 
@@ -138,36 +137,16 @@ export default async function UnifiedCheckoutPage({
 
         <section className="rounded-lg border border-white/10 bg-[#101827] p-4 sm:p-6">
 
-          {payment.environment === 'test' ? (
-            <form action={simulateTestPayment} className="space-y-5">
-              <input type="hidden" name="paymentId" value={payment.id} />
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
-                <span className="material-symbols-outlined text-blue-400 text-3xl mb-2">science</span>
-                <h3 className="text-blue-400 font-bold mb-1">Mode Test Activé</h3>
-                <p className="text-slate-400 text-sm mb-4">
-                  Aucun appel API réel ne sera effectué. Vous pouvez simuler le succès de ce paiement.
-                </p>
-                <button 
-                  type="submit"
-                  className="w-full bg-blue-500 text-white py-3 rounded-lg font-body-base font-bold hover:bg-blue-600 transition-colors shadow-md flex justify-center items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-[20px]">check_circle</span>
-                  Valider le paiement test
-                </button>
-              </div>
-            </form>
-          ) : (
-            <CheckoutFormClient 
-              paymentId={payment.id} 
-              config={providerConfig} 
-              allowCardPayment={allowCardPayment}
-              amountHtg={Number(payment.amount)}
-              initialMethod={resolvedSearchParams.method}
-              defaultName={payment.metadata?.customer_name || payment.metadata?.name || ''}
-              defaultEmail={payment.metadata?.customer_email || payment.metadata?.email || ''}
-              defaultPhone={payment.metadata?.phone || payment.metadata?.customer_phone || ''}
-            />
-          )}
+          <CheckoutFormClient
+            paymentId={payment.id}
+            config={providerConfig}
+            allowCardPayment={allowCardPayment}
+            amountHtg={Number(payment.amount)}
+            initialMethod={resolvedSearchParams.method}
+            defaultName={payment.metadata?.customer_name || payment.metadata?.name || ''}
+            defaultEmail={payment.metadata?.customer_email || payment.metadata?.email || ''}
+            defaultPhone={payment.metadata?.phone || payment.metadata?.customer_phone || ''}
+          />
         </section>
         <p className="mt-4 flex items-center justify-center gap-2 text-center text-[11px] text-slate-500"><ShieldCheck className="h-4 w-4 text-emerald-400" /> Paiement chiffré et sécurisé</p>
       </div>

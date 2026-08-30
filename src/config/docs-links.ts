@@ -1,4 +1,4 @@
-const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kobara.app";
+const appUrl = "https://docs.kobara.app";
 
 export const docsLinks = {
   quickstart: `${appUrl}/docs/quickstart`,

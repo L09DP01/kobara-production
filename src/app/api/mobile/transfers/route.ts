@@ -19,24 +19,26 @@ export async function POST(req: NextRequest) {
     // 1. Get sender merchant ID
     const { data: sender, error: senderError } = await supabaseAdmin
       .from('merchants')
-      .select('id')
+      .select('id, kyc_status')
       .eq('user_id', userId)
       .single();
 
     if (senderError || !sender) {
       return NextResponse.json({ error: "Marchand expéditeur introuvable" }, { status: 404 });
     }
+    if (sender.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     // 2. Get recipient email from recipientId (RPC process_b2b_transfer expects email)
     const { data: recipient, error: recipientError } = await supabaseAdmin
       .from('merchants')
-      .select('email')
+      .select('email, kyc_status')
       .eq('id', recipientId)
       .single();
 
     if (recipientError || !recipient) {
       return NextResponse.json({ error: "Marchand destinataire introuvable" }, { status: 404 });
     }
+    if (recipient.kyc_status !== 'approved') return NextResponse.json({ error: "Le destinataire ne peut pas recevoir de transfert." }, { status: 403 });
 
     // 3. Call the RPC function process_b2b_transfer
     const { data: result, error: rpcError } = await supabaseAdmin.rpc('process_b2b_transfer', {

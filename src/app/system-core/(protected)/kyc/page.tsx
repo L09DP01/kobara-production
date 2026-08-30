@@ -119,6 +119,7 @@ export default async function AdminKYCPage() {
     await adminClient.from('merchants').update({ 
       kyc_status: 'approved',
       kyc_verified_at: new Date().toISOString(),
+      current_environment: 'live',
     }).eq('id', merchantId);
 
     await adminClient.from('kyc_events').insert({

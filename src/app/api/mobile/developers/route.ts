@@ -8,8 +8,9 @@ export async function GET(req: NextRequest) {
     if (errorResponse) return errorResponse;
     if (!payload || !payload.sub) return NextResponse.json({ error: "Token invalide." }, { status: 401 });
 
-    const { data: merchant } = await supabaseAdmin.from('merchants').select('id').eq('user_id', payload.sub).single();
+    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub).single();
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     const { data: members, error } = await supabaseAdmin
       .from('merchant_members')
@@ -33,8 +34,9 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, role, name } = body;
 
-    const { data: merchant } = await supabaseAdmin.from('merchants').select('id').eq('user_id', payload.sub).single();
+    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub).single();
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     // Since we don't have a full invite system implemented in this route, we'll insert a member with status pending
     // Let's check if the table has a status column. For now we assume 'invited' or 'pending'.
@@ -69,8 +71,9 @@ export async function DELETE(req: NextRequest) {
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ID manquant." }, { status: 400 });
 
-    const { data: merchant } = await supabaseAdmin.from('merchants').select('id').eq('user_id', payload.sub as string).single();
+    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub as string).single();
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
     const { error } = await supabaseAdmin
       .from('merchant_members')

@@ -27,12 +27,13 @@ export async function POST(
     const supabase = createAdminClient();
     const { data: merchant } = await supabase
       .from('merchants')
-      .select('id')
+      .select('id, kyc_status')
       .eq('user_id', userId)
       .single();
     if (!merchant) {
       return NextResponse.json({ error: 'Profil marchand requis', code: 'MERCHANT_REQUIRED' }, { status: 403 });
     }
+    if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: 'Verification KYC requise.', code: 'KYC_REQUIRED' }, { status: 403 });
 
     const { data: subscription, error: subscriptionError } = await supabase
       .from('subscriptions')
@@ -74,6 +75,7 @@ export async function POST(
         status: 'pending',
         provider: 'natcash',
         payment_method: 'natcash',
+        environment: 'live',
         kobara_reference: reference,
         expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         success_url: returnUrl,
@@ -93,6 +95,7 @@ export async function POST(
           amount,
           reference,
           provider: 'natcash',
+          environment: 'live',
           description: `Renouvellement Abonnement Kobara - Plan ${subscription.plans?.name || ''}`,
           successUrl: returnUrl,
           cancelUrl: returnUrl,

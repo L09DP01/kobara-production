@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 
 function getCurrentEnvironment(merchant: { current_environment?: string | null }) {
-  return merchant.current_environment === 'live' ? 'live' as const : 'test' as const;
+  return 'live' as const;
 }
 
 function normalizeWebhookUrl(value: string) {

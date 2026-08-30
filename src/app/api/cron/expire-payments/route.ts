@@ -26,6 +26,7 @@ export async function GET(request: Request) {
     const { data: expiredPayments, error: fetchError } = await supabaseAdmin
       .from('payments')
       .select('id, merchant_id, kobara_reference, amount, net_amount, currency, environment')
+      .eq('environment', 'live')
       .eq('status', 'pending')
       .lt('created_at', yesterday.toISOString());
 
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
 
     await Promise.allSettled(paymentsToNotify.map(payment => dispatchMerchantWebhook({
       merchantId: payment.merchant_id,
-      environment: payment.environment === 'live' ? 'live' : 'test',
+      environment: 'live',
       eventType: 'payment.failed',
       data: {
         id: payment.id,

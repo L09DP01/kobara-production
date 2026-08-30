@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { requestWithdrawal, sendWithdrawalOtpAction } from './actions';
 import { executeB2BTransfer } from './b2b-actions';
-import { useEnvironment } from '@/context/EnvironmentContext';
 import { QRCodeSVG } from 'qrcode.react';
 import { calculateWithdrawalQuote } from '@/lib/withdrawal-currency';
 
@@ -56,15 +55,8 @@ export function WithdrawalsClient({
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const { currentEnvironment } = useEnvironment();
-
-  const isTest = currentEnvironment === 'test';
-  const activeHtgBalance = isTest
-    ? Number(merchant.available_balance_test || 0)
-    : Number(merchant.available_balance || 0);
-  const activeUsdBalance = isTest
-    ? Number(merchant.available_balance_usd_test || 0)
-    : Number(merchant.available_balance_usd || 0);
+  const activeHtgBalance = Number(merchant.available_balance || 0);
+  const activeUsdBalance = Number(merchant.available_balance_usd || 0);
   const isUsdMethod = method === 'Zelle' || method === 'PayPal';
   const selectedCurrency = accountCurrency;
   const activeBalance = accountCurrency === 'USD' ? activeUsdBalance : activeHtgBalance;
@@ -105,34 +97,13 @@ export function WithdrawalsClient({
 
     try {
       setLoading(true);
-      // Skip OTP for test environment
-      if (isTest) {
-        let res;
-        if (method === 'B2B') {
-          res = await executeB2BTransfer(Number(amount), receiver, undefined);
-        } else {
-          res = await requestWithdrawal(Number(amount), method, receiver, undefined, accountCurrency, saveNumber);
+      if (twoFactorMethod === 'email' || twoFactorMethod === 'none') {
+        const otpRes = await sendWithdrawalOtpAction(Number(amount), method);
+        if (otpRes?.error) {
+          throw new Error(otpRes.error);
         }
-
-        if (res?.error) throw new Error(res.error);
-
-        setIsModalOpen(false);
-        setStep('details');
-        setAmount('');
-        setReceiver('');
-        setCode2fa('');
-        setSuccessMsg("Simulation de retrait réussie !");
-        setTimeout(() => setSuccessMsg(''), 5000);
-      } else {
-        // For email OTP, trigger the withdrawal-specific email OTP
-        if (twoFactorMethod === 'email' || twoFactorMethod === 'none') {
-          const otpRes = await sendWithdrawalOtpAction(Number(amount), method);
-          if (otpRes?.error) {
-            throw new Error(otpRes.error);
-          }
-        }
-        setStep('otp');
       }
+      setStep('otp');
     } catch (err: any) {
       setErrorMsg(err.message || "Impossible d'envoyer le code de vérification.");
     } finally {
@@ -144,7 +115,7 @@ export function WithdrawalsClient({
     e.preventDefault();
     setErrorMsg('');
 
-    if (!code2fa && !isTest) {
+    if (!code2fa) {
       setErrorMsg("Veuillez saisir le code de sécurité.");
       return;
     }

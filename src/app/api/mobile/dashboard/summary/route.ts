@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     // 2. Fetch Merchant Profile
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, user_id, business_name, business_slug, logo_url, email, phone, address, category, status, kyc_status, plan_slug, available_balance, available_balance_test, available_balance_usd, available_balance_usd_test, pending_balance, current_environment, paypal_enabled, has_usd_account")
+      .select("id, user_id, business_name, business_slug, logo_url, email, phone, address, category, status, kyc_status, plan_slug, available_balance, available_balance_usd, pending_balance, paypal_enabled, has_usd_account")
       .eq("user_id", userId)
       .single();
 
@@ -33,15 +33,18 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const environment = merchant.current_environment || 'test';
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({
+        error: "La verification KYC est requise pour acceder au tableau de bord.",
+        code: "KYC_REQUIRED",
+      }, { status: 403 });
+    }
+
+    const environment = 'live';
     const subscriptionAccess = await getMerchantSubscriptionEntitlement(merchant.id);
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
-    const availableBalanceHtg = merchant.current_environment === 'test'
-      ? Number(merchant.available_balance_test || 0)
-      : Number(merchant.available_balance || 0);
-    const availableBalanceUsd = merchant.current_environment === 'test'
-      ? Number(merchant.available_balance_usd_test || 0)
-      : Number(merchant.available_balance_usd || 0);
+    const availableBalanceHtg = Number(merchant.available_balance || 0);
+    const availableBalanceUsd = Number(merchant.available_balance_usd || 0);
     const balances: Record<string, number> = { HTG: availableBalanceHtg };
     if (usdAccount.isActive) balances.USD = availableBalanceUsd;
 

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const { data: merchant, error: merchantError } = await supabaseAdmin
       .from("merchants")
-      .select("id, available_balance, available_balance_test, current_environment")
+      .select("id, available_balance, kyc_status")
       .eq("user_id", userId)
       .single();
 
@@ -23,9 +23,11 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
     }
 
-    const environment = merchant.current_environment || 'test';
-    const isTest = environment === 'test';
-    const balance = Number(isTest ? merchant.available_balance_test : merchant.available_balance);
+    if (merchant.kyc_status !== 'approved') {
+      return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
+    }
+
+    const balance = Number(merchant.available_balance);
 
     const { data: subscription, error: subError } = await supabaseAdmin
       .from('subscriptions')
@@ -42,10 +44,6 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     if (balance < amountHTG) {
       return NextResponse.json({ error: "Solde insuffisant pour renouveler l'abonnement." }, { status: 400 });
-    }
-
-    if (isTest) {
-      return NextResponse.json({ error: "Le renouvellement d’un abonnement réel utilise le solde Live." }, { status: 400 });
     }
 
     const { data: renewed, error: renewalError } = await supabaseAdmin.rpc('renew_subscription_from_balance', {

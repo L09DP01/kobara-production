@@ -212,7 +212,7 @@ export const translations = {
         recentActivity: "Activité récente",
         activeLinks: "Liens actifs",
         chartLabel: "Volume des paiements (HTG)",
-        verifyBanner: "Votre compte marchand est en cours de validation. Les fonctionnalités restent opérationnelles en mode Sandbox.",
+        verifyBanner: "Votre compte marchand est en cours de validation. Le tableau de bord Production sera accessible après approbation.",
       },
       payments: {
         title: "Paiements",
@@ -586,7 +586,7 @@ export const translations = {
         recentActivity: "Recent Activity",
         activeLinks: "Active Links",
         chartLabel: "Payment Volume (HTG)",
-        verifyBanner: "Your merchant account is currently pending validation. Features remain operational in Sandbox mode.",
+        verifyBanner: "Your merchant account is pending validation. The Production dashboard will become available after approval.",
       },
       payments: {
         title: "Payments",
@@ -960,7 +960,7 @@ export const translations = {
         recentActivity: "Dènye aktivite",
         activeLinks: "Lyen ki aktif",
         chartLabel: "Volim peman yo (HTG)",
-        verifyBanner: "Kont machann ou an ap tann validasyon. Fonksyonalite yo rete disponib nan mòd Sandbox.",
+        verifyBanner: "Kont machann ou an ap tann validasyon. W ap jwenn akse nan tablo Production lan apre apwobasyon.",
       },
       payments: {
         title: "Peman yo",

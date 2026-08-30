@@ -142,9 +142,7 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
               </div>
               <div>
                 <div className="text-xs text-slate-500 mb-1">CURRENT MODE</div>
-                <div className={`font-bold uppercase ${merchant.current_environment === 'live' ? 'text-green-400' : 'text-purple-400'}`}>
-                  {merchant.current_environment || 'test'}
-                </div>
+                <div className="font-bold uppercase text-green-400">PRODUCTION</div>
               </div>
             </div>
           </div>

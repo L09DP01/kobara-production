@@ -31,8 +31,7 @@ export async function executeB2BTransfer(amount: number, receiverEmail: string, 
     return { error: 'Accès refusé.' };
   }
 
-  const isTest = merchant.current_environment === 'test';
-  const activeBalance = isTest ? Number(merchant.available_balance_test || 0) : Number(merchant.available_balance || 0);
+  const activeBalance = Number(merchant.available_balance || 0);
 
   if (amount > activeBalance) {
     return { error: "Solde insuffisant pour ce transfert." };
@@ -42,8 +41,8 @@ export async function executeB2BTransfer(amount: number, receiverEmail: string, 
     return { error: "Le montant minimum est de 1 HTG." };
   }
 
-  // 2FA Verification (Uniquement en mode Live)
-  if (!isTest) {
+  // 2FA Verification
+  {
     const { data: settings, error: settingsError } = await supabase
       .from('settings')
       .select('security_json')
@@ -125,7 +124,7 @@ export async function executeB2BTransfer(amount: number, receiverEmail: string, 
     p_sender_id: merchant.id,
     p_receiver_email: receiverEmail,
     p_amount: amount,
-    p_environment: merchant.current_environment || 'test'
+    p_environment: 'live'
   });
 
   if (rpcError) {

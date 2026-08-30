@@ -636,13 +636,13 @@ L'équipe de sécurité Kobara — https://kobara.app
         await this.updateSessionState(chatId, {});
         await TelegramClient.sendMessage(
           chatId,
-          `🤖 <b>Assistant Kobara :</b>\n\nPour toute assistance immédiate, vous pouvez consulter notre documentation sur https://kobara.app/docs ou joindre directement notre équipe technique sur WhatsApp au +509 4003 5664.`,
+          `🤖 <b>Assistant Kobara :</b>\n\nPour toute assistance immédiate, vous pouvez consulter notre documentation sur https://docs.kobara.app/docs/quickstart ou joindre directement notre équipe technique sur WhatsApp au +509 4003 5664.`,
           {
             parse_mode: 'HTML',
             reply_markup: {
               inline_keyboard: [
                 [{ text: '🟢 Support WhatsApp', url: 'https://wa.me/50940035664?text=Bonjour,%20j%27ai%20besoin%20d%27aide%20avec%20Kobara' }],
-                [{ text: '🌐 Documentation', url: 'https://kobara.app/docs' }],
+                [{ text: '🌐 Documentation', url: 'https://docs.kobara.app/docs/quickstart' }],
               ],
             },
           }
@@ -1325,7 +1325,7 @@ Cliquez ci-dessous pour effectuer votre paiement sur <b>${methodName}</b>. Dès 
             [{ text: '🤖 Poser une question à l\'IA', callback_data: 'action:ask_ai' }],
             [{ text: '🟢 Contacter le Support WhatsApp', url: 'https://wa.me/50940035664?text=Bonjour,%20j%27ai%20besoin%20d%27aide%20avec%20mon%20compte%20Kobara' }],
             [{ text: '📢 Rejoindre le Forum / Canal Telegram', url: 'https://t.me/KobaraCommunity' }],
-            [{ text: '🌐 Documentation API', url: 'https://kobara.app/docs' }],
+            [{ text: '🌐 Documentation API', url: 'https://docs.kobara.app/docs/quickstart' }],
             [{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }],
           ],
         },

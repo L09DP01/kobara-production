@@ -83,7 +83,7 @@ export function Footer() {
             <h4 className="text-white font-bold mb-6">Ressources</h4>
             <ul className="space-y-4">
               {[
-                { name: t("nav.documentation"), href: '/docs' },
+                { name: t("nav.documentation"), href: 'https://docs.kobara.app/docs/quickstart' },
                 { name: t("nav.login"), href: '/login' },
                 { name: t("nav.signup"), href: '/register' }
               ].map((item, i) => (

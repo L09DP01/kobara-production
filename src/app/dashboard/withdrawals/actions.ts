@@ -81,10 +81,8 @@ export async function requestWithdrawal(
     return { error: "Accès refusé aux retraits." };
   }
 
-  const isTest = merchant.current_environment === 'test';
-
-  // 2FA Verification (Uniquement en mode Live)
-  if (!isTest) {
+  // 2FA Verification
+  {
     const { data: settings, error: settingsError } = await supabase
       .from('settings')
       .select('security_json')
@@ -152,7 +150,7 @@ export async function requestWithdrawal(
     method,
     sourceCurrency: normalizedSourceCurrency,
     receiver,
-    environment: isTest ? 'test' : 'live',
+    environment: 'live',
     description: 'Retrait Kobara',
   });
 

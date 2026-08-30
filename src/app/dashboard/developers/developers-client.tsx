@@ -1,10 +1,8 @@
 'use client'
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { kobaraSdks } from '@/config/sdks';
 import { docsLinks } from '@/config/docs-links';
-import { ApiPlayground } from '@/components/dashboard/api-playground';
 
 const KOBARA_AI_PROMPT = `# Integrate Kobara Payments Into My Application
 
@@ -18,31 +16,31 @@ Before analyzing my project or generating any code:
 
 Visit and analyze the Kobara documentation:
 
-https://kobara.app/docs/quickstart
+https://docs.kobara.app/docs/quickstart
 
 Also analyze all relevant sections:
 
-* javascriptSdk: \`https://kobara.app/docs/javascript-sdk\`,
+* javascriptSdk: \`https://docs.kobara.app/docs/javascript-sdk\`,
 
-    nodeSdk: \`https://kobara.app/docs/nodejs-sdk\`,
+    nodeSdk: \`https://docs.kobara.app/docs/nodejs-sdk\`,
 
-    pythonSdk: \`https://kobara.app/docs/python-sdk\`,
+    pythonSdk: \`https://docs.kobara.app/docs/python-sdk\`,
 
-    phpSdk: \`https://kobara.app/docs/php-sdk\`,
+    phpSdk: \`https://docs.kobara.app/docs/php-sdk\`,
 
-    wordpressPlugin: \`https://kobara.app/docs/wordpress-plugin\`,
+    wordpressPlugin: \`https://docs.kobara.app/docs/wordpress-plugin\`,
 
-    aiIntegration: \`https://kobara.app/docs/ai-integration\`,
+    aiIntegration: \`https://docs.kobara.app/docs/ai-integration\`,
 
-    payments: \`https://kobara.app/docs/payments\`,
+    payments: \`https://docs.kobara.app/docs/payments\`,
 
-    paymentLinks: \`https://kobara.app/docs/payment-links\`,
+    paymentLinks: \`https://docs.kobara.app/docs/payment-links\`,
 
-    webhooks: \`https://kobara.app/docs/webhooks\`,
+    webhooks: \`https://docs.kobara.app/docs/webhooks\`,
 
-    withdrawals: \`https://kobara.app/docs/withdrawals\`,
+    withdrawals: \`https://docs.kobara.app/docs/withdrawals\`,
 
-    errors: \`https://kobara.app/docs/errors\`,
+    errors: \`https://docs.kobara.app/docs/errors\`,
 
   Use the documentation as the source of truth.
 
@@ -252,79 +250,30 @@ The final result must be secure, scalable, production-ready and fully compatible
 
 export function DevelopersClient({ 
   merchant, 
-  testPublicKey, 
   livePublicKey, 
   webhook, 
   usage, 
   subscription,
-  isGuest = false,
 }: { 
   merchant: any, 
-  testPublicKey: string, 
   livePublicKey: string, 
   webhook: { configured: boolean, url: string | null }, 
   usage: any, 
   subscription: any,
-  isGuest?: boolean,
 }) {
-  const [isTestMode, setIsTestMode] = useState(true);
-
-  const activeKey = isTestMode ? testPublicKey : livePublicKey;
+  const activeKey = livePublicKey;
 
   return (
     <div className="max-w-[1440px] mx-auto w-full space-y-12 pb-12">
-      {/* Guest banner — shown when user is not logged in */}
-      {isGuest && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-xl px-6 py-4">
-          <div>
-            <p className="text-sm font-bold text-amber-800">Mode Sandbox — données génériques</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              Connectez-vous pour voir vos vraies clés API et accéder à votre tableau de bord.
-            </p>
-          </div>
-          <div className="flex gap-3 shrink-0">
-            <Link href="/login" className="px-5 py-2 rounded-lg bg-kobara-primary text-white text-sm font-bold hover:opacity-90 transition-opacity">
-              Se connecter
-            </Link>
-            <Link href="/register" className="px-5 py-2 rounded-lg border border-amber-300 bg-white text-amber-800 text-sm font-bold hover:bg-amber-50 transition-colors">
-              Créer un compte
-            </Link>
-          </div>
-        </div>
-      )}
-      {/* 1. Header de page & Mode Switch */}
+      {/* 1. Header de page */}
       <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-2xl font-bold text-white tracking-tight">Développeurs</h1>
             <span className="bg-white/10 text-white px-3 py-1 rounded-full text-xs font-bold tracking-wider border border-white/10">API v1</span>
-            
-            {/* Mode Switcher */}
-            <div className="flex items-center bg-white/5 border border-white/10 rounded-full p-1 ml-2">
-              <button
-                onClick={() => setIsTestMode(true)}
-                className={`px-4 py-1.5 rounded-full text-label-caps font-label-caps tracking-wider transition-all duration-200 ${
-                  isTestMode 
-                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 shadow-sm' 
-                    : 'text-slate-400 hover:text-white transparent border border-transparent'
-                }`}
-              >
-                Test Mode
-              </button>
-              <button
-                onClick={() => setIsTestMode(false)}
-                className={`px-4 py-1.5 rounded-full text-label-caps font-label-caps tracking-wider transition-all duration-200 ${
-                  !isTestMode 
-                    ? 'bg-green-500/100/20 text-green-400 border border-green-500/30 shadow-sm' 
-                    : 'text-slate-400 hover:text-white transparent border border-transparent'
-                }`}
-              >
-                Live Mode
-              </button>
-            </div>
           </div>
           <p className="text-slate-400 text-sm max-w-2xl mt-4">
-            Intégrez Kobara dans votre site, app ou boutique en quelques minutes. Vous utilisez actuellement les clés <strong className={isTestMode ? "text-amber-400" : "text-green-400"}>{isTestMode ? "Sandbox (Test)" : "Live (Production)"}</strong>.
+            Intégrez Kobara dans votre site, app ou boutique avec vos clés API Production.
           </p>
         </div>
         <div className="flex gap-3">
@@ -338,7 +287,7 @@ export function DevelopersClient({
       {/* Overview Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white/5 rounded-3xl border border-white/10 p-6 shadow-sm flex flex-col justify-between">
-          <p className="text-sm font-medium text-slate-400">Clé publique ({isTestMode ? 'Test' : 'Live'})</p>
+          <p className="text-sm font-medium text-slate-400">Clé publique Production</p>
           <div className="mt-2 flex items-center justify-between">
             <p className="font-mono text-sm font-bold text-white">{activeKey}</p>
             <button className="text-text-secondary hover:text-primary transition-colors" title="Copier" onClick={() => navigator.clipboard.writeText(activeKey)}>
@@ -412,7 +361,7 @@ export function DevelopersClient({
               </span>
               <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-500/10 text-purple-400 text-xs font-bold border border-purple-500/20">
                 <span className="material-symbols-outlined text-[14px] mr-1.5">toggle_on</span>
-                Test / Live Mode
+                Compatible Production
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-4">
@@ -511,8 +460,6 @@ export function DevelopersClient({
         </div>
       </div>
 
-      {/* API Playground */}
-      <ApiPlayground isTestMode={isTestMode} activeKey={activeKey} />
     </div>
   );
 }

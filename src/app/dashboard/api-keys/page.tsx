@@ -9,6 +9,7 @@ export default async function ApiKeysPage() {
     .from('api_keys')
     .select('*')
     .eq('merchant_id', merchant.id)
+    .eq('environment', 'live')
     .order('created_at', { ascending: false });
 
   // Compute API calls metrics based on payments this week
@@ -19,6 +20,7 @@ export default async function ApiKeysPage() {
     .from('payments')
     .select('status')
     .eq('merchant_id', merchant.id)
+    .eq('environment', 'live')
     .gte('created_at', oneWeekAgo.toISOString());
 
   const apiCallsThisWeek = recentPayments?.length || 0;

@@ -9,6 +9,43 @@ import {
   MOBILE_API_CORS_HEADERS,
   MOBILE_APP_ORIGIN,
 } from '@/lib/http/api-cors';
+import {
+  DEFAULT_MAINTENANCE_STATE,
+  isMaintenanceBypassPath,
+  isMaintenanceActive,
+  maintenanceRetryAfter,
+  normalizeMaintenanceState,
+} from '@/lib/maintenance-state';
+
+async function readMaintenanceState() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !serviceKey) return DEFAULT_MAINTENANCE_STATE;
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/system_settings?key=eq.platform_maintenance&select=value,updated_at,updated_by`,
+      {
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+        },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(1500),
+      },
+    );
+    if (!response.ok) return DEFAULT_MAINTENANCE_STATE;
+    const rows = await response.json();
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return normalizeMaintenanceState({
+      ...(row?.value || {}),
+      updated_at: row?.updated_at,
+      updated_by: row?.updated_by,
+    });
+  } catch {
+    return DEFAULT_MAINTENANCE_STATE;
+  }
+}
 
 // Initialize Redis only if the URL is provided (prevents crashing if env is missing)
 const redis = process.env.UPSTASH_REDIS_REST_URL 
@@ -32,15 +69,51 @@ export async function middleware(request: NextRequest) {
   const hostHeader = request.headers.get("host") || request.nextUrl.hostname || "";
   const hostname = hostHeader.split(":")[0].trim();
   const requestOrigin = request.headers.get('origin');
+  const isApiHostname = hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local";
+  const routedPathname = isApiHostname && !url.pathname.startsWith('/api/')
+    ? `/api${url.pathname}`
+    : url.pathname;
+
+  if (!isMaintenanceBypassPath(routedPathname)) {
+    const maintenance = await readMaintenanceState();
+    if (isMaintenanceActive(maintenance)) {
+      const isApiPath = routedPathname.startsWith('/api');
+      if (isApiPath) {
+        const response = NextResponse.json(
+          {
+            error: 'system_maintenance',
+            message: maintenance.maintenance_message,
+            scheduled_for: maintenance.scheduled_for,
+          },
+          {
+            status: 503,
+            headers: {
+              'Retry-After': String(maintenanceRetryAfter(maintenance)),
+              'Cache-Control': 'no-store',
+            },
+          },
+        );
+        const maintenanceCorsHeaders = routedPathname.startsWith('/api/v1')
+          ? getPublicApiCorsHeaders(requestOrigin)
+          : requestOrigin === MOBILE_APP_ORIGIN
+            ? MOBILE_API_CORS_HEADERS
+            : null;
+        return maintenanceCorsHeaders
+          ? applyCorsHeaders(response, maintenanceCorsHeaders)
+          : response;
+      }
+      return NextResponse.redirect(new URL('/maintenance', request.url), 307);
+    }
+  }
 
   // 1. API Subdomain Routing
-  if (hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local") {
+  if (isApiHostname) {
     // Root endpoint for the API subdomain
     if (url.pathname === "/") {
       return NextResponse.json({
         name: "Kobara API",
         version: "v1",
-        docs: "https://kobara.app/docs",
+        docs: "https://docs.kobara.app/docs/quickstart",
         status: "active"
       });
     }
@@ -53,6 +126,7 @@ export async function middleware(request: NextRequest) {
 
   const isApiRequest = url.pathname.startsWith('/api') || hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local";
   const isV1Api = url.pathname.startsWith('/api/v1');
+  const isVerifiedProviderWebhook = url.pathname === '/api/webhooks/resend-inbound';
   const corsHeaders = isV1Api
     ? getPublicApiCorsHeaders(requestOrigin)
     : requestOrigin === MOBILE_APP_ORIGIN
@@ -77,6 +151,10 @@ export async function middleware(request: NextRequest) {
       }
       const response = NextResponse.next();
       return corsHeaders ? applyCorsHeaders(response, corsHeaders) : response;
+    }
+
+    if (isVerifiedProviderWebhook) {
+      return NextResponse.next();
     }
 
     if (ratelimit) {

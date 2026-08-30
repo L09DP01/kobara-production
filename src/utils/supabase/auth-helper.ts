@@ -120,6 +120,7 @@ export async function expireMerchantOldPayments(merchantId: string) {
       .from('payments')
       .select('id, amount, kobara_reference, net_amount, currency, environment')
       .eq('merchant_id', merchantId)
+      .eq('environment', 'live')
       .eq('status', 'pending')
       .lt('created_at', yesterday.toISOString());
 
@@ -153,7 +154,7 @@ export async function expireMerchantOldPayments(merchantId: string) {
       const { dispatchMerchantWebhook } = await import('@/lib/server/webhooks/dispatcher');
       await Promise.allSettled(paymentsToNotify.map(payment => dispatchMerchantWebhook({
         merchantId,
-        environment: payment.environment === 'live' ? 'live' : 'test',
+        environment: 'live',
         eventType: 'payment.failed',
         data: {
           id: payment.id,

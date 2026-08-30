@@ -15,7 +15,7 @@ export default async function AdminTransactionDetail({ params }: { params: Promi
   if (!payment) notFound();
 
   const [{ data: webhookEvents }, { data: audits }] = await Promise.all([
-    supabase.from('webhook_events').select('*').eq('merchant_id', payment.merchant_id).eq('environment', payment.environment || 'test').order('created_at', { ascending: false }).limit(100),
+    supabase.from('webhook_events').select('*').eq('merchant_id', payment.merchant_id).eq('environment', payment.environment || 'live').order('created_at', { ascending: false }).limit(100),
     supabase.from('audit_logs').select('*').eq('entity_id', id).order('created_at', { ascending: false }),
   ]);
   const relatedWebhooks = (webhookEvents || []).filter((event) => event.payload?.data?.id === id || event.payload?.payment_id === id);

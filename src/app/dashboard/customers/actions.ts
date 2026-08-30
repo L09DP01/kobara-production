@@ -12,7 +12,7 @@ export async function createCustomer(formData: { name: string, email: string, ph
     .from('customers')
     .insert({
       merchant_id: merchant.id,
-      environment: merchant.current_environment || 'test',
+      environment: 'live',
       name: formData.name,
       email: formData.email,
       phone: formData.phone

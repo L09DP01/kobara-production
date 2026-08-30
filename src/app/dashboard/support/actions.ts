@@ -2,7 +2,7 @@
 
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { sendEmail } from "@/lib/server/mail";
-import { createAdminClient } from "@/utils/supabase/admin";
+import { createSupportConversation } from "@/lib/server/support/tickets";
 
 export async function submitSupportTicket(formData: {
   subject: string;
@@ -11,56 +11,30 @@ export async function submitSupportTicket(formData: {
 }) {
   try {
     const { user, merchant } = await getCurrentUserAndMerchant();
-    
-    const adminClient = createAdminClient();
-    const { data: ticket, error: ticketError } = await adminClient
-      .from('support_tickets')
-      .insert({
-        merchant_id: merchant.id,
-        subject: formData.subject.trim(),
-        category: formData.category,
-        status: 'pending_admin',
-        priority: 'normal',
-      })
-      .select('id')
-      .single();
+    if (!user || !merchant) throw new Error('Session marchand requise');
 
-    if (ticketError || !ticket) throw new Error(ticketError?.message || 'Ticket creation failed');
-
-    const { error: messageError } = await adminClient.from('ticket_messages').insert({
-      ticket_id: ticket.id,
-      sender_type: 'merchant',
-      message: formData.message.trim(),
-    });
-    if (messageError) throw new Error(messageError.message);
-
-    const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@kobara.app';
-    
-    const emailText = `
-Nouveau ticket de support de la part de :
-Marchand : ${merchant.business_name} (${merchant.id})
-Email : ${merchant.email || user.email}
-Téléphone : ${merchant.phone || 'Non renseigné'}
-Catégorie : ${formData.category}
-
-Message :
-${formData.message}
-    `;
-
-    await sendEmail({
-      to: supportEmail,
-      subject: `[Support - ${formData.category}] ${formData.subject}`,
-      text: emailText
+    const result = await createSupportConversation({
+      merchantId: merchant.id,
+      requesterName: merchant.business_name,
+      requesterEmail: merchant.email || user.email || '',
+      recipientEmail: 'support@kobara.app',
+      subject: formData.subject,
+      category: formData.category,
+      message: formData.message,
+      source: 'dashboard',
     });
 
     // Optionnel : Envoyer un email de confirmation au marchand
+    const requesterEmail = merchant.email || user.email;
+    if (!requesterEmail) throw new Error('Adresse e-mail marchand manquante');
     await sendEmail({
-      to: merchant.email || user.email,
-      subject: `Confirmation de réception : ${formData.subject}`,
-      text: `Bonjour ${merchant.business_name},\n\nNous avons bien reçu votre demande de support concernant "${formData.subject}".\n\nNotre équipe vous répondra dans les plus brefs délais.\n\nRappel de votre message :\n${formData.message}`
+      to: requesterEmail,
+      subject: `[${result.publicId}] Confirmation de réception`,
+      text: `Bonjour ${merchant.business_name},\n\nNous avons bien reçu votre demande « ${formData.subject} ». Sa référence est ${result.publicId}.\n\nNotre équipe vous répondra dans les plus brefs délais.`,
+      replyTo: 'support@kobara.app',
     });
 
-    return { success: true, ticketId: ticket.id };
+    return { success: true, ticketId: result.ticketId, reference: result.publicId };
   } catch (error: unknown) {
     console.error("Support Ticket Error:", error);
     return { error: "Erreur lors de l'envoi de la demande de support." };

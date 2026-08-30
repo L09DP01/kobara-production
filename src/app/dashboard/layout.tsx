@@ -9,9 +9,6 @@ import { ensureCurrentSessionIsAllowed } from "@/app/dashboard/settings/sessions
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
 import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
 
-// Pages inside /dashboard that are publicly accessible (no login required)
-const PUBLIC_DASHBOARD_PATHS = ["/dashboard/developers"];
-
 export default async function DashboardLayout({
   children,
 }: {
@@ -20,12 +17,12 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const session = await auth();
 
-  // Determine the current path to check if it's a public dashboard page
   const headersList = await headers();
   const pathname = headersList.get("x-pathname") ?? "";
-  const isPublicDashboardPath = PUBLIC_DASHBOARD_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  const isKycPath = pathname === '/kyc'
+    || pathname.startsWith('/kyc/')
+    || pathname === '/dashboard/kyc'
+    || pathname.startsWith('/dashboard/kyc/');
 
   let merchant = null;
   let dbUser = null;
@@ -66,27 +63,60 @@ export default async function DashboardLayout({
     }
 
     if (merchant) {
-      const subscriptionAccess = await getMerchantSubscriptionEntitlement(merchant.id);
-      subscriptionEntitlement = subscriptionAccess.entitlement;
-      merchant = { ...merchant, ...subscriptionAccess.merchant };
-      
-      const { data: notifs } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('merchant_id', merchant.id)
-        .is('read_at', null)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      notifications = notifs || [];
+      let isKycApproved = merchant.kyc_status === 'approved';
 
-      // Vérifier si le compte est déjà lié à Telegram
-      const { data: telegramLink } = await supabase
-        .from('merchant_telegram_accounts')
-        .select('id')
-        .eq('merchant_id', merchant.id)
-        .maybeSingle();
+      if (!isKycApproved) {
+        const { data: kycProfile } = await supabase
+          .from('kyc_profiles')
+          .select('status')
+          .eq('merchant_id', merchant.id)
+          .maybeSingle();
 
-      isTelegramLinked = !!telegramLink;
+        isKycApproved = kycProfile?.status === 'approved';
+      }
+
+      if (isKycApproved && (merchant.kyc_status !== 'approved' || merchant.current_environment !== 'live')) {
+        const verifiedAt = merchant.kyc_verified_at || new Date().toISOString();
+        await supabase
+          .from('merchants')
+          .update({
+            kyc_status: 'approved',
+            kyc_verified_at: verifiedAt,
+            current_environment: 'live',
+          })
+          .eq('id', merchant.id);
+
+        merchant = {
+          ...merchant,
+          kyc_status: 'approved',
+          kyc_verified_at: verifiedAt,
+          current_environment: 'live',
+        };
+      }
+
+      // Financial data, notifications and integrations are loaded only after KYC.
+      if (isKycApproved) {
+        const subscriptionAccess = await getMerchantSubscriptionEntitlement(merchant.id);
+        subscriptionEntitlement = subscriptionAccess.entitlement;
+        merchant = { ...merchant, ...subscriptionAccess.merchant, current_environment: 'live' };
+
+        const { data: notifs } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('merchant_id', merchant.id)
+          .is('read_at', null)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        notifications = notifs || [];
+
+        const { data: telegramLink } = await supabase
+          .from('merchant_telegram_accounts')
+          .select('id')
+          .eq('merchant_id', merchant.id)
+          .maybeSingle();
+
+        isTelegramLinked = !!telegramLink;
+      }
     }
 
     const { data: userData } = await supabase
@@ -100,16 +130,15 @@ export default async function DashboardLayout({
     }
   }
 
-  // For protected pages: redirect non-authenticated or non-merchants
-  if (!user && !isPublicDashboardPath) {
+  if (!user) {
     redirect("/logout");
   }
 
-  if (user && (!merchant || !merchant.phone || !merchant.category) && !isPublicDashboardPath) {
+  if (user && (!merchant || !merchant.phone || !merchant.category)) {
     redirect("/onboarding");
   }
 
-  if (user && merchant && !isPublicDashboardPath) {
+  if (user && merchant) {
     const sessionCheck = await ensureCurrentSessionIsAllowed((session as any)?.authMethod || 'password');
     if (!sessionCheck.allowed) {
       redirect("/logout");
@@ -121,7 +150,7 @@ export default async function DashboardLayout({
   // -------------------------------------------------------------
   // DUAL-METHOD 2FA SECURITY ENFORCEMENT INTERCEPTION
   // -------------------------------------------------------------
-  if (merchant && !isPublicDashboardPath) {
+  if (merchant) {
     const supabase = createAdminClient();
     const { data: settings } = await supabase
       .from("settings")
@@ -175,12 +204,8 @@ export default async function DashboardLayout({
   // CONTROLE D'ACCES REVERIFY_REQUIRED (COMPTE A EN RE-VERIFICATION)
   // -------------------------------------------------------------
   if (merchant && merchant.account_access === 'reverify_required') {
-    const isAllowedPath = pathname === '/dashboard/kyc' ||
-      pathname === '/dashboard/support' ||
-      pathname === '/dashboard/settings';
-
-    if (!isAllowedPath) {
-      redirect('/dashboard/kyc');
+    if (!isKycPath) {
+      redirect('/kyc');
     }
   }
 
@@ -235,7 +260,33 @@ export default async function DashboardLayout({
     );
   }
 
-  // For public dashboard pages: render without sidebar if no merchant
+  const isKycApproved = merchant?.kyc_status === 'approved';
+  if (merchant && !isKycApproved) {
+    if (!isKycPath) {
+      redirect('/kyc');
+    }
+
+    return (
+      <div className="min-h-[100dvh] bg-[#07101D] text-white antialiased">
+        <header className="border-b border-[#1E2A38] bg-[#020B14]">
+          <div className="mx-auto flex h-16 w-full max-w-[960px] items-center justify-between px-5 sm:px-8">
+            <a href="https://kobara.app" className="flex items-center gap-3 font-bold">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/Icone.png" alt="Kobara" className="h-8 w-8 object-contain" />
+              <span>Kobara</span>
+            </a>
+            <a href="/logout" className="text-sm font-semibold text-slate-400 transition-colors hover:text-white">
+              Déconnexion
+            </a>
+          </div>
+        </header>
+        <main className="mx-auto w-full max-w-[960px] px-5 py-8 sm:px-8 sm:py-12">
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <EnvironmentProvider>
       <DashboardLayoutClient

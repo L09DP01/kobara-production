@@ -1,8 +1,18 @@
 import { createAdminClient } from "@/utils/supabase/admin";
-import { Activity, ArrowUpRight, Banknote, ShieldAlert, Users } from "lucide-react";
+import { Activity, ArrowUpRight, Banknote, Power, ShieldAlert, Users } from "lucide-react";
+import { getMaintenanceState } from '@/lib/server/maintenance';
+import { isMaintenanceActive } from '@/lib/maintenance-state';
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { setPlatformMaintenance } from '../health/maintenance-actions';
 
 export default async function AdminDashboardPage() {
   const supabase = createAdminClient();
+  const [maintenance, adminSession] = await Promise.all([
+    getMaintenanceState(),
+    requireAdmin(),
+  ]);
+  const maintenanceActive = isMaintenanceActive(maintenance);
+  const maintenanceAction = setPlatformMaintenance.bind(null, !maintenanceActive);
 
   // Fetch basic stats
   const { count: merchantCount, error: merchantError } = await supabase.from('merchants').select('*', { count: 'exact', head: true });
@@ -43,6 +53,21 @@ export default async function AdminDashboardPage() {
           <Activity className="w-3 h-3" />
           {systemHealthy ? 'DATABASE OPERATIONAL' : 'SYSTEM DEGRADED'}
         </div>
+      </div>
+
+      <div className={`flex flex-col gap-4 border p-4 md:flex-row md:items-center md:justify-between ${maintenanceActive ? 'border-red-500/50 bg-red-950/20' : 'border-amber-500/30 bg-amber-950/10'}`}>
+        <div className="flex items-start gap-3">
+          <Power className={`mt-0.5 h-5 w-5 ${maintenanceActive ? 'text-red-400' : 'text-amber-400'}`} />
+          <div>
+            <p className="text-sm font-bold">{maintenanceActive ? 'SERVICES CLIENTS SUSPENDUS' : 'MAINTENANCE PROGRAMMÉE · DIMANCHE 17 H'}</p>
+            <p className="mt-1 text-xs text-slate-400">{maintenanceActive ? maintenance.maintenance_message : maintenance.message}</p>
+          </div>
+        </div>
+        <form action={maintenanceAction}>
+          <button type="submit" disabled={adminSession.user.role !== 'super_admin'} className={`min-w-52 px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 ${maintenanceActive ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
+            {maintenanceActive ? 'RÉACTIVER LES SERVICES' : 'SUSPENDRE MAINTENANT'}
+          </button>
+        </form>
       </div>
       
       {/* KPI Cards */}

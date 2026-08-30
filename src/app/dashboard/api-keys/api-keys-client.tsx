@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react';
-import { useEnvironment } from '@/context/EnvironmentContext';
 
 import Link from 'next/link';
 
@@ -19,7 +18,6 @@ export function ApiKeysClient({
   successRate?: number 
 }) {
   const [loading, setLoading] = useState(false);
-  const { currentEnvironment, setEnvironment } = useEnvironment();
   const [showKey, setShowKey] = useState(false);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
@@ -30,7 +28,7 @@ export function ApiKeysClient({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const filteredKeys = initialKeys.filter(k => k.environment === currentEnvironment);
+  const filteredKeys = initialKeys.filter(k => k.environment === 'live');
 
   const hasReachedLimit = apiKeysLimit !== null && filteredKeys.length >= apiKeysLimit;
 
@@ -53,7 +51,7 @@ export function ApiKeysClient({
       const response = await fetch('/api/dashboard/api-keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: keyName.trim(), environment: currentEnvironment }),
+        body: JSON.stringify({ name: keyName.trim(), environment: 'live' }),
       });
       const result = await response.json().catch(() => ({
         error: `Le serveur a retourné une réponse invalide (${response.status}).`,
@@ -115,25 +113,13 @@ export function ApiKeysClient({
 
   return (
     <div className="max-w-[1080px] w-full mx-auto flex flex-col gap-8 pb-12">
-      {/* Header & Toggle */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Clés API</h1>
           <p className="text-sm text-slate-400 mt-1">Gérez vos clés secrètes pour l'intégration de l'API Kobara.</p>
         </div>
         
-        {/* Mobile Environment Switcher */}
-        <div className="sm:hidden flex items-center justify-between bg-white/5 px-4 py-3 rounded-2xl border border-white/10 shadow-sm mt-2">
-          <span className={`text-sm font-bold ${currentEnvironment === 'test' ? 'text-amber-500' : 'text-slate-500'}`}>Mode Test</span>
-          <button 
-            onClick={() => setEnvironment(currentEnvironment === 'test' ? 'live' : 'test')}
-            disabled={merchant?.kyc_status !== 'approved'}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${merchant?.kyc_status !== 'approved' ? 'opacity-50 cursor-not-allowed bg-white/10' : (currentEnvironment === 'live' ? 'bg-emerald-500' : 'bg-amber-500')}`}
-          >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${currentEnvironment === 'live' ? 'translate-x-6' : 'translate-x-1'}`} />
-          </button>
-          <span className={`text-sm font-bold ${currentEnvironment === 'live' ? 'text-emerald-500' : 'text-slate-500'}`}>Mode Live</span>
-        </div>
       </div>
 
       {/* Security Info Box */}
@@ -173,7 +159,7 @@ export function ApiKeysClient({
         <div className="bg-white/5 border border-green-500/20 rounded-2xl p-6 shadow-md border-l-4 border-l-green-500 animate-in zoom-in-95 duration-300">
           <div className="flex items-center gap-3 mb-2">
             <span className="material-symbols-outlined text-green-400 text-[24px]">key</span>
-            <h3 className="text-lg font-bold text-white">Nouvelle Clé Secrète {newKey.environment === 'live' ? 'Live' : 'Test'}</h3>
+            <h3 className="text-lg font-bold text-white">Nouvelle clé secrète Production</h3>
           </div>
           <p className="text-sm text-slate-400 mb-5">Veuillez copier cette clé immédiatement. Vous ne pourrez plus la voir une fois cette page fermée.</p>
           
@@ -291,7 +277,7 @@ export function ApiKeysClient({
                     <div className="w-16 h-16 rounded-2xl bg-white/5 mx-auto flex items-center justify-center mb-4 border border-white/10">
                       <span className="material-symbols-outlined text-4xl text-slate-500/50">vpn_key_off</span>
                     </div>
-                    <p className="text-sm text-white font-bold">Aucune clé API {currentEnvironment === 'test' ? 'de Test' : 'Live'} trouvée</p>
+                    <p className="text-sm text-white font-bold">Aucune clé API Production trouvée</p>
                     <p className="text-xs text-slate-400 mt-1">Générez une clé pour commencer à utiliser l'API.</p>
                   </td>
                 </tr>
@@ -365,7 +351,7 @@ export function ApiKeysClient({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-[#131b2f] w-full max-w-md rounded-3xl p-6 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white">Nouvelle clé {currentEnvironment === 'live' ? 'Live' : 'Test'}</h3>
+              <h3 className="text-xl font-bold text-white">Nouvelle clé Production</h3>
               <button onClick={() => { setShowCreateModal(false); setKeyName(''); setError(null); }} className="text-slate-400 hover:text-white p-1 rounded-full hover:bg-white/5 transition-colors">
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -381,7 +367,7 @@ export function ApiKeysClient({
                   value={keyName}
                   onChange={(e) => setKeyName(e.target.value)}
                   className="w-full px-4 py-2.5 bg-[#0F1626] border border-white/10 rounded-xl text-sm focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-colors text-white shadow-sm"
-                  placeholder="Ex: Backend Prod, Serveur de Test..."
+                  placeholder="Ex: Backend Production"
                 />
                 <p className="text-xs text-slate-400 mt-2">Ce nom vous aidera à identifier l'utilisation de cette clé plus tard.</p>
               </div>

@@ -27,7 +27,7 @@ export default async function AdminSupportPage() {
           <thead className="bg-slate-950/50 border-b border-slate-800 text-slate-400">
             <tr>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">TICKET ID</th>
-              <th className="px-6 py-4 font-semibold tracking-wider text-xs">MERCHANT</th>
+              <th className="px-6 py-4 font-semibold tracking-wider text-xs">CONTACT</th>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">SUBJECT</th>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">STATUS</th>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs text-right">ACTION</th>
@@ -37,18 +37,20 @@ export default async function AdminSupportPage() {
             {tickets?.map((t: any) => (
               <tr key={t.id} className="hover:bg-slate-800/30 transition-colors group">
                 <td className="px-6 py-4">
-                  <div className="font-mono text-slate-200">#{t.id.split('-')[0]}</div>
+                  <div className="font-mono text-slate-200">{t.public_id || `#${t.id.split('-')[0]}`}</div>
                   <div className="text-[10px] text-slate-500 font-mono mt-1 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
                     {new Date(t.created_at).toLocaleDateString()}
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="font-semibold text-slate-300">{t.merchants?.business_name || 'Unknown'}</div>
+                  <div className="font-semibold text-slate-300">{t.merchants?.business_name || t.requester_name || 'Visiteur'}</div>
+                  <div className="mt-1 text-[10px] text-slate-500">{t.requester_email || 'E-mail indisponible'}</div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="font-medium text-slate-200 max-w-[300px] truncate">{t.subject}</div>
                   <div className="text-[10px] text-slate-500 mt-1 uppercase font-bold">PRIORITY: {t.priority}</div>
+                  <div className="text-[10px] text-slate-600 mt-1 uppercase">SOURCE: {t.source || 'dashboard'}</div>
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 py-1 rounded text-[10px] font-bold tracking-wider ${

@@ -55,8 +55,9 @@ export async function calculateKycRiskScore(merchantId: string) {
     rejectionReason = "Selfie manquant";
   }
 
-  let simulatedLiveness = 0;
-  let simulatedFaceMatch = 0;
+  let livenessScore = 0;
+  let faceMatchScore = 0;
+  let automatedVerificationAvailable = false;
 
   // Integrate Gemini AI for robust checking if key exists
   const geminiKey = process.env.GEMINI_API_KEY;
@@ -95,8 +96,9 @@ export async function calculateKycRiskScore(merchantId: string) {
           text = text.replace(/```json/g, '').replace(/```/g, '').trim();
           const aiResult = JSON.parse(text);
           
-          simulatedLiveness = aiResult.livenessScore || 0;
-          simulatedFaceMatch = aiResult.faceMatchScore || 0;
+          livenessScore = aiResult.livenessScore || 0;
+          faceMatchScore = aiResult.faceMatchScore || 0;
+          automatedVerificationAvailable = true;
 
           if (!aiResult.isValidDocument) {
              riskScore -= 30;
@@ -106,22 +108,18 @@ export async function calculateKycRiskScore(merchantId: string) {
       }
     } catch (e) {
       console.error("Gemini AI check failed:", e);
-      // fallback to simulate
-      simulatedLiveness = Math.random() * (100 - 60) + 60;
-      simulatedFaceMatch = Math.random() * (100 - 60) + 60;
+      rejectionReason = "Vérification automatisée indisponible : revue manuelle requise";
     }
   } else {
-    // Fallback if no Gemini key configured yet
-    simulatedLiveness = Math.random() * (100 - 60) + 60; // 60-100
-    simulatedFaceMatch = Math.random() * (100 - 60) + 60; // 60-100
+    rejectionReason = "Vérification automatisée non configurée : revue manuelle requise";
   }
 
-  if (simulatedLiveness < 75) riskScore -= 20;
-  if (simulatedFaceMatch < 80) riskScore -= 20;
+  if (!automatedVerificationAvailable || livenessScore < 75) riskScore -= 20;
+  if (!automatedVerificationAvailable || faceMatchScore < 80) riskScore -= 20;
 
   // Decision: Ne jamais rejeter automatiquement, toujours passer en in_review si score insuffisant
   let newStatus: 'approved' | 'in_review' = 'in_review';
-  if (riskScore >= 80 && !rejectionReason) {
+  if (automatedVerificationAvailable && riskScore >= 80 && !rejectionReason) {
     newStatus = 'approved';
   } else {
     newStatus = 'in_review';
@@ -130,15 +128,20 @@ export async function calculateKycRiskScore(merchantId: string) {
   // Update profile
   await supabase.from('kyc_profiles').update({
     status: newStatus,
-    liveness_score: simulatedLiveness,
-    face_match_score: simulatedFaceMatch,
+    liveness_score: livenessScore,
+    face_match_score: faceMatchScore,
     risk_score: riskScore,
     rejection_reason: rejectionReason,
     approved_at: newStatus === 'approved' ? new Date().toISOString() : null,
     rejected_at: null
   }).eq('id', profile.id);
 
-  await createKycAuditLog(merchantId, `kyc.${newStatus}`, { riskScore, simulatedLiveness, simulatedFaceMatch });
+  await createKycAuditLog(merchantId, `kyc.${newStatus}`, {
+    riskScore,
+    livenessScore,
+    faceMatchScore,
+    automatedVerificationAvailable,
+  });
 
   // Récupérer les informations du marchand pour l'email admin
   const { data: merchant } = await supabase
@@ -178,7 +181,8 @@ export async function approveMerchantKyc(merchantId: string) {
   // 1. Update merchant
   const { error } = await supabase.from('merchants').update({
     kyc_status: 'approved',
-    kyc_verified_at: new Date().toISOString()
+    kyc_verified_at: new Date().toISOString(),
+    current_environment: 'live',
   }).eq('id', merchantId);
 
   if (error) throw new Error("Failed to approve merchant: " + error.message);

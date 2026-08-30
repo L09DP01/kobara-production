@@ -1,7 +1,6 @@
 "use server";
 
 import { createAdminClient } from "@/utils/supabase/admin";
-import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createPaymentGateway } from "@/lib/server/payments/gateway";
 import { withPaymentRoutingMetadata, sanitizePaymentRedirectUrl } from "@/lib/payment-routing";
@@ -10,7 +9,6 @@ function isRedirectError(error: unknown) {
   if (!error || typeof error !== 'object' || !('digest' in error)) return false;
   return String(error.digest).startsWith('NEXT_REDIRECT');
 }
-
 export async function processUnifiedCheckout(formData: FormData) {
   try {
     return await processUnifiedCheckoutInternal(formData);
@@ -66,6 +64,10 @@ async function processUnifiedCheckoutInternal(formData: FormData) {
     throw new Error("Ce paiement n'est plus en attente");
   }
 
+  if (payment.environment !== 'live') {
+    throw new Error("Ce paiement Sandbox doit etre traite sur test.kobara.app.");
+  }
+
   const headersList = await headers();
   const host = headersList.get("host") || "";
   const isPaySubdomain = host === "pay.kobara.app" || host.startsWith("pay.");
@@ -78,41 +80,13 @@ async function processUnifiedCheckoutInternal(formData: FormData) {
     }
   }
 
-  // --- MODE TEST / SANDBOX AUTONOME ---
-  // En mode test, le checkout est validé instantanément sans passer par Pay'm ou Bazik
-  if (payment.environment === 'test') {
-    await supabaseAdmin.from('payments').update({
-      status: 'succeeded',
-      paid_at: new Date().toISOString(),
-      provider,
-      payment_method: provider,
-      metadata: {
-        ...(payment.metadata || {}),
-        mode: 'test_sandbox',
-        payer_phone: phoneNumber || null,
-      },
-    }).eq('id', paymentId);
-
-    const { onPaymentSucceeded } = await import('@/lib/server/payments/on-payment-succeeded');
-    await onPaymentSucceeded(paymentId);
-
-    const successRedirect = payment.metadata?.is_subscription_upgrade
-      ? `${basePath}/plan-success?payment_id=${encodeURIComponent(paymentId)}`
-      : payment.success_url || `${basePath}/success?reference=${encodeURIComponent(payment.kobara_reference || '')}&amount=${encodeURIComponent(String(payment.amount))}`;
-
-    return {
-      success: true as const,
-      redirectUrl: successRedirect,
-    };
-  }
-
   const result = await createPaymentGateway({
     amount: Number(payment.amount),
     reference: payment.kobara_reference,
     provider,
     paymentMethodType: methodType,
     phoneNumber,
-    environment: payment.environment as 'test' | 'live',
+    environment: 'live',
     description: "Paiement Checkout Kobara",
   });
 
@@ -181,37 +155,4 @@ async function processUnifiedCheckoutInternal(formData: FormData) {
     success: false as const,
     error: "Le fournisseur n'a pas retourné de destination de paiement.",
   };
-}
-
-export async function simulateTestPayment(formData: FormData) {
-  const supabaseAdmin = createAdminClient();
-  const paymentId = formData.get('paymentId') as string;
-
-  if (!paymentId) throw new Error("Informations manquantes");
-
-  const { data: payment } = await supabaseAdmin
-    .from('payments')
-    .select('*')
-    .eq('id', paymentId)
-    .single();
-
-  if (!payment || payment.status !== 'pending' || payment.environment !== 'test') {
-    throw new Error("Paiement test invalide");
-  }
-
-  // Marquer le paiement comme réussi
-  await supabaseAdmin.from('payments').update({
-    status: 'succeeded',
-    paid_at: new Date().toISOString()
-  }).eq('id', paymentId);
-
-  // Centralized handler: credits available_balance_test, sends test webhooks, notifications
-  const { onPaymentSucceeded } = await import('@/lib/server/payments/on-payment-succeeded');
-  await onPaymentSucceeded(paymentId);
-
-  if (payment.success_url) {
-    redirect(payment.success_url);
-  } else {
-    redirect(`/pay/checkout/${paymentId}`);
-  }
 }

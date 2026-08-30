@@ -42,7 +42,7 @@ export async function createPaymentLink(formData: FormData) {
     .from('payment_links')
     .insert({
       merchant_id: merchant.id,
-      environment: merchant.current_environment || 'test',
+      environment: 'live',
       title,
       amount,
       description,
