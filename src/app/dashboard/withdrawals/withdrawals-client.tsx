@@ -55,7 +55,8 @@ export function WithdrawalsClient({
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const activeHtgBalance = Number(merchant.available_balance || 0);
+  const totalHtgBalance = Number(merchant.available_balance || 0);
+  const activeHtgBalance = Number(merchant.withdrawable_balance ?? totalHtgBalance);
   const activeUsdBalance = Number(merchant.available_balance_usd || 0);
   const isUsdMethod = method === 'Zelle' || method === 'PayPal';
   const selectedCurrency = accountCurrency;
@@ -228,17 +229,17 @@ export function WithdrawalsClient({
         <article className="rounded-lg border border-[#27364B] bg-[#111C2C] p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-xs font-bold uppercase text-slate-500">Solde disponible HTG</p>
+              <p className="text-xs font-bold uppercase text-slate-500">Solde total HTG</p>
               <h2 className="mt-3 text-3xl font-bold text-white">
-                {activeHtgBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-sm text-slate-500">HTG</span>
+                {totalHtgBalance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} <span className="text-sm text-slate-500">HTG</span>
               </h2>
-              <p className="mt-2 text-xs text-slate-500">MonCash, NatCash et transferts locaux</p>
+              <p className="mt-2 text-xs font-semibold text-emerald-400">{formatWithdrawalAmount(activeHtgBalance, 'HTG')} disponibles au retrait</p>
             </div>
             <span className="material-symbols-outlined rounded-lg bg-orange-500/10 p-2.5 text-orange-400">account_balance_wallet</span>
           </div>
           <div className="mt-6 flex flex-wrap gap-2">
-            <button onClick={() => { setAccountCurrency('HTG'); setMethod('MonCash'); setReceiver(savedMoncashNumber); setIsModalOpen(true); }} className="min-h-10 rounded-lg bg-orange-500 px-4 text-sm font-bold text-white transition-colors hover:bg-orange-600">Utiliser ce compte</button>
-            <button onClick={() => { setAccountCurrency('HTG'); setMethod('B2B'); setReceiver(''); setIsModalOpen(true); }} className="min-h-10 rounded-lg border border-[#34465F] px-4 text-sm font-bold text-slate-200 transition-colors hover:bg-white/5">Transfert B2B</button>
+            <button disabled={activeHtgBalance <= 0} onClick={() => { setAccountCurrency('HTG'); setMethod('MonCash'); setReceiver(savedMoncashNumber); setIsModalOpen(true); }} className="min-h-10 rounded-lg bg-orange-500 px-4 text-sm font-bold text-white transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-40">Utiliser ce compte</button>
+            <button disabled={activeHtgBalance <= 0} onClick={() => { setAccountCurrency('HTG'); setMethod('B2B'); setReceiver(''); setIsModalOpen(true); }} className="min-h-10 rounded-lg border border-[#34465F] px-4 text-sm font-bold text-slate-200 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">Transfert B2B</button>
           </div>
         </article>
 
@@ -325,7 +326,7 @@ export function WithdrawalsClient({
                         className={`min-h-12 rounded-md px-3 text-left transition-colors ${accountCurrency === 'HTG' ? 'bg-orange-500 text-white' : 'text-slate-300 hover:bg-white/5'}`}
                       >
                         <span className="block text-xs font-bold">Compte HTG</span>
-                        <span className="block text-[11px] opacity-75">{formatWithdrawalAmount(activeHtgBalance, 'HTG')}</span>
+                        <span className="block text-[11px] opacity-75">Retirable : {formatWithdrawalAmount(activeHtgBalance, 'HTG')}</span>
                       </button>
                       {usdAccountActive && <button
                         type="button"

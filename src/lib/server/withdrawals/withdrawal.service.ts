@@ -180,6 +180,13 @@ export const WithdrawalService = {
 
     if (prepError) {
       console.error('[WithdrawalService] RPC prepare_automatic_withdrawal error:', prepError);
+      if (prepError.message?.includes('local_funds_pending_release')) {
+        return {
+          success: false,
+          error: 'Une partie de votre solde est encore sous délai de sécurité. Les paiements MonCash et NatCash deviennent disponibles au retrait après 24 heures.',
+          errorCode: 'FUNDS_PENDING_RELEASE',
+        };
+      }
       return { success: false, error: 'Erreur technique lors de la réservation des fonds.' };
     }
 

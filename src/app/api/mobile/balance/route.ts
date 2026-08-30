@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyMobileToken } from "@/lib/auth/mobile-verify";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
     const balanceUsd = merchant.available_balance_usd;
     const environment = 'live';
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
+    const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', Number(balance || 0));
     const balances: Record<string, number> = { HTG: Number(balance || 0) };
     if (usdAccount.isActive) balances.USD = Number(balanceUsd || 0);
 
@@ -133,6 +135,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       balance: balance || 0,
+      withdrawable_balance: htgFunds.withdrawableBalance,
+      local_payment_hold_hours: 24,
       currency: 'HTG',
       balances,
       usd_account: {

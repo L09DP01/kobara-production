@@ -5,6 +5,7 @@ import { TelegramClient, SendMessageOptions } from './telegram-client';
 import { WithdrawalOtpService } from '@/lib/server/security/withdrawal-otp';
 import { WithdrawalService } from '@/lib/server/withdrawals/withdrawal.service';
 import { canCreateWithdrawal } from '@/lib/server/access';
+import { getMerchantFundsAvailability } from '@/lib/server/withdrawals/funds-availability';
 
 export class TelegramBotService {
   /**
@@ -272,15 +273,15 @@ L'équipe de sécurité Kobara — https://kobara.app
     const isPayPalEligible = usdAccount.isEnabled;
     const hasUsd = usdAccount.hasAccount;
     const liveAvailable = Number(freshMerchant?.available_balance || 0);
-    const livePending = Number(freshMerchant?.pending_balance || 0);
     const liveAvailableUsd = Number(freshMerchant?.available_balance_usd || 0);
+    const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', liveAvailable);
 
     let message = `
 💰 <b>SOLDE KOBARA (MODE RÉEL)</b>
 
 🏢 <b>Entreprise :</b> ${freshMerchant?.business_name || merchant.business_name}
-🟢 <b>Solde disponible (HTG) :</b> <code>${liveAvailable.toLocaleString('fr-HT')} HTG</code>
-⏳ <b>Solde en attente (HTG) :</b> <code>${livePending.toLocaleString('fr-HT')} HTG</code>
+💼 <b>Solde total (HTG) :</b> <code>${liveAvailable.toLocaleString('fr-HT')} HTG</code>
+🟢 <b>Disponible au retrait :</b> <code>${htgFunds.withdrawableBalance.toLocaleString('fr-HT')} HTG</code>
 `.trim();
 
     if (hasUsd && isPayPalEligible) {
@@ -346,7 +347,9 @@ L'équipe de sécurité Kobara — https://kobara.app
    * Démarre le flux de retrait sécurisé
    */
   private static async startWithdrawFlow(chatId: string | number, merchant: any, messageId?: number) {
-    const liveAvailable = Number(merchant.available_balance || 0);
+    const totalBalance = Number(merchant.available_balance || 0);
+    const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', totalBalance);
+    const liveAvailable = htgFunds.withdrawableBalance;
 
     if (liveAvailable < 150) {
       if (messageId) {
@@ -354,7 +357,7 @@ L'équipe de sécurité Kobara — https://kobara.app
       }
       await TelegramClient.sendMessage(
         chatId,
-        `⚠️ <b>Solde insuffisant</b>\n\nVotre solde disponible réel est de <b>${liveAvailable.toLocaleString('fr-HT')} HTG</b>.\nLe montant minimum de retrait est de <b>150 HTG</b>.`,
+        `⚠️ <b>Solde insuffisant</b>\n\nVotre solde disponible au retrait est de <b>${liveAvailable.toLocaleString('fr-HT')} HTG</b>.\nLe montant minimum de retrait est de <b>150 HTG</b>.`,
         { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() }
       );
       return { success: true };

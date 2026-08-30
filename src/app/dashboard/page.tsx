@@ -10,6 +10,7 @@ import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { PayPalService } from "@/lib/server/payments/paypal";
 import UsdAccountSection from "@/components/dashboard/UsdAccountSection";
 import DashboardChartWrapper from "./analytics/DashboardChartWrapper";
+import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
 
 interface DashboardPayment {
   id: string;
@@ -91,7 +92,11 @@ function TechnicalCard({ title, icon: Icon, metrics }: { title: string; icon: Lu
 
 export default async function DashboardPage() {
   const { merchant, supabase } = await getCurrentUserAndMerchant();
-  const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
+  const totalHtgBalance = Number(merchant.available_balance || 0);
+  const [usdAccount, htgFunds] = await Promise.all([
+    PayPalService.getMerchantUsdAccountState(merchant),
+    getMerchantFundsAvailability(merchant.id, 'live', 'HTG', totalHtgBalance),
+  ]);
 
   const usdMerchant = merchant as typeof merchant & {
     has_usd_account?: boolean;
@@ -138,7 +143,6 @@ export default async function DashboardPage() {
   const apiSuccessRate = apiTotal > 0 ? ((apiSuccess / apiTotal) * 100).toFixed(1) : "0";
 
   const stats: DashboardStats = { recentPayments, succeededPayments, totalEncaisse, successRate, monthlyRevenue, webhooksTotal, webhooksSuccess, webhooksFailed, apiTotal, apiErrors, apiSuccessRate };
-  const soldeDisponible = Number(merchant.available_balance || 0);
   const monthLabel = now.toLocaleDateString("fr-FR", { month: "long" });
 
   return (
@@ -170,7 +174,7 @@ export default async function DashboardPage() {
         </div>
         <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${usdAccount.status !== "hidden" ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
           <MetricCard icon={CreditCard} label="Total encaissé" value={stats.totalEncaisse.toLocaleString("fr-FR")} currency="HTG" caption="Cumul des paiements validés" />
-          <MetricCard icon={WalletCards} label="Solde disponible" value={soldeDisponible.toLocaleString("fr-FR")} currency="HTG" caption="Disponible pour retrait" tone="orange" />
+          <MetricCard icon={WalletCards} label="Solde total" value={htgFunds.totalBalance.toLocaleString("fr-FR")} currency="HTG" caption={`${htgFunds.withdrawableBalance.toLocaleString("fr-FR")} HTG disponibles au retrait`} tone="orange" />
           <UsdAccountSection isEligible={usdAccount.isEnabled} hasUsdAccount={usdAccount.hasAccount} availableBalanceUsd={usdAccount.isActive ? availableBalanceUsd : 0} />
         </div>
       </section>

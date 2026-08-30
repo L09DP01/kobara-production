@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kobara-production",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "kobara-production"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "kobara-production-opennext-cache"
+    }
+  ],
+  "images": {
+    "binding": "IMAGES"
+  },
+  "routes": [
+    { "pattern": "kobara.app", "custom_domain": true },
+    { "pattern": "www.kobara.app", "custom_domain": true },
+    { "pattern": "dashboard.kobara.app", "custom_domain": true },
+    { "pattern": "api.kobara.app", "custom_domain": true },
+    { "pattern": "pay.kobara.app", "custom_domain": true },
+    { "pattern": "docs.kobara.app", "custom_domain": true }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

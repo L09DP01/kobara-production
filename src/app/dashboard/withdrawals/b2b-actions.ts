@@ -133,7 +133,11 @@ export async function executeB2BTransfer(amount: number, receiverEmail: string, 
   }
 
   if (!rpcResult.success) {
-    return { error: rpcResult.error || "Le transfert a échoué." };
+    return {
+      error: rpcResult.error || "Le transfert a échoué.",
+      code: rpcResult.code,
+      withdrawableBalance: rpcResult.withdrawable_balance,
+    };
   }
 
   // Notifications

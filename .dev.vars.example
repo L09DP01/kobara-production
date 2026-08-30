@@ -1,0 +1,2 @@
+# Local Cloudflare preview only. Never commit .dev.vars.
+NEXTJS_ENV=development

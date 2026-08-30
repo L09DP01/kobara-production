@@ -3,6 +3,7 @@ import { verifyMobileToken } from "@/lib/auth/mobile-verify";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
 import { PayPalService } from '@/lib/server/payments/paypal';
+import { getMerchantFundsAvailability } from '@/lib/server/withdrawals/funds-availability';
 
 export async function GET(req: NextRequest) {
   try {
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
     const availableBalanceHtg = Number(merchant.available_balance || 0);
     const availableBalanceUsd = Number(merchant.available_balance_usd || 0);
+    const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', availableBalanceHtg);
     const balances: Record<string, number> = { HTG: availableBalanceHtg };
     if (usdAccount.isActive) balances.USD = availableBalanceUsd;
 
@@ -177,6 +179,8 @@ export async function GET(req: NextRequest) {
         total_collected: totalEncaisse,
         monthly_growth: monthlyGrowth,
         available_balance: availableBalanceHtg,
+        withdrawable_balance: htgFunds.withdrawableBalance,
+        local_payment_hold_hours: 24,
         available_balance_usd: usdAccount.isActive ? availableBalanceUsd : null,
         balances,
         usd_account: {

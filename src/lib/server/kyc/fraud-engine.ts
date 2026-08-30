@@ -50,8 +50,11 @@ export function generateDocumentFingerprint(
   }
 
   const secret = process.env.KYC_IDENTITY_FINGERPRINT_SECRET
-    || process.env.ENCRYPTION_KEY
-    || 'kobara_kyc_fraud_fingerprint_secret_key_2026';
+    || process.env.ENCRYPTION_KEY;
+
+  if (!secret) {
+    throw new Error('KYC_IDENTITY_FINGERPRINT_SECRET is not configured.');
+  }
 
   const rawIdentity = `${normCountry}|${normType}|${normNum}`;
   return crypto.createHmac('sha256', secret).update(rawIdentity).digest('hex');

@@ -7,6 +7,9 @@ const deploymentId =
 const nextConfig = {
   deploymentId,
   poweredByHeader: false,
+  turbopack: {
+    root: process.cwd(),
+  },
   async redirects() {
     return [
       {

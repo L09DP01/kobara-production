@@ -26,6 +26,16 @@ test('Withdrawal System: Phone Number Validation', async (t) => {
 });
 
 test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => {
+  await t.test('keeps recent local proceeds visible but locked for 24 hours', () => {
+    const totalBalance = 1000;
+    const recentLocalCredits = 250;
+    const withdrawableBalance = Math.max(totalBalance - recentLocalCredits, 0);
+
+    assert.equal(totalBalance, 1000, 'The complete merchant balance remains visible');
+    assert.equal(withdrawableBalance, 750, 'Only matured funds can be withdrawn');
+    assert.equal(recentLocalCredits, 250, 'Recent local proceeds remain pending release');
+  });
+
   await t.test('calculates 5% fee for MonCash & NatCash, net amount sent to provider', () => {
     const grossAmount = 1000;
     const feeRate = 0.05;

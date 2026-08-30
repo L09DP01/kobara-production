@@ -4,6 +4,7 @@ import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { WithdrawalsClient } from "./withdrawals-client";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
 
 export default async function WithdrawalsPage() {
   const { user, merchant, userRole, supabase } = await getCurrentUserAndMerchant();
@@ -40,10 +41,12 @@ export default async function WithdrawalsPage() {
   const providerConfig = await getPaymentProviderConfig();
   const exchangeRate = Number(providerConfig.paypal_htg_per_usd || 130);
   const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
+  const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', Number(merchant.available_balance || 0));
   const safeMerchant = {
     available_balance: merchant.available_balance,
     available_balance_usd: usdAccount.isActive ? merchant.available_balance_usd : 0,
     pending_balance: merchant.pending_balance,
+    withdrawable_balance: htgFunds.withdrawableBalance,
   };
 
   return <WithdrawalsClient 
