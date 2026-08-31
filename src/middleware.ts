@@ -70,6 +70,8 @@ export async function middleware(request: NextRequest) {
   const hostname = hostHeader.split(":")[0].trim();
   const requestOrigin = request.headers.get('origin');
   const isApiHostname = hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local";
+  const isDocsHostname = hostname === 'docs.kobara.app' || hostname === 'docs.localhost' || hostname === 'docs.kobara.local';
+  const isMainHostname = hostname === 'kobara.app' || hostname === 'www.kobara.app' || hostname === 'localhost' || hostname === 'kobara.local';
   const routedPathname = isApiHostname && !url.pathname.startsWith('/api/')
     ? `/api${url.pathname}`
     : url.pathname;
@@ -104,6 +106,19 @@ export async function middleware(request: NextRequest) {
       }
       return NextResponse.redirect(new URL('/maintenance', request.url), 307);
     }
+  }
+
+  // Host-based redirects live here because OpenNext does not reliably preserve
+  // Next.js `has: host` redirect conditions on Cloudflare Workers.
+  if (isDocsHostname && url.pathname === '/') {
+    return NextResponse.redirect(new URL('/docs/quickstart', request.url), 307);
+  }
+
+  if (isMainHostname && (url.pathname === '/docs' || url.pathname.startsWith('/docs/'))) {
+    const docsPath = url.pathname === '/docs' ? '/docs/quickstart' : url.pathname;
+    const docsUrl = new URL(docsPath, 'https://docs.kobara.app');
+    docsUrl.search = url.search;
+    return NextResponse.redirect(docsUrl, 308);
   }
 
   // 1. API Subdomain Routing
