@@ -1,9 +1,14 @@
 import { auth } from "@/auth";
 import { DocsClient } from "../docs-client";
-import fs from "fs";
-import path from "path";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import { DOC_SLUGS, getDocContent } from "@/content/docs/generated";
+
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+  return DOC_SLUGS.map((slug) => ({ slug }));
+}
 
 export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const resolvedParams = await props.params;
@@ -45,18 +50,9 @@ export default async function DocsDocPage(props: { params: Promise<{ slug: strin
   const isAuthenticated = !!session?.user;
   const resolvedParams = await props.params;
   const { slug } = resolvedParams;
+  const markdownContent = getDocContent(slug);
 
-  let markdownContent = "";
-  try {
-    const filePath = path.join(process.cwd(), "src", "content", "docs", `${slug}.md`);
-    if (!fs.existsSync(filePath)) {
-      return notFound();
-    }
-    markdownContent = fs.readFileSync(filePath, "utf8");
-  } catch (error) {
-    console.error("Could not read docs file", error);
-    return notFound();
-  }
+  if (!markdownContent) return notFound();
 
   return (
     <div className="min-h-[100dvh] bg-background">

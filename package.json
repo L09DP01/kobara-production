@@ -7,6 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
+    "prebuild": "npm run generate:docs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -17,6 +18,8 @@
     "test:webhooks": "node --experimental-strip-types --test tests/webhook-environment-isolation.test.js",
     "generate-openapi": "tsx src/lib/server/openapi.ts",
     "verify-api-contracts": "node scripts/verify-api-contracts.js",
+    "generate:docs": "node scripts/generate-docs-content.mjs",
+    "precf:build": "npm run generate:docs",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare build && wrangler dev",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy -- --keep-vars",
