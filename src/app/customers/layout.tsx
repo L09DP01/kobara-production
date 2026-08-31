@@ -3,7 +3,6 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { EnvironmentProvider } from "@/context/EnvironmentContext";
 
 export default async function CustomersLayout({
   children,
@@ -78,10 +77,8 @@ export default async function CustomersLayout({
   }
 
   return (
-    <EnvironmentProvider>
-      <DashboardLayoutClient merchant={merchant ?? undefined} user={dbUser} isGuest={!merchant} initialNotifications={notifications} accessibleMerchants={accessibleMerchants} userRole={userRole}>
-        {children}
-      </DashboardLayoutClient>
-    </EnvironmentProvider>
+    <DashboardLayoutClient merchant={merchant ?? undefined} user={dbUser} isGuest={!merchant} initialNotifications={notifications} accessibleMerchants={accessibleMerchants} userRole={userRole}>
+      {children}
+    </DashboardLayoutClient>
   );
 }

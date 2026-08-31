@@ -35,6 +35,7 @@ export default async function CustomerDetailPage(props: { params: Promise<{ id: 
     `)
     .eq('id', params.id)
     .eq('merchant_id', merchant.id)
+    .eq('environment', 'live')
     .single();
 
   if (error) {
@@ -45,7 +46,7 @@ export default async function CustomerDetailPage(props: { params: Promise<{ id: 
     return notFound();
   }
 
-  const payments = customer.payments || [];
+  const payments = (customer.payments || []).filter((payment: any) => payment.environment === 'live');
   const successfulPayments = payments.filter((p: any) => p.status === 'succeeded' || p.status === 'completed');
   const totalVolume = successfulPayments.reduce((sum: number, p: any) => sum + Number(p.net_amount || p.amount), 0);
   const totalFees = successfulPayments.reduce((sum: number, p: any) => sum + Number(p.fee_amount || 0), 0);

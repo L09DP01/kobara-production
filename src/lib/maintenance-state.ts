@@ -12,9 +12,9 @@ export type MaintenanceState = {
 
 export const DEFAULT_MAINTENANCE_STATE: MaintenanceState = {
   enabled: false,
-  announcement_enabled: true,
-  auto_start: true,
-  scheduled_for: '2026-08-30T21:00:00.000Z',
+  announcement_enabled: false,
+  auto_start: false,
+  scheduled_for: null,
   title: 'Maintenance programmée',
   message: 'Une maintenance est prévue dimanche à 17 h. Les services Kobara seront temporairement indisponibles.',
   maintenance_message: 'Les services Kobara sont temporairement suspendus pendant une intervention planifiée. Ils seront rétablis dès la fin des vérifications.',
@@ -24,8 +24,12 @@ export function normalizeMaintenanceState(value: unknown): MaintenanceState {
   const raw = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   return {
     enabled: raw.enabled === true,
-    announcement_enabled: raw.announcement_enabled !== false,
-    auto_start: raw.auto_start !== false,
+    announcement_enabled: typeof raw.announcement_enabled === 'boolean'
+      ? raw.announcement_enabled
+      : DEFAULT_MAINTENANCE_STATE.announcement_enabled,
+    auto_start: typeof raw.auto_start === 'boolean'
+      ? raw.auto_start
+      : DEFAULT_MAINTENANCE_STATE.auto_start,
     scheduled_for: typeof raw.scheduled_for === 'string'
       ? raw.scheduled_for
       : DEFAULT_MAINTENANCE_STATE.scheduled_for,

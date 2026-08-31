@@ -4,7 +4,6 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/auth";
-import { EnvironmentProvider } from "@/context/EnvironmentContext";
 import { ensureCurrentSessionIsAllowed } from "@/app/dashboard/settings/sessions-actions";
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
 import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
@@ -288,20 +287,18 @@ export default async function DashboardLayout({
   }
 
   return (
-    <EnvironmentProvider>
-      <DashboardLayoutClient
-        merchant={merchant ?? undefined}
-        user={dbUser}
-        isGuest={!merchant}
-        initialNotifications={notifications}
-        accessibleMerchants={accessibleMerchants}
-        userRole={userRole}
-        hasPasskey={hasPasskey}
-        subscriptionEntitlement={subscriptionEntitlement}
-        isTelegramLinked={isTelegramLinked}
-      >
-        {children}
-      </DashboardLayoutClient>
-    </EnvironmentProvider>
+    <DashboardLayoutClient
+      merchant={merchant ?? undefined}
+      user={dbUser}
+      isGuest={!merchant}
+      initialNotifications={notifications}
+      accessibleMerchants={accessibleMerchants}
+      userRole={userRole}
+      hasPasskey={hasPasskey}
+      subscriptionEntitlement={subscriptionEntitlement}
+      isTelegramLinked={isTelegramLinked}
+    >
+      {children}
+    </DashboardLayoutClient>
   );
 }

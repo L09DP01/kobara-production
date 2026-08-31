@@ -7,24 +7,20 @@ import { ApiKeySecurity } from "@/lib/server/security/api-keys";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { notifyApiKeyRevoked } from "@/lib/server/notifications";
 
-export async function generateApiKey(name: string, environment: 'live' | 'test' = 'live') {
+export async function generateApiKey(name: string) {
   try {
     const { user, merchant, supabase } = await getCurrentUserAndMerchant();
-
-    if (environment !== 'live') {
-      return { error: "Les clés Sandbox sont disponibles uniquement sur test.kobara.app." };
-    }
 
     // For API keys, the user should be owner/admin. Let's assume standard role for now as per MVP.
     let role = 'owner';
     let merchantId = merchant.id;
 
     // Apply permission logic
-    if (environment === 'live' && role !== 'owner' && role !== 'admin') {
+    if (role !== 'owner' && role !== 'admin') {
       return { error: "Only owners and admins can generate live API keys" };
     }
 
-    const accessCheck = await canCreateApiKey(merchantId, environment);
+    const accessCheck = await canCreateApiKey(merchantId, 'live');
     if (!accessCheck.allowed) {
       if (accessCheck.reason === 'kyc_required') return { error: "Vous devez vérifier votre compte (KYC) pour créer une clé Live." };
       if (accessCheck.reason === 'subscription_expired') return { error: "Votre abonnement a expiré. Renouvelez-le pour créer davantage de clés API.", code: 'SUBSCRIPTION_EXPIRED' };
@@ -75,6 +71,7 @@ export async function revokeApiKey(id: string) {
       .from('api_keys')
       .select('merchant_id, name')
       .eq('id', id)
+      .eq('environment', 'live')
       .single();
 
     if (!keyInfo) {
@@ -92,7 +89,8 @@ export async function revokeApiKey(id: string) {
       .from('api_keys')
       .delete()
       .eq('id', id)
-      .eq('merchant_id', merchant.id); // Double-check ownership
+      .eq('merchant_id', merchant.id)
+      .eq('environment', 'live'); // Double-check ownership and environment
 
     if (error) {
       console.error("API Key Delete Error:", error);

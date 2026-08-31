@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Veuillez entrer un nom pour la clé API.' }, { status: 400 });
     }
 
-    const result = await generateApiKey(name, 'live');
+    const result = await generateApiKey(name);
     return NextResponse.json(result, { status: result.error ? 400 : 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Erreur interne lors de la création de la clé.';
