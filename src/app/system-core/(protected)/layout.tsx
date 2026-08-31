@@ -21,6 +21,7 @@ import {
   MonitorSmartphone,
   UserCog,
   HeartPulse,
+  BellRing,
   Menu,
   X
 } from "lucide-react";
@@ -42,6 +43,7 @@ export default function SystemCoreLayout({ children }: { children: React.ReactNo
     { name: "SESSIONS", href: "/system-core/sessions", icon: MonitorSmartphone },
     { name: "ADMINISTRATORS", href: "/system-core/administrators", icon: UserCog },
     { name: "SYSTEM HEALTH", href: "/system-core/health", icon: HeartPulse },
+    { name: "ALERTS & MAINTENANCE", href: "/system-core/alerts", icon: BellRing },
     { name: "MESSAGING", href: "/system-core/messaging", icon: Mail },
     { name: "PROMO CODES", href: "/system-core/promo-codes", icon: Tag },
     { name: "SMS GATEWAY", href: "/system-core/sms-gateway", icon: Terminal },

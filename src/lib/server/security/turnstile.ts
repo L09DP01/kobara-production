@@ -15,7 +15,7 @@ export async function verifyTurnstileToken(
     return { success: true };
   }
 
-  const configuredSecretKey = process.env.TURNSTILE_SECRET_KEY?.trim();
+  const configuredSecretKey = getTurnstileSecretKey();
   const secretKey =
     configuredSecretKey ||
     (process.env.NODE_ENV !== 'production'
@@ -56,4 +56,13 @@ export async function verifyTurnstileToken(
     }
     return { success: false, error: "Impossible de vérifier la présence humaine pour le moment." };
   }
+}
+
+export function getTurnstileSecretKey(env: NodeJS.ProcessEnv = process.env): string {
+  return (
+    env.TURNSTILE_SECRET_KEY?.trim() ||
+    env.CLOUDFLARE_TURNSTILE_SECRET_KEY?.trim() ||
+    env.TURNSTILE_SECRET?.trim() ||
+    ''
+  );
 }

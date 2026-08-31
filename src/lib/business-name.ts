@@ -1,6 +1,17 @@
 export const BUSINESS_NAME_TAKEN_MESSAGE =
   "Ce nom d'entreprise est déjà utilisé par un autre compte.";
 
+const PLACEHOLDER_BUSINESS_WORDS = new Set([
+  'asdf', 'demo', 'dummy', 'essai', 'example', 'exemple', 'fake', 'inconnu',
+  'none', 'null', 'qwerty', 'sample', 'temp', 'temporary', 'test', 'testing',
+  'unknown',
+]);
+
+const GENERIC_BUSINESS_WORDS = new Set([
+  'business', 'boutique', 'commerce', 'company', 'entreprise', 'marchand',
+  'merchant', 'service', 'services', 'shop', 'societe', 'store',
+]);
+
 export function normalizeBusinessName(value: unknown): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '';
 }
@@ -39,6 +50,26 @@ export function getBusinessNameValidationError(value: unknown): string | null {
   // 3. Interdiction des caractères spéciaux (seules les lettres avec accents et les espaces simples sont autorisés)
   if (!/^[\p{L}\s]+$/u.test(businessName)) {
     return "Les caractères spéciaux ne sont pas autorisés dans le nom de l'entreprise (seules les lettres et les espaces sont acceptés).";
+  }
+
+  const words = businessName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.some((word) => PLACEHOLDER_BUSINESS_WORDS.has(word))) {
+    return "Veuillez utiliser le nom réel de votre entreprise; les noms de test ou temporaires ne sont pas acceptés.";
+  }
+
+  if (words.every((word) => GENERIC_BUSINESS_WORDS.has(word))) {
+    return "Ajoutez un nom distinctif à votre activité, par exemple « Boutique Élégance » plutôt que « Boutique » uniquement.";
+  }
+
+  const compactName = words.join('');
+  if (/^(.)\1{2,}$/u.test(compactName) || /^(asdf|qwerty)+$/i.test(compactName)) {
+    return "Veuillez saisir un nom d'entreprise valide et reconnaissable.";
   }
 
   return null;

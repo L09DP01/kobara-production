@@ -21,6 +21,11 @@ export default async function SystemHealthPage() {
   const maintenanceActive = isMaintenanceActive(maintenance);
   const canManageMaintenance = adminSession.user.role === 'super_admin';
   const maintenanceAction = setPlatformMaintenance.bind(null, !maintenanceActive);
+  const turnstileSecretConfigured = Boolean(
+    process.env.TURNSTILE_SECRET_KEY ||
+    process.env.CLOUDFLARE_TURNSTILE_SECRET_KEY ||
+    process.env.TURNSTILE_SECRET
+  );
 
   const checks = [
     { name: 'Base de données', ok: !merchantResult.error && !paymentResult.error, detail: `${merchantResult.count || 0} marchands · ${paymentResult.count || 0} paiements` },
@@ -31,6 +36,7 @@ export default async function SystemHealthPage() {
     { name: 'E-mail transactionnel', ok: Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL), detail: process.env.RESEND_API_KEY ? 'Configuré' : 'Configuration manquante' },
     { name: 'Redis et limitation', ok: Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN), detail: process.env.UPSTASH_REDIS_REST_URL ? 'Configuré' : 'Limitation distribuée inactive' },
     { name: 'Secret des tâches planifiées', ok: Boolean(process.env.CRON_SECRET), detail: process.env.CRON_SECRET ? 'Configuré' : 'Manquant' },
+    { name: 'Vérification humaine Turnstile', ok: Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && turnstileSecretConfigured), detail: turnstileSecretConfigured ? 'Clés client et serveur détectées' : 'Secret Turnstile manquant dans Cloudflare' },
   ];
 
   return <div className="space-y-6">

@@ -9,12 +9,20 @@ import {
 } from '../src/lib/maintenance-state.ts';
 
 test('planned maintenance remains inactive before Sunday 17:00 Haiti time', () => {
-  const state = normalizeMaintenanceState(DEFAULT_MAINTENANCE_STATE);
+  const state = normalizeMaintenanceState({
+    ...DEFAULT_MAINTENANCE_STATE,
+    auto_start: true,
+    scheduled_for: '2026-08-30T21:00:00.000Z',
+  });
   assert.equal(isMaintenanceActive(state, new Date('2026-08-30T20:59:59.000Z')), false);
 });
 
 test('planned maintenance activates exactly Sunday at 17:00 Haiti time', () => {
-  const state = normalizeMaintenanceState(DEFAULT_MAINTENANCE_STATE);
+  const state = normalizeMaintenanceState({
+    ...DEFAULT_MAINTENANCE_STATE,
+    auto_start: true,
+    scheduled_for: '2026-08-30T21:00:00.000Z',
+  });
   assert.equal(isMaintenanceActive(state, new Date('2026-08-30T21:00:00.000Z')), true);
 });
 
@@ -29,7 +37,10 @@ test('reactivation disables a past automatic schedule', () => {
 });
 
 test('maintenance API exposes a useful retry delay', () => {
-  const state = normalizeMaintenanceState(DEFAULT_MAINTENANCE_STATE);
+  const state = normalizeMaintenanceState({
+    ...DEFAULT_MAINTENANCE_STATE,
+    scheduled_for: '2026-08-30T21:00:00.000Z',
+  });
   assert.equal(maintenanceRetryAfter(state, new Date('2026-08-30T20:00:00.000Z')), 3600);
 });
 

@@ -24,7 +24,6 @@ export async function setPlatformMaintenance(enabled: boolean) {
     ...current,
     enabled,
     auto_start: false,
-    announcement_enabled: enabled,
     updated_at: new Date().toISOString(),
     updated_by: session.user.email,
   };
@@ -62,5 +61,62 @@ export async function setPlatformMaintenance(enabled: boolean) {
   });
 
   revalidatePath('/system-core/health');
+  revalidatePath('/system-core/alerts');
   revalidatePath('/system-core/dashboard');
+}
+
+export async function savePlatformAlertSettings(formData: FormData) {
+  const session = await requireAdmin(['super_admin']);
+  const admin = createAdminClient();
+  const { data: currentRow } = await admin
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'platform_maintenance')
+    .maybeSingle();
+  const current = normalizeMaintenanceState(currentRow?.value || DEFAULT_MAINTENANCE_STATE);
+
+  const scheduledInput = String(formData.get('scheduled_for') || '').trim();
+  const scheduledDate = scheduledInput ? new Date(scheduledInput) : null;
+  if (scheduledDate && !Number.isFinite(scheduledDate.getTime())) {
+    throw new Error('La date programmée est invalide.');
+  }
+
+  const nextState = normalizeMaintenanceState({
+    ...current,
+    announcement_enabled: formData.get('announcement_enabled') === 'on',
+    auto_start: formData.get('auto_start') === 'on',
+    scheduled_for: scheduledDate?.toISOString() || null,
+    title: formData.get('title'),
+    message: formData.get('message'),
+    maintenance_message: formData.get('maintenance_message'),
+    updated_at: new Date().toISOString(),
+    updated_by: session.user.email,
+  });
+
+  if (nextState.auto_start && !nextState.scheduled_for) {
+    throw new Error('Ajoutez une date avant d’activer le démarrage automatique.');
+  }
+
+  const { error } = await admin.from('system_settings').upsert({
+    key: 'platform_maintenance',
+    value: nextState,
+    updated_at: new Date().toISOString(),
+    updated_by: session.user.id,
+  }, { onConflict: 'key' });
+  if (error) throw new Error(error.message);
+
+  await admin.from('audit_logs').insert({
+    admin_id: session.user.id,
+    action: 'system.alert_configuration_updated',
+    entity_type: 'system_settings',
+    metadata: {
+      announcement_enabled: nextState.announcement_enabled,
+      auto_start: nextState.auto_start,
+      scheduled_for: nextState.scheduled_for,
+      title: nextState.title,
+    },
+  });
+
+  revalidatePath('/system-core/alerts');
+  revalidatePath('/system-core/health');
 }

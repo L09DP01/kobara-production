@@ -87,6 +87,16 @@ test('business names reject special characters and symbols', () => {
   );
 });
 
+test('business names reject placeholders and generic-only labels', () => {
+  assert.match(getBusinessNameValidationError('Testing'), /nom réel/);
+  assert.match(getBusinessNameValidationError('Test Boutique'), /nom réel/);
+  assert.match(getBusinessNameValidationError('Demo Company'), /nom réel/);
+  assert.match(getBusinessNameValidationError('Boutique'), /distinctif/);
+  assert.match(getBusinessNameValidationError('Entreprise Services'), /distinctif/);
+  assert.equal(getBusinessNameValidationError('Boutique Élégance'), null);
+  assert.equal(getBusinessNameValidationError('Kobara'), null);
+});
+
 test('only the dedicated database uniqueness error is mapped as a name conflict', () => {
   assert.equal(isBusinessNameConflict({ code: '23505', message: 'business_name_already_exists' }), true);
   assert.equal(isBusinessNameConflict({ code: '23505', message: 'duplicate business_slug' }), false);

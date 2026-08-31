@@ -3,8 +3,8 @@ import Link from "next/link";
 import { ArrowLeft, Ban, CheckCircle2, ShieldAlert, Store, Activity, CreditCard, Clock, Zap, RefreshCw } from "lucide-react";
 import { getMerchantSubscriptionEntitlement, syncSubscriptionLifecycle } from '@/lib/server/plans';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { revalidatePath } from 'next/cache';
 import { MerchantPayPalToggle } from './MerchantPayPalToggle';
+import { setMerchantAccountSuspended } from './actions';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 
 export default async function AdminMerchantDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -278,15 +278,7 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
               <div className="pt-4 border-t border-slate-800">
                 <div className="text-xs text-slate-500 mb-3">SYSTEM KILL SWITCH</div>
                 {merchant.status === 'active' ? (
-                  <form action={async () => {
-                    'use server';
-                    const session = await requireAdmin(['super_admin', 'operations']);
-                    const adminClient = createAdminClient();
-                    const { error } = await adminClient.from('merchants').update({ status: 'suspended' }).eq('id', id).eq('status', 'active');
-                    if (error) throw new Error(error.message);
-                    await adminClient.from('audit_logs').insert({ admin_id: session.user.id, merchant_id: id, action: 'merchant.suspended', entity_type: 'merchants', entity_id: id });
-                    revalidatePath(`/system-core/merchants/${id}`);
-                  }}>
+                  <form action={setMerchantAccountSuspended.bind(null, id, true)}>
                     <button type="submit" className="w-full flex items-center justify-center gap-2 bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/30 py-2.5 rounded font-bold transition-colors">
                       <Ban className="w-4 h-4" />
                       SUSPEND ACCOUNT
@@ -294,15 +286,7 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
                     <p className="text-[10px] text-slate-500 mt-2 text-center">Instantly blocks API keys and payment links.</p>
                   </form>
                 ) : (
-                  <form action={async () => {
-                    'use server';
-                    const session = await requireAdmin(['super_admin', 'operations']);
-                    const adminClient = createAdminClient();
-                    const { error } = await adminClient.from('merchants').update({ status: 'active' }).eq('id', id).neq('status', 'active');
-                    if (error) throw new Error(error.message);
-                    await adminClient.from('audit_logs').insert({ admin_id: session.user.id, merchant_id: id, action: 'merchant.restored', entity_type: 'merchants', entity_id: id });
-                    revalidatePath(`/system-core/merchants/${id}`);
-                  }}>
+                  <form action={setMerchantAccountSuspended.bind(null, id, false)}>
                     <button type="submit" className="w-full flex items-center justify-center gap-2 bg-green-600/10 hover:bg-green-600/20 text-green-500 border border-green-600/30 py-2.5 rounded font-bold transition-colors">
                       <CheckCircle2 className="w-4 h-4" />
                       RESTORE ACCOUNT
