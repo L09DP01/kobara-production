@@ -1,5 +1,10 @@
 import { OpenApiGeneratorV3, OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
-import { PaymentCreatePayloadSchema, PaymentResponseSchema } from './validators';
+import {
+  PaymentCreatePayloadSchema,
+  PaymentResponseSchema,
+  WithdrawalCreatePayloadSchema,
+  WithdrawalResponseSchema,
+} from './validators';
 import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -14,7 +19,7 @@ export function generateOpenAPI() {
   });
   
   registry.registerPath({
-    path: '/api/v1/payments',
+    path: '/v1/payments',
     method: 'post',
     summary: 'Create a new payment',
     description: 'Initialize a payment transaction. Use provider "moncash", "natcash", "card", "paypal", "apple_pay", or "google_pay" to preselect a method. Use "kobara" (default) for the unified checkout page where the customer chooses. International payment data is collected only on the hosted Kobara checkout.',
@@ -22,7 +27,7 @@ export function generateOpenAPI() {
     security: [{ BearerAuth: [] }],
     request: {
       headers: z.object({
-        'idempotency-key': z.string().min(1).openapi({
+        'Idempotency-Key': z.string().min(1).openapi({
           param: {
             name: 'Idempotency-Key',
             in: 'header',
@@ -54,6 +59,35 @@ export function generateOpenAPI() {
       '401': {
         description: 'Unauthorized'
       }
+    },
+  });
+
+  registry.registerPath({
+    path: '/v1/withdrawals',
+    method: 'post',
+    summary: 'Create a MonCash or NatCash withdrawal',
+    description: 'Debit a merchant HTG or USD balance and send the net amount, after fees and any currency conversion, to a Haitian mobile wallet.',
+    tags: ['Withdrawals'],
+    security: [{ BearerAuth: [] }],
+    request: {
+      headers: z.object({
+        'Idempotency-Key': z.string().min(1).max(255).openapi({
+          param: { name: 'Idempotency-Key', in: 'header' },
+          description: 'Unique key for this withdrawal. Reuse it only when retrying the exact same request.',
+          example: 'withdrawal-8f3d4e2a-93c2-4c0f-bbe0-95ab31f6d712',
+        }),
+      }),
+      body: { content: { 'application/json': { schema: WithdrawalCreatePayloadSchema } } },
+    },
+    responses: {
+      '200': { description: 'Withdrawal completed', content: { 'application/json': { schema: WithdrawalResponseSchema } } },
+      '202': { description: 'Withdrawal accepted and pending confirmation' },
+      '400': { description: 'Invalid request or missing idempotency key' },
+      '401': { description: 'Invalid or missing secret API key' },
+      '403': { description: 'Merchant, plan, KYC, or USD account does not allow the withdrawal' },
+      '409': { description: 'Insufficient available funds, funds pending release, or idempotency conflict' },
+      '429': { description: 'Rate limit exceeded' },
+      '502': { description: 'Provider rejected the transfer; reserved funds were refunded' },
     },
   });
 

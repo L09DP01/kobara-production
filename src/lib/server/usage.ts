@@ -23,11 +23,11 @@ export async function getDailyWithdrawalTotal(merchantId: string): Promise<numbe
   const supabase = createAdminClient();
   const now = new Date();
   
-  // Note: withdrawals table might not exist yet in this exact shape, assuming standard shape
   const { data, error } = await supabase
     .from('withdrawals')
-    .select('amount')
+    .select('total, amount, currency, exchange_rate')
     .eq('merchant_id', merchantId)
+    .or('environment.eq.live,environment.is.null')
     .gte('created_at', startOfDay(now).toISOString())
     .lte('created_at', endOfDay(now).toISOString())
     .not('status', 'eq', 'failed')
@@ -35,10 +35,14 @@ export async function getDailyWithdrawalTotal(merchantId: string): Promise<numbe
 
   if (error) {
     console.error("Erreur calcul retraits quotidiens:", error);
-    return 0;
+    throw new Error('withdrawal_usage_unavailable');
   }
 
-  return data.reduce((total, withdrawal) => total + Number(withdrawal.amount), 0);
+  return data.reduce((dailyTotalHtg, withdrawal) => {
+    const grossAmount = Number(withdrawal.total ?? withdrawal.amount ?? 0);
+    const exchangeRate = Number(withdrawal.exchange_rate || 130);
+    return dailyTotalHtg + (withdrawal.currency === 'USD' ? grossAmount * exchangeRate : grossAmount);
+  }, 0);
 }
 
 export async function getApiKeysCount(merchantId: string, environment?: 'test' | 'live'): Promise<number> {

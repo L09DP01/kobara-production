@@ -188,7 +188,7 @@ Authorization: Bearer VOTRE_SECRET_KEY
 ## Exemple cURL
 
 ```bash id="0s5r5z"
-curl https://api.kobara.app/api/v1/payments \
+curl https://api.kobara.app/v1/payments \
   -H "Authorization: Bearer kbr_sk_test_VOTRE_CLE_API" \
   -H "Content-Type: application/json"
 ```
@@ -199,7 +199,7 @@ curl https://api.kobara.app/api/v1/payments \
 
 ```js id="kn5bsv"
 const response = await fetch(
-  "https://api.kobara.app/api/v1/payments",
+  "https://api.kobara.app/v1/payments",
   {
     method: "POST",
 

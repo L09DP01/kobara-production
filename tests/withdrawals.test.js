@@ -47,6 +47,19 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
     assert.equal(netAmount + fees, grossAmount);
   });
 
+  await t.test('rounds withdrawal fees and net amounts to currency precision', () => {
+    const quote = calculateWithdrawalQuote({ amount: 333.33, method: 'moncash', sourceCurrency: 'HTG', exchangeRate: 130 });
+
+    assert.equal(quote.grossAmount, 333.33);
+    assert.equal(quote.fees, 16.67);
+    assert.equal(quote.netSourceAmount, 316.66);
+    assert.equal(quote.payoutAmount, 316.66);
+    assert.equal(
+      Math.round((quote.netSourceAmount + quote.fees) * 100),
+      Math.round(quote.grossAmount * 100),
+    );
+  });
+
   await t.test('calculates 2% fee for manual USD withdrawals', () => {
     const grossAmount = 100;
     const feeRate = 0.02;
@@ -100,6 +113,25 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
 
     const usdToPaypal = calculateWithdrawalQuote({ amount: 100, method: 'PayPal', sourceCurrency: 'USD', exchangeRate: 130 });
     assert.equal(usdToPaypal.payoutAmount, 98);
+  });
+});
+
+test('Withdrawal API: public route contract', async (t) => {
+  const { WithdrawalCreatePayloadSchema } = await import('../src/lib/server/validators.ts');
+
+  await t.test('accepts only MonCash and NatCash payout methods', () => {
+    assert.equal(WithdrawalCreatePayloadSchema.safeParse({ amount: 1000, method: 'MonCash', wallet: '50934567890' }).success, true);
+    assert.equal(WithdrawalCreatePayloadSchema.safeParse({ amount: 1000, method: 'natcash', wallet: '50934567890' }).success, true);
+    assert.equal(WithdrawalCreatePayloadSchema.safeParse({ amount: 1000, method: 'paypal', wallet: 'merchant@example.com' }).success, false);
+    assert.equal(WithdrawalCreatePayloadSchema.safeParse({ amount: 1000, method: 'zelle', wallet: 'merchant@example.com' }).success, false);
+  });
+
+  await t.test('defaults to the HTG account and rejects fractions smaller than one cent', () => {
+    const parsed = WithdrawalCreatePayloadSchema.safeParse({ amount: 1000, wallet: '50934567890' });
+    assert.equal(parsed.success, true);
+    assert.equal(parsed.data.method, 'moncash');
+    assert.equal(parsed.data.account_currency, 'HTG');
+    assert.equal(WithdrawalCreatePayloadSchema.safeParse({ amount: 1000.001, wallet: '50934567890' }).success, false);
   });
 });
 

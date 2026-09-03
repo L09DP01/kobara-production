@@ -78,7 +78,7 @@ Vous pouvez demander à Kobara de développer certains objets liés.
 Exemple :
 
 ```http
-GET /api/v1/payments/pay_123?expand[]=customer
+GET /v1/payments/pay_123?expand[]=customer
 ```
 
 ---

@@ -11,6 +11,10 @@ export interface WithdrawalQuote {
   payoutAmount: number;
 }
 
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 export function resolveWithdrawalPayoutCurrency(method: string): WithdrawalCurrency {
   const normalizedMethod = String(method || '').trim().toLowerCase();
   return normalizedMethod === 'zelle' || normalizedMethod === 'paypal' ? 'USD' : 'HTG';
@@ -22,7 +26,7 @@ export function calculateWithdrawalQuote(params: {
   sourceCurrency: WithdrawalCurrency;
   exchangeRate: number;
 }): WithdrawalQuote {
-  const grossAmount = Number(params.amount);
+  const grossAmount = roundMoney(Number(params.amount));
   const exchangeRate = Number(params.exchangeRate);
   if (!Number.isFinite(grossAmount) || grossAmount < 0) throw new Error('invalid_withdrawal_amount');
   if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) throw new Error('invalid_exchange_rate');
@@ -30,8 +34,8 @@ export function calculateWithdrawalQuote(params: {
   const sourceCurrency: WithdrawalCurrency = params.sourceCurrency === 'USD' ? 'USD' : 'HTG';
   const payoutCurrency = resolveWithdrawalPayoutCurrency(params.method);
   const feeRate = payoutCurrency === 'USD' ? 0.02 : 0.05;
-  const fees = grossAmount * feeRate;
-  const netSourceAmount = grossAmount - fees;
+  const fees = roundMoney(grossAmount * feeRate);
+  const netSourceAmount = roundMoney(grossAmount - fees);
   const convertedAmount = sourceCurrency === payoutCurrency
     ? netSourceAmount
     : sourceCurrency === 'HTG'
@@ -46,6 +50,6 @@ export function calculateWithdrawalQuote(params: {
     fees,
     netSourceAmount,
     exchangeRate,
-    payoutAmount: Math.round((convertedAmount + Number.EPSILON) * 100) / 100,
+    payoutAmount: roundMoney(convertedAmount),
   };
 }

@@ -12,7 +12,7 @@ Ce guide rapide vous montrera comment accepter votre premier paiement en moins d
 
 Avant de commencer à intégrer l'API, vous devez posséder un compte Kobara actif.
 
-1. Rendez-vous sur la page d'[Inscription](/register).
+1. Rendez-vous sur la page d'[Inscription](https://kobara.app/register).
 2. Remplissez les informations de votre entreprise.
 3. Vérifiez votre adresse email.
 4. (Optionnel pour le mode Test) Soumettez vos documents KYC pour activer le mode **Live**.
@@ -23,7 +23,7 @@ Avant de commencer à intégrer l'API, vous devez posséder un compte Kobara act
 
 Toutes les requêtes adressées à Kobara nécessitent une authentification.
 
-1. Connectez-vous à votre [Dashboard](/dashboard).
+1. Connectez-vous à votre [Dashboard](https://dashboard.kobara.app).
 2. Dans le menu de gauche, allez dans **Développeurs > API Keys**.
 3. Vous trouverez deux types de clés :
    - `Public Key` (`kbr_pk_test_...`) : À utiliser dans votre frontend (React, Next.js, Mobile).

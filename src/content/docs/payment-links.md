@@ -37,7 +37,7 @@ après qu’un client effectue un paiement.
 ## Créer un lien
 
 ```http
-POST /api/v1/payment-links
+POST /v1/payment-links
 ```
 
 ---
@@ -45,7 +45,7 @@ POST /api/v1/payment-links
 ## Lister les liens
 
 ```http
-GET /api/v1/payment-links
+GET /v1/payment-links
 ```
 
 ---
@@ -280,7 +280,7 @@ const paymentLink = await kobara.paymentLinks.create({
 ## Exemple cURL
 
 ```bash
-curl https://api.kobara.app/api/v1/payment-links \
+curl https://api.kobara.app/v1/payment-links \
   -X POST \
   -H "Authorization: Bearer kbr_sk_live_VOTRE_CLE_API" \
   -H "Content-Type: application/json" \

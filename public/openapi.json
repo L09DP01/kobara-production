@@ -101,12 +101,21 @@
             "type": "string",
             "enum": [
               "moncash",
+              "moncash_ussd",
+              "moncash_web",
               "natcash",
+              "natcash_web",
+              "natcash_ussd",
+              "carte",
+              "card",
+              "paypal",
+              "apple_pay",
+              "google_pay",
               "kobara"
             ],
             "default": "kobara",
-            "description": "Payment provider (case-insensitive): moncash, natcash, or kobara. Values such as Natcash, NATCASH, and MonCash are accepted and normalized.",
-            "example": "natcash"
+            "description": "Payment provider (case-insensitive): moncash, natcash, card, paypal, apple_pay, google_pay, or kobara. Defaults to kobara (unified checkout page).",
+            "example": "card"
           },
           "description": {
             "type": "string",
@@ -163,15 +172,169 @@
             "example": "37000000"
           }
         }
+      },
+      "WithdrawalResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success"
+            ]
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reference": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "pending_approval",
+                  "completed"
+                ]
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "moncash",
+                  "natcash"
+                ]
+              },
+              "amount": {
+                "type": "number",
+                "description": "Gross amount debited from the merchant balance.",
+                "example": 1000
+              },
+              "fees": {
+                "type": "number",
+                "description": "Withdrawal fee deducted from the gross amount.",
+                "example": 50
+              },
+              "net_amount": {
+                "type": "number",
+                "description": "Net amount after withdrawal fees, before currency conversion.",
+                "example": 950
+              },
+              "currency": {
+                "type": "string",
+                "enum": [
+                  "HTG",
+                  "USD"
+                ]
+              },
+              "payout_amount": {
+                "type": "number",
+                "description": "Amount sent to the destination wallet.",
+                "example": 950
+              },
+              "payout_currency": {
+                "type": "string",
+                "enum": [
+                  "HTG"
+                ]
+              },
+              "exchange_rate": {
+                "type": "number"
+              },
+              "wallet": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string",
+                "nullable": true
+              },
+              "created_at": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "reference",
+              "status",
+              "method",
+              "amount",
+              "fees",
+              "net_amount",
+              "currency",
+              "payout_amount",
+              "payout_currency",
+              "exchange_rate",
+              "wallet",
+              "description",
+              "created_at"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "data"
+        ]
+      },
+      "WithdrawalCreatePayload": {
+        "type": "object",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "description": "Gross amount debited from the selected Kobara balance. Withdrawal fees are deducted from this amount.",
+            "example": 1000
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "moncash",
+              "natcash"
+            ],
+            "default": "moncash",
+            "description": "Supported mobile wallet payout method.",
+            "example": "moncash"
+          },
+          "account_currency": {
+            "type": "string",
+            "enum": [
+              "HTG",
+              "USD"
+            ],
+            "default": "HTG",
+            "description": "Kobara balance to debit. A USD balance must already be active when USD is selected.",
+            "example": "HTG"
+          },
+          "wallet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "Haitian MonCash or NatCash destination number.",
+            "example": "50934567890"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Internal withdrawal description.",
+            "example": "Retrait principal boutique"
+          }
+        },
+        "required": [
+          "amount",
+          "wallet"
+        ],
+        "additionalProperties": false
       }
     },
     "parameters": {}
   },
   "paths": {
-    "/api/v1/payments": {
+    "/v1/payments": {
       "post": {
         "summary": "Create a new payment",
-        "description": "Initialize a payment transaction. Use provider \"moncash\" or \"natcash\" to direct to a specific provider, or \"kobara\" for the unified checkout page.",
+        "description": "Initialize a payment transaction. Use provider \"moncash\", \"natcash\", \"card\", \"paypal\", \"apple_pay\", or \"google_pay\" to preselect a method. Use \"kobara\" (default) for the unified checkout page where the customer chooses. International payment data is collected only on the hosted Kobara checkout.",
         "tags": [
           "Payments"
         ],
@@ -182,15 +345,16 @@
         ],
         "parameters": [
           {
-            "name": "Idempotency-Key",
-            "in": "header",
-            "required": true,
-            "description": "Unique key for this payment attempt. Reuse it only when retrying the exact same request.",
             "schema": {
               "type": "string",
               "minLength": 1,
+              "description": "Unique key for this payment attempt. Reuse it only when retrying the exact same request.",
               "example": "8f3d4e2a-93c2-4c0f-bbe0-95ab31f6d712"
-            }
+            },
+            "required": true,
+            "description": "Unique key for this payment attempt. Reuse it only when retrying the exact same request.",
+            "name": "Idempotency-Key",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -218,6 +382,77 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/withdrawals": {
+      "post": {
+        "summary": "Create a MonCash or NatCash withdrawal",
+        "description": "Debit a merchant HTG or USD balance and send the net amount, after fees and any currency conversion, to a Haitian mobile wallet.",
+        "tags": [
+          "Withdrawals"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Unique key for this withdrawal. Reuse it only when retrying the exact same request.",
+              "example": "withdrawal-8f3d4e2a-93c2-4c0f-bbe0-95ab31f6d712"
+            },
+            "required": true,
+            "description": "Unique key for this withdrawal. Reuse it only when retrying the exact same request.",
+            "name": "Idempotency-Key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawalCreatePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Withdrawal completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WithdrawalResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Withdrawal accepted and pending confirmation"
+          },
+          "400": {
+            "description": "Invalid request or missing idempotency key"
+          },
+          "401": {
+            "description": "Invalid or missing secret API key"
+          },
+          "403": {
+            "description": "Merchant, plan, KYC, or USD account does not allow the withdrawal"
+          },
+          "409": {
+            "description": "Insufficient available funds, funds pending release, or idempotency conflict"
+          },
+          "429": {
+            "description": "Rate limit exceeded"
+          },
+          "502": {
+            "description": "Provider rejected the transfer; reserved funds were refunded"
           }
         }
       }

@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 export function AuthVisual() {
   const [codeIndex, setCodeIndex] = useState(0);
   const codeLines = [
-    "POST /api/v1/payments",
+    "POST /v1/payments",
     "Headers: { Authorization: 'Bearer kobara_live_***' }",
     "Body: {",
     "  amount: 2500,",

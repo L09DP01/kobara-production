@@ -327,7 +327,7 @@ const kobara = new Kobara({
 ## Exemple cURL
 
 ```bash id="rz5ptv"
-curl https://api.kobara.app/api/v1/payments \
+curl https://api.kobara.app/v1/payments \
   -H "Authorization: Bearer kbr_sk_live_VOTRE_CLE_API" \
   -H "Content-Type: application/json"
 ```

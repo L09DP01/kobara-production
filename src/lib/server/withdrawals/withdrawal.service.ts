@@ -28,6 +28,7 @@ export interface ProcessWithdrawalResult {
   refunded?: boolean;
   requiresManualApproval?: boolean;
   requiresVerification?: boolean;
+  idempotent?: boolean;
 }
 
 export const WithdrawalService = {
@@ -201,10 +202,22 @@ export const WithdrawalService = {
     // Idempotence : si le retrait existait déjà pour cette clé
     if (prepResult.already_exists) {
       console.log(`[WithdrawalService] Idempotent request detected for key ${idempotencyKey}`);
+      const existingStatus = prepResult.withdrawal?.status;
+      if (['failed', 'rejected', 'cancelled'].includes(existingStatus)) {
+        return {
+          success: false,
+          status: 'failed',
+          withdrawal: prepResult.withdrawal,
+          error: 'Cette demande de retrait a déjà échoué et ne peut pas être relancée avec la même Idempotency-Key.',
+          errorCode: 'WITHDRAWAL_ALREADY_FAILED',
+          idempotent: true,
+        };
+      }
       return {
         success: true,
-        status: prepResult.withdrawal?.status,
+        status: existingStatus,
         withdrawal: prepResult.withdrawal,
+        idempotent: true,
       };
     }
 
@@ -387,6 +400,7 @@ export const WithdrawalService = {
           success: false,
           status: 'pending',
           requiresVerification: true,
+          withdrawal,
           error: "Le statut du transfert est en cours de confirmation par l'opérateur. Votre compte sera mis à jour dès confirmation.",
         };
       }

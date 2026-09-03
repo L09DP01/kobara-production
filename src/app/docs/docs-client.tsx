@@ -125,7 +125,7 @@ export function DocsClient({
       )}>
         {/* Header inside Sidebar */}
         <div className="px-6 py-6 border-b border-[#1E2A38] flex justify-between items-center bg-[#07111F]">
-          <Link href="/" className="font-bold text-xl flex items-center gap-3 text-white">
+          <Link href="https://kobara.app" className="font-bold text-xl flex items-center gap-3 text-white">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/Icone.png" alt="Kobara" className="w-8 h-8 object-contain" />
             Kobara <span className="text-[#AAB3C2] font-normal">Docs</span>
@@ -171,12 +171,12 @@ export function DocsClient({
             </a>
             <div className="w-px h-6 bg-[#1E2A38] hidden sm:block mx-2"></div>
             {isAuthenticated ? (
-              <Link href="/dashboard" className="bg-[#FF4A1C] hover:bg-[#FF2E14] text-white px-5 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(255,74,28,0.3)] hover:shadow-[0_0_25px_rgba(255,74,28,0.5)]">
+              <Link href="https://dashboard.kobara.app" className="bg-[#FF4A1C] hover:bg-[#FF2E14] text-white px-5 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(255,74,28,0.3)] hover:shadow-[0_0_25px_rgba(255,74,28,0.5)]">
                 <span className="material-symbols-outlined text-[18px]">dashboard</span>
                 <span className="hidden sm:inline">Dashboard</span>
               </Link>
             ) : (
-              <Link href="/" className="bg-[#07111F] hover:bg-[#1E2A38] text-white px-5 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 border border-[#1E2A38]">
+              <Link href="https://kobara.app" className="bg-[#07111F] hover:bg-[#1E2A38] text-white px-5 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 border border-[#1E2A38]">
                 <span className="material-symbols-outlined text-[18px]">home</span>
                 <span className="hidden sm:inline">Accueil</span>
               </Link>

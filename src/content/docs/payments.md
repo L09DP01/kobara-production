@@ -19,7 +19,7 @@ Toutes les transactions créées via cette API sont enregistrées dans la table 
 ## Endpoint
 
 ```http
-POST /api/v1/payments
+POST /v1/payments
 ```
 
 Base URL :
@@ -29,7 +29,7 @@ https://api.kobara.app
 
 Exemple :
 ```http
-POST https://api.kobara.app/api/v1/payments
+POST https://api.kobara.app/v1/payments
 ```
 
 ---
@@ -142,7 +142,7 @@ URL de redirection vers votre site si le client annule le paiement.
 ## Exemple Node.js
 
 ```js
-const response = await fetch("https://api.kobara.app/api/v1/payments", {
+const response = await fetch("https://api.kobara.app/v1/payments", {
   method: "POST",
   headers: {
     "Authorization": "Bearer kbr_sk_live_VOTRE_CLE_API",
@@ -173,7 +173,7 @@ console.log("URL de redirection paiement :", data.data.checkout_url);
 ## Exemple cURL
 
 ```bash
-curl https://api.kobara.app/api/v1/payments \
+curl https://api.kobara.app/v1/payments \
   -X POST \
   -H "Authorization: Bearer kbr_sk_live_VOTRE_CLE_API" \
   -H "Content-Type: application/json" \
