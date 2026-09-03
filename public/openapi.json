@@ -3,7 +3,7 @@
   "info": {
     "version": "1.0.0",
     "title": "Kobara API",
-    "description": "The API for integrating MonCash payments via Kobara."
+    "description": "The Kobara API for unified local and international payments, plus MonCash and NatCash withdrawals."
   },
   "servers": [
     {
@@ -43,6 +43,14 @@
                 "type": "number",
                 "example": 2500
               },
+              "net_amount": {
+                "type": "number",
+                "example": 2427.5
+              },
+              "fee_amount": {
+                "type": "number",
+                "example": 72.5
+              },
               "status": {
                 "type": "string",
                 "enum": [
@@ -54,25 +62,53 @@
                 ],
                 "example": "pending"
               },
+              "environment": {
+                "type": "string",
+                "enum": [
+                  "live"
+                ]
+              },
+              "paid_at": {
+                "type": "string",
+                "nullable": true
+              },
               "checkout_url": {
                 "type": "string",
                 "format": "uri",
-                "example": "https://kobara.app/pay/pay_123456"
+                "example": "https://pay.kobara.app/checkout/pay_123456"
               },
               "url": {
                 "type": "string",
                 "format": "uri",
                 "description": "Backward-compatible alias of checkout_url",
-                "example": "https://kobara.app/pay/pay_123456"
+                "example": "https://pay.kobara.app/checkout/pay_123456"
+              },
+              "payment_url": {
+                "type": "string",
+                "format": "uri",
+                "description": "Backward-compatible alias of checkout_url",
+                "example": "https://pay.kobara.app/checkout/pay_123456"
+              },
+              "paymentUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Backward-compatible alias of checkout_url",
+                "example": "https://pay.kobara.app/checkout/pay_123456"
               }
             },
             "required": [
               "id",
               "reference",
               "amount",
+              "net_amount",
+              "fee_amount",
               "status",
+              "environment",
+              "paid_at",
               "checkout_url",
-              "url"
+              "url",
+              "payment_url",
+              "paymentUrl"
             ]
           }
         },

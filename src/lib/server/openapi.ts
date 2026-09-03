@@ -98,7 +98,7 @@ export function generateOpenAPI() {
     info: {
       version: '1.0.0',
       title: 'Kobara API',
-      description: 'The API for integrating MonCash payments via Kobara.',
+      description: 'The Kobara API for unified local and international payments, plus MonCash and NatCash withdrawals.',
     },
     servers: [{ url: 'https://api.kobara.app' }],
   });

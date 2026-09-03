@@ -1,6 +1,6 @@
 # Quickstart : Intégration avec Kobara
 
-Bienvenue dans la documentation officielle de **Kobara**, la passerelle de paiement de référence pour accepter MonCash et NatCash en Haïti. 
+Bienvenue dans la documentation officielle de **Kobara**, la passerelle permettant d'accepter les moyens locaux et internationaux activés sur votre compte marchand.
 
 Si vous cherchez **api moncash**, **moncash api**, **api natcash** ou **natcash api**, Kobara fournit une API unique pour creer un paiement, rediriger le client vers le checkout et recevoir la confirmation via webhook.
 
@@ -25,9 +25,7 @@ Toutes les requêtes adressées à Kobara nécessitent une authentification.
 
 1. Connectez-vous à votre [Dashboard](https://dashboard.kobara.app).
 2. Dans le menu de gauche, allez dans **Développeurs > API Keys**.
-3. Vous trouverez deux types de clés :
-   - `Public Key` (`kbr_pk_test_...`) : À utiliser dans votre frontend (React, Next.js, Mobile).
-   - `Secret Key` (`kbr_sk_test_...`) : À utiliser **uniquement** sur votre serveur (Node.js, PHP, Python). **Ne l'exposez jamais côté client.**
+3. Créez une `Secret API Key Live` (`kbr_sk_live_...`) et conservez-la uniquement sur votre serveur. L'API Production n'accepte ni clé publique ni clé Sandbox.
 
 ---
 
@@ -39,7 +37,7 @@ La méthode la plus directe pour accepter un paiement est d'appeler l'API de cr�
 
 ```bash
 curl -X POST https://api.kobara.app/v1/payments \
-  -H "Authorization: Bearer kbr_sk_test_VOTRE_CLE_API" \
+  -H "Authorization: Bearer kbr_sk_live_VOTRE_CLE_API" \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: $(uuidgen)" \
   -d '{
@@ -59,15 +57,16 @@ curl -X POST https://api.kobara.app/v1/payments \
 ```
 
 > **💡 Tip : Le champ `provider`**
-> - `"kobara"` **(défaut)** : Page de checkout unifiée — le client choisit MonCash ou NatCash.
+> - `"kobara"` **(défaut)** : Page de checkout unifiée; le client choisit parmi les moyens actifs.
 > - `"moncash"` : Redirige directement vers MonCash.
 > - `"natcash"` : Redirige directement vers NatCash.
+> - `"card"`, `"paypal"`, `"apple_pay"`, `"google_pay"` : Présélectionne un moyen international si le compte USD et le moyen sont actifs.
 >
 > Si vous ne spécifiez pas de `provider`, le défaut est `"kobara"`.
 
 ### Réponse
 
-L'API vous retournera un identifiant de paiement et une URL (`checkout_url`). Vous devez **rediriger votre utilisateur vers cette URL** pour qu'il finalise son paiement (via MonCash ou NatCash selon le provider choisi).
+L'API retourne un identifiant et une URL `checkout_url`. Redirigez le client vers cette URL pour terminer le paiement sur le checkout hébergé Kobara.
 
 ```json
 {

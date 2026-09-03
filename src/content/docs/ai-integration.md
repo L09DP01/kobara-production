@@ -52,31 +52,31 @@ Before analyzing my project or generating any code:
 
 Visit and analyze the Kobara documentation:
 
-https://kobara.app/docs/quickstart
+https://docs.kobara.app/docs/quickstart
 
 Also analyze all relevant sections:
 
-* javascriptSdk: \`https://kobara.app/docs/javascript-sdk\`,
+* javascriptSdk: \`https://docs.kobara.app/docs/javascript-sdk\`,
 
-    nodeSdk: \`https://kobara.app/docs/nodejs-sdk\`,
+    nodeSdk: \`https://docs.kobara.app/docs/nodejs-sdk\`,
 
-    pythonSdk: \`https://kobara.app/docs/python-sdk\`,
+    pythonSdk: \`https://docs.kobara.app/docs/python-sdk\`,
 
-    phpSdk: \`https://kobara.app/docs/php-sdk\`,
+    phpSdk: \`https://docs.kobara.app/docs/php-sdk\`,
 
-    wordpressPlugin: \`https://kobara.app/docs/wordpress-plugin\`,
+    wordpressPlugin: \`https://docs.kobara.app/docs/wordpress-plugin\`,
 
-    aiIntegration: \`https://kobara.app/docs/ai-integration\`,
+    aiIntegration: \`https://docs.kobara.app/docs/ai-integration\`,
 
-    payments: \`https://kobara.app/docs/payments\`,
+    payments: \`https://docs.kobara.app/docs/payments\`,
 
-    paymentLinks: \`https://kobara.app/docs/payment-links\`,
+    paymentLinks: \`https://docs.kobara.app/docs/payment-links\`,
 
-    webhooks: \`https://kobara.app/docs/webhooks\`,
+    webhooks: \`https://docs.kobara.app/docs/webhooks\`,
 
-    withdrawals: \`https://kobara.app/docs/withdrawals\`,
+    withdrawals: \`https://docs.kobara.app/docs/withdrawals\`,
 
-    errors: \`https://kobara.app/docs/errors\`,
+    errors: \`https://docs.kobara.app/docs/errors\`,
 
   Use the documentation as the source of truth.
 
@@ -193,12 +193,6 @@ Always:
 * Verify webhook signatures.
 * Validate input data.
 * Follow OWASP best practices.
-
-Public Key:
-
-\`\`\`env
-NEXT_PUBLIC_KOBARA_PUBLIC_KEY=
-\`\`\`
 
 Secret Key:
 

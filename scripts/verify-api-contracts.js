@@ -1,72 +1,102 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-console.log("🔍 Démarrage de la vérification des contrats API (SSOT)...");
+const fail = (message) => {
+  console.error(`ERROR: ${message}`);
+  process.exitCode = 1;
+};
 
-const openapiPath = path.join(__dirname, '../public/openapi.json');
-if (!fs.existsSync(openapiPath)) {
-  console.error("❌ ERREUR: public/openapi.json n'existe pas. Veuillez lancer 'npm run generate-openapi' d'abord.");
-  process.exit(1);
+const read = (relativePath) => {
+  const absolutePath = path.join(__dirname, relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    fail(`Missing file: ${absolutePath}`);
+    return "";
+  }
+  return fs.readFileSync(absolutePath, "utf8");
+};
+
+const readOptional = (relativePath) => {
+  const absolutePath = path.join(__dirname, relativePath);
+  if (!fs.existsSync(absolutePath)) {
+    console.warn(`WARN: SDK source is not checked out next to Production: ${absolutePath}`);
+    return "";
+  }
+  return fs.readFileSync(absolutePath, "utf8");
+};
+
+const openapi = JSON.parse(read("../public/openapi.json"));
+const payment = openapi.components?.schemas?.PaymentCreatePayload;
+const withdrawal = openapi.components?.schemas?.WithdrawalCreatePayload;
+
+if (!payment || !withdrawal) {
+  fail("PaymentCreatePayload or WithdrawalCreatePayload is missing from OpenAPI.");
+} else {
+  const expectedProviders = [
+    "kobara", "moncash", "moncash_web", "moncash_ussd",
+    "natcash", "natcash_web", "natcash_ussd", "card", "carte",
+    "paypal", "apple_pay", "google_pay",
+  ];
+  const actualProviders = payment.properties?.provider?.enum || [];
+  for (const provider of expectedProviders) {
+    if (!actualProviders.includes(provider)) fail(`OpenAPI payment provider is missing: ${provider}`);
+  }
+  for (const field of ["amount", "provider", "success_url", "cancel_url"]) {
+    if (!payment.properties?.[field]) fail(`OpenAPI payment field is missing: ${field}`);
+  }
+
+  const methods = withdrawal.properties?.method?.enum || [];
+  if (methods.join(",") !== "moncash,natcash") {
+    fail("Public withdrawals must support exactly moncash and natcash.");
+  }
+  for (const field of ["amount", "method", "account_currency", "wallet"]) {
+    if (!withdrawal.properties?.[field]) fail(`OpenAPI withdrawal field is missing: ${field}`);
+  }
 }
 
-const openapi = JSON.parse(fs.readFileSync(openapiPath, 'utf8'));
-const paymentSchema = openapi.components?.schemas?.PaymentCreatePayload;
-
-if (!paymentSchema) {
-  console.error("❌ ERREUR: PaymentCreatePayload introuvable dans openapi.json");
-  process.exit(1);
-}
-
-// On vérifie que la source de vérité a bien cancel_url et PAS errorUrl
-const properties = paymentSchema.properties || {};
-if (!properties.cancel_url) {
-  console.error("❌ ERREUR: La source de vérité (OpenAPI) devrait contenir 'cancel_url'.");
-  process.exit(1);
-}
-
-if (properties.errorUrl) {
-  console.error("❌ ERREUR: La source de vérité (OpenAPI) contient 'errorUrl', elle devrait utiliser 'cancel_url'.");
-  process.exit(1);
-}
-
-// Vérification des SDKs
-const filesToCheck = [
-  { path: '../kobara-js/src/types/index.ts', name: 'SDK JavaScript' },
-  { path: '../kobara-node/src/types.ts', name: 'SDK Node.js' }
+const sources = [
+  { name: "JavaScript", file: "../../kobara-js/src/types/index.ts", client: "../../kobara-js/src/client.ts" },
+  { name: "Node.js", file: "../../kobara-node/src/types.ts", client: "../../kobara-node/src/client.ts" },
+  { name: "Python", file: "../../kobara-python/kobara/types.py", client: "../../kobara-python/kobara/client.py" },
+  { name: "PHP", file: "../../kobara-php-sdk/src/Resources/Payments.php", client: "../../kobara-php-sdk/src/KobaraClient.php" },
 ];
 
-let hasError = false;
+for (const source of sources) {
+  const contract = readOptional(source.file);
+  const client = readOptional(source.client);
+  if (!contract || !client) continue;
 
-for (const file of filesToCheck) {
-  const filePath = path.join(__dirname, file.path);
-  if (!fs.existsSync(filePath)) {
-    console.warn(`⚠️ Avertissement: Fichier SDK introuvable: ${filePath}`);
-    continue;
+  if (!client.includes("https://api.kobara.app/v1")) {
+    fail(`${source.name} does not use the canonical Production API base URL.`);
   }
-
-  const content = fs.readFileSync(filePath, 'utf8');
-
-  // Regex simples pour parser l'interface TypeScript sans AST complet
-  if (content.includes('errorUrl')) {
-    console.error(`❌ ERREUR (${file.name}): Contient la clé obsolète 'errorUrl'. Utilisez 'cancel_url'.`);
-    hasError = true;
+  for (const stale of ["https://api.kobara.app/api/v1", "https://kobara.app/api/v1"]) {
+    if (client.includes(stale)) fail(`${source.name} still contains stale base URL ${stale}.`);
   }
-
-  if (content.includes('successUrl')) {
-    console.error(`❌ ERREUR (${file.name}): Contient la clé obsolète 'successUrl'. Utilisez 'success_url'.`);
-    hasError = true;
+  const normalizedContract = contract.toLowerCase();
+  for (const field of ["provider", "success_url", "cancel_url"]) {
+    if (!normalizedContract.includes(field)) fail(`${source.name} payment contract is missing ${field}.`);
   }
-
-  if (!content.includes('cancel_url')) {
-    console.error(`❌ ERREUR (${file.name}): Il manque la clé 'cancel_url'.`);
-    hasError = true;
+  for (const value of ["moncash", "natcash", "paypal", "apple_pay", "google_pay"]) {
+    if (!normalizedContract.includes(value)) fail(`${source.name} payment contract is missing provider ${value}.`);
   }
 }
 
-if (hasError) {
-  console.error("\n💥 ÉCHEC DE LA VÉRIFICATION. Les SDKs ne sont pas synchronisés avec la Source de Vérité (Backend).");
-  process.exit(1);
+const withdrawalSources = [
+  "../../kobara-js/src/types/index.ts",
+  "../../kobara-node/src/types.ts",
+  "../../kobara-python/README.md",
+  "../../kobara-php-sdk/README.md",
+];
+for (const source of withdrawalSources) {
+  const content = readOptional(source).toLowerCase();
+  if (!content) continue;
+  for (const field of ["moncash", "natcash"]) {
+    if (!content.includes(field)) fail(`${source} is missing withdrawal method ${field}.`);
+  }
 }
 
-console.log("✅ SUCCÈS: Tous les contrats API sont parfaitement synchronisés !");
-process.exit(0);
+const publishedRoutes = Object.keys(openapi.paths || {}).sort();
+if (publishedRoutes.join(",") !== "/v1/payments,/v1/withdrawals") {
+  fail(`Unexpected public route set: ${publishedRoutes.join(", ")}`);
+}
+
+if (!process.exitCode) console.log("API, SDK and OpenAPI contracts are synchronized.");

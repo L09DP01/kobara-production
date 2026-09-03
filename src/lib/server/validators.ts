@@ -29,9 +29,15 @@ export const PaymentResponseSchema = z.object({
     id: z.string().openapi({ example: "pay_123456" }),
     reference: z.string().openapi({ example: "KOB-123456" }),
     amount: z.number().openapi({ example: 2500 }),
+    net_amount: z.number().openapi({ example: 2427.5 }),
+    fee_amount: z.number().openapi({ example: 72.5 }),
     status: z.enum(["pending", "succeeded", "failed", "expired", "refunded"]).openapi({ example: "pending" }),
-    checkout_url: z.string().url().openapi({ example: "https://kobara.app/pay/pay_123456" }),
-    url: z.string().url().openapi({ description: "Backward-compatible alias of checkout_url", example: "https://kobara.app/pay/pay_123456" }),
+    environment: z.literal("live"),
+    paid_at: z.string().nullable(),
+    checkout_url: z.string().url().openapi({ example: "https://pay.kobara.app/checkout/pay_123456" }),
+    url: z.string().url().openapi({ description: "Backward-compatible alias of checkout_url", example: "https://pay.kobara.app/checkout/pay_123456" }),
+    payment_url: z.string().url().openapi({ description: "Backward-compatible alias of checkout_url", example: "https://pay.kobara.app/checkout/pay_123456" }),
+    paymentUrl: z.string().url().openapi({ description: "Backward-compatible alias of checkout_url", example: "https://pay.kobara.app/checkout/pay_123456" }),
   })
 }).openapi("PaymentResponse");
 

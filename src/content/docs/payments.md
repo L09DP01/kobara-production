@@ -131,8 +131,15 @@ URL de redirection vers votre site si le client annule le paiement.
     "id": "4dd6a06c-cf68-42cf-91b5-2f3e92f5b861",
     "reference": "KOB1786816177430123456",
     "amount": 2500,
+    "net_amount": 2427.5,
+    "fee_amount": 72.5,
     "status": "pending",
-    "checkout_url": "https://pay.kobara.app/checkout/4dd6a06c-cf68-42cf-91b5-2f3e92f5b861"
+    "environment": "live",
+    "paid_at": null,
+    "checkout_url": "https://pay.kobara.app/checkout/4dd6a06c-cf68-42cf-91b5-2f3e92f5b861",
+    "url": "https://pay.kobara.app/checkout/4dd6a06c-cf68-42cf-91b5-2f3e92f5b861",
+    "payment_url": "https://pay.kobara.app/checkout/4dd6a06c-cf68-42cf-91b5-2f3e92f5b861",
+    "paymentUrl": "https://pay.kobara.app/checkout/4dd6a06c-cf68-42cf-91b5-2f3e92f5b861"
   }
 }
 ```
