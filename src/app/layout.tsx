@@ -10,6 +10,7 @@ import type { Viewport } from 'next';
 import Script from 'next/script';
 import { Analytics } from "@vercel/analytics/next";
 import { MaintenanceBanner } from '@/components/maintenance-banner';
+import { Suspense } from 'react';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -159,7 +160,9 @@ export default async function RootLayout({
       </head>
       <body className="bg-[#020B14] font-body-base text-body-base text-on-surface min-h-screen flex flex-col">
         <LanguageProvider>
-          <MaintenanceBanner />
+          <Suspense fallback={null}>
+            <MaintenanceBanner />
+          </Suspense>
           <div style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }} className="flex-1 flex flex-col">
             {children}
           </div>
