@@ -136,7 +136,7 @@ export async function GET(req: NextRequest) {
       success: true,
       balance: balance || 0,
       withdrawable_balance: htgFunds.withdrawableBalance,
-      local_payment_hold_hours: 24,
+      local_payment_hold_hours: 12,
       currency: 'HTG',
       balances,
       usd_account: {

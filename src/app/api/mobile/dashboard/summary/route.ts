@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
         monthly_growth: monthlyGrowth,
         available_balance: availableBalanceHtg,
         withdrawable_balance: htgFunds.withdrawableBalance,
-        local_payment_hold_hours: 24,
+        local_payment_hold_hours: 12,
         available_balance_usd: usdAccount.isActive ? availableBalanceUsd : null,
         balances,
         usd_account: {

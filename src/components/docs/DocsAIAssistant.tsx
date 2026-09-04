@@ -1,11 +1,43 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import type { ComponentPropsWithoutRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Bot, User, Send, Copy, Check, X, TerminalSquare, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { AnimatePresence, motion } from 'framer-motion';
+
+const CHAT_STORAGE_KEY = 'kobara_docs_chat_history_v2';
+
+type ChatMessage = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+const WELCOME_MESSAGE: ChatMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content: 'Bonjour ! Je suis l\'assistant IA de Kobara. Comment puis-je vous aider avec votre intégration aujourd\'hui ? (ex: "Comment créer un paiement", "Valider mon code", etc.)',
+};
+
+function parseStoredMessages(value: string): ChatMessage[] | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return null;
+    const messages = parsed.filter((message): message is ChatMessage => {
+      if (!message || typeof message !== 'object') return false;
+      const candidate = message as Partial<ChatMessage>;
+      return typeof candidate.id === 'string'
+        && (candidate.role === 'user' || candidate.role === 'assistant')
+        && typeof candidate.content === 'string';
+    });
+    return messages.length === parsed.length ? messages : null;
+  } catch {
+    return null;
+  }
+}
 
 export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) {
   const [isOpenMobile, setIsOpenMobile] = useState(false);
@@ -14,22 +46,15 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<any[]>(() => {
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem('kobara_docs_chat_history');
+      const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
       if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {}
+        const storedMessages = parseStoredMessages(saved);
+        if (storedMessages) return storedMessages;
       }
     }
-    return [
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: 'Bonjour ! Je suis l\'assistant IA de Kobara. Comment puis-je vous aider avec votre intégration aujourd\'hui ? (ex: "Comment créer un paiement", "Valider mon code", etc.)'
-      }
-    ];
+    return [WELCOME_MESSAGE];
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => setInput(e.target.value);
@@ -38,7 +63,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage = { id: Date.now().toString(), role: 'user', content: input };
+    const userMessage: ChatMessage = { id: Date.now().toString(), role: 'user', content: input };
     const newMessages = [...messages, userMessage];
     
     setMessages(newMessages);
@@ -88,21 +113,15 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
   useEffect(() => {
     scrollToBottom();
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('kobara_docs_chat_history', JSON.stringify(messages));
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
     }
   }, [messages]);
 
   const clearChat = () => {
-    const init = [
-      {
-        id: 'welcome',
-        role: 'assistant',
-        content: 'Bonjour ! Je suis l\'assistant IA de Kobara. Comment puis-je vous aider avec votre intégration aujourd\'hui ? (ex: "Comment créer un paiement", "Valider mon code", etc.)'
-      }
-    ];
+    const init = [WELCOME_MESSAGE];
     setMessages(init);
     if (typeof window !== 'undefined') {
-      sessionStorage.removeItem('kobara_docs_chat_history');
+      sessionStorage.removeItem(CHAT_STORAGE_KEY);
     }
   };
 
@@ -112,7 +131,8 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const CodeBlock = ({ node, inline, className, children, ...props }: any) => {
+  const CodeBlock = ({ node, inline, className, children, ...props }: ComponentPropsWithoutRef<'code'> & { node?: unknown; inline?: boolean }) => {
+    void node;
     const match = /language-(\w+)/.exec(className || '');
     const codeString = String(children).replace(/\n$/, '');
     
@@ -173,7 +193,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
 
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-6 scrollbar-thin">
-        {messages.map((m: any) => (
+        {messages.map((m) => (
           <div key={m.id} className={clsx("flex gap-4", m.role === 'user' ? "flex-row-reverse" : "")}>
             <div className={clsx(
               "w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 shadow-md",
@@ -213,7 +233,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
             </div>
             <div className="bg-[#07111F] border border-[#1E2A38] rounded-2xl rounded-tl-sm px-5 py-4 flex items-center gap-3 text-[#AAB3C2] shadow-lg">
               <Loader2 size={16} className="animate-spin text-[#FF4A1C]" />
-              <span className="text-[14px] animate-pulse font-medium">L'IA analyse le contexte...</span>
+              <span className="text-[14px] animate-pulse font-medium">{"L'IA analyse le contexte..."}</span>
             </div>
           </div>
         )}
@@ -232,7 +252,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSubmit(e as any);
+                e.currentTarget.form?.requestSubmit();
               }
             }}
           />
@@ -247,7 +267,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
         <div className="text-center mt-3">
           <span className="text-[10px] text-[#AAB3C2]/60 uppercase tracking-widest font-bold flex items-center justify-center gap-1.5">
             <TerminalSquare size={12} />
-            Copiez-collez votre code pour l'analyser
+            {"Copiez-collez votre code pour l'analyser"}
           </span>
         </div>
       </div>

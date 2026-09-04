@@ -184,7 +184,7 @@ export const WithdrawalService = {
       if (prepError.message?.includes('local_funds_pending_release')) {
         return {
           success: false,
-          error: 'Une partie de votre solde est encore sous délai de sécurité. Les paiements MonCash et NatCash deviennent disponibles au retrait après 24 heures.',
+          error: 'Une partie de votre solde est encore sous délai de sécurité.',
           errorCode: 'FUNDS_PENDING_RELEASE',
         };
       }

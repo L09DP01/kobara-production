@@ -61,7 +61,7 @@ $withdrawal = $kobara->withdrawals->create([
 echo $withdrawal['data']['status'];
 ```
 
-L'API publique accepte uniquement `moncash` et `natcash`. Le compte débité peut être `HTG` ou `USD`; le montant envoyé au portefeuille est en HTG. Les frais sont de 5 % et les encaissements locaux sont admissibles au retrait après 24 heures.
+L'API publique accepte uniquement `moncash` et `natcash`. Le compte débité peut être `HTG` ou `USD`; le montant envoyé au portefeuille est en HTG. Les frais sont de 5 %. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti.
 
 ## Vérifier un webhook
 
@@ -78,4 +78,3 @@ Le helper vérifie la chaîne signée `timestamp + "." + rawBody` ainsi qu'une f
 ## Surface publique actuelle
 
 Cette version correspond aux deux routes Production publiées: `POST /v1/payments` et `POST /v1/withdrawals`. Les autres opérations restent disponibles depuis le dashboard, pas depuis l'API publique v1.
-

@@ -63,7 +63,7 @@ Frais (5 %)    :   50 HTG
 Montant envoyé :  950 HTG
 ```
 
-Le délai de sécurité de 24 heures sur les encaissements MonCash et NatCash reste applicable. Un montant visible dans le solde peut donc ne pas être encore disponible au retrait.
+Un encaissement MonCash ou NatCash devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti. Un montant visible dans le solde peut donc ne pas être encore disponible au retrait.
 
 ## Réponse
 

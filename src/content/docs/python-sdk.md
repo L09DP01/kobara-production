@@ -63,7 +63,7 @@ print(withdrawal["data"]["status"])
 print(withdrawal["data"]["payout_amount"])
 ```
 
-Seuls `moncash` et `natcash` sont acceptés. Le compte source peut être `HTG` ou `USD`, mais le portefeuille reçoit des HTG. Les frais sont de 5 % du montant brut et le délai de disponibilité de 24 heures s'applique aux encaissements locaux.
+Seuls `moncash` et `natcash` sont acceptés. Le compte source peut être `HTG` ou `USD`, mais le portefeuille reçoit des HTG. Les frais sont de 5 % du montant brut. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti.
 
 ## Vérifier un webhook
 
@@ -80,4 +80,3 @@ Le helper vérifie `HMAC-SHA256(secret, timestamp + "." + rawBody)` et une tolé
 ## Surface publique actuelle
 
 Cette version correspond à `POST /v1/payments` et `POST /v1/withdrawals`. Les listes, consultations unitaires et liens de paiement ne sont pas exposés par l'API publique v1 actuelle; gérez-les dans le dashboard.
-

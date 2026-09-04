@@ -26,7 +26,7 @@ test('Withdrawal System: Phone Number Validation', async (t) => {
 });
 
 test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => {
-  await t.test('keeps recent local proceeds visible but locked for 24 hours', () => {
+  await t.test('keeps recent local proceeds visible while they await release', () => {
     const totalBalance = 1000;
     const recentLocalCredits = 250;
     const withdrawableBalance = Math.max(totalBalance - recentLocalCredits, 0);
@@ -34,6 +34,30 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
     assert.equal(totalBalance, 1000, 'The complete merchant balance remains visible');
     assert.equal(withdrawableBalance, 750, 'Only matured funds can be withdrawn');
     assert.equal(recentLocalCredits, 250, 'Recent local proceeds remain pending release');
+  });
+
+  await t.test('releases local proceeds after 12 hours or at 08:00 the next Haiti day', () => {
+    const releaseAt = (creditedAt, nextHaitiDayAtEight) => {
+      const twelveHoursLater = new Date(creditedAt.getTime() + (12 * 60 * 60 * 1000));
+      return twelveHoursLater < nextHaitiDayAtEight ? twelveHoursLater : nextHaitiDayAtEight;
+    };
+
+    assert.equal(
+      releaseAt(
+        new Date('2026-09-04T11:00:00.000Z'),
+        new Date('2026-09-05T12:00:00.000Z'),
+      ).toISOString(),
+      '2026-09-04T23:00:00.000Z',
+      '07:00 in Haiti releases twelve hours later at 19:00',
+    );
+    assert.equal(
+      releaseAt(
+        new Date('2026-09-05T03:00:00.000Z'),
+        new Date('2026-09-05T12:00:00.000Z'),
+      ).toISOString(),
+      '2026-09-05T12:00:00.000Z',
+      '23:00 in Haiti releases at 08:00 the following day',
+    );
   });
 
   await t.test('calculates 5% fee for MonCash & NatCash, net amount sent to provider', () => {

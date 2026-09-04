@@ -66,9 +66,8 @@ const withdrawal = await kobara.withdrawals.create({
 console.log(withdrawal.data.payout_amount);
 ```
 
-Seuls les versements vers `moncash` et `natcash` sont exposés. Le compte source peut être HTG ou USD et le portefeuille reçoit des HTG après frais de 5 % et conversion éventuelle. Le délai de 24 heures s'applique aux encaissements locaux.
+Seuls les versements vers `moncash` et `natcash` sont exposés. Le compte source peut être HTG ou USD et le portefeuille reçoit des HTG après frais de 5 % et conversion éventuelle. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti.
 
 ## Surface publique actuelle
 
 Le SDK correspond à `POST /v1/payments` et `POST /v1/withdrawals`. Les méthodes de liste, de consultation et de création de liens annoncées par d'anciennes versions de ce guide ne correspondent pas à des routes publiques v1 et ont été retirées.
-
