@@ -1,458 +1,128 @@
-# WordPress Plugin
+# Plugin Kobara pour WooCommerce
 
-Le plugin officiel Kobara WordPress permet d’accepter facilement les paiements MonCash sur votre boutique WooCommerce sans écrire de code.
+Le plugin Kobara permet à une boutique WooCommerce d'envoyer son client vers le checkout sécurisé Kobara, puis de mettre automatiquement la commande à jour après confirmation du paiement.
 
-Le plugin transforme votre site WordPress en plateforme de paiement moderne connectée à :
+## Ce que supporte la version 2
 
-* Kobara ;
-* MonCash ;
-* votre dashboard Kobara ;
-* vos webhooks ;
-* vos analytics.
+- checkout Kobara unifié avec les moyens activés sur le compte marchand ;
+- présélection facultative de MonCash, NatCash, carte, PayPal, Apple Pay ou Google Pay ;
+- commandes en HTG ou USD ;
+- environnements Sandbox et Production strictement séparés ;
+- Checkout classique et Checkout Blocks de WooCommerce ;
+- synchronisation des commandes réussies ou échouées par webhook signé ;
+- compatibilité HPOS.
 
----
-
-## Fonctionnalités principales
-
-Le plugin permet :
-
-✅ Paiements MonCash WooCommerce
-✅ Checkout sécurisé Kobara
-✅ Mode Test & Live
-✅ Synchronisation automatique des paiements
-✅ Notifications temps réel
-✅ Support Webhooks
-✅ Historique des transactions
-✅ Gestion automatique des commandes
-✅ Compatible mobile
-✅ Compatible WooCommerce moderne
-
----
-
-## Compatibilité
-
-| Système      | Support |
-| ------------ | ------- |
-| WordPress 6+ | ✅       |
-| WooCommerce  | ✅       |
-| PHP 8+       | ✅       |
-| Elementor    | ✅       |
-| Astra Theme  | ✅       |
-| Flatsome     | ✅       |
-
----
+La disponibilité réelle d'un moyen dépend de son activation sur le compte Kobara. Pour les paiements internationaux, le compte USD du marchand doit également être actif.
 
 ## Installation
 
-Téléchargez le plugin officiel :
+1. [Téléchargez `kobara-woocommerce.zip`](/downloads/kobara-woocommerce.zip) depuis Kobara.
+2. Dans WordPress, ouvrez **Extensions > Ajouter une extension > Téléverser une extension**.
+3. Sélectionnez l'archive, installez-la puis activez **Kobara Payments for WooCommerce**.
+4. Ouvrez **WooCommerce > Réglages > Paiements > Kobara Payments**.
 
-```txt id="u2z9rf"
-kobara-woocommerce-gateway.zip
+Le plugin requiert WordPress 6+, WooCommerce 7+ et PHP 7.4+.
+
+## Configuration Sandbox
+
+1. Créez un compte sur [test.kobara.app](https://test.kobara.app/register).
+2. Créez une clé secrète Sandbox `kbr_sk_test_...`.
+3. Activez **Mode Test** dans WooCommerce.
+4. Collez la clé Sandbox dans **Clé Secrète (Test)**.
+5. Collez le secret du webhook Sandbox dans **Secret Webhook**.
+
+En mode Test, le plugin appelle exclusivement :
+
+```text
+https://test.kobara.app/api/v1/payments
 ```
 
----
+Aucun fournisseur de paiement réel n'est appelé par le Sandbox.
 
-## Étape 1 — Télécharger le plugin
+## Configuration Production
 
-Dans votre dashboard Kobara :
+1. Utilisez un compte marchand Kobara vérifié.
+2. Créez une clé secrète Live `kbr_sk_live_...`.
+3. Désactivez **Mode Test** dans WooCommerce.
+4. Collez la clé dans **Clé Secrète (Live)**.
+5. Utilisez le secret du webhook Production.
 
-```txt id="m8d4vx"
-Developers → Integrations → WordPress Plugin
+En Production, le plugin appelle exclusivement :
+
+```text
+https://api.kobara.app/v1/payments
 ```
 
-Cliquez :
+La clé secrète reste sur le serveur WordPress. Le plugin n'utilise pas de clé publique.
 
-```txt id="7r0hka"
-Download Plugin
+## Expérience de paiement
+
+Le réglage recommandé est **Checkout Kobara unifié**. Kobara présente alors au client uniquement les moyens disponibles pour ce marchand et cette transaction.
+
+Vous pouvez aussi présélectionner un moyen précis :
+
+| Réglage | Provider API |
+| --- | --- |
+| Checkout Kobara unifié | `kobara` |
+| MonCash | `moncash` |
+| NatCash | `natcash` |
+| Carte | `card` |
+| PayPal | `paypal` |
+| Apple Pay | `apple_pay` |
+| Google Pay | `google_pay` |
+
+## Webhook WooCommerce
+
+Ajoutez cette URL dans **Dashboard Kobara > Webhooks** :
+
+```text
+https://votre-boutique.com/?wc-api=kobara_webhook
 ```
 
----
+Abonnez l'endpoint au minimum à :
 
-## Étape 2 — Installer dans WordPress
+- `payment.succeeded` ;
+- `payment.failed`.
 
-Dans votre dashboard WordPress :
+Le plugin vérifie l'en-tête `Kobara-Signature` au format `t=TIMESTAMP,v1=SIGNATURE`. La signature HMAC-SHA256 couvre exactement `TIMESTAMP.CORPS_BRUT` et les événements âgés de plus de cinq minutes sont refusés.
 
-```txt id="7f4k2j"
-Extensions → Ajouter
-```
+Lors de `payment.succeeded`, la commande passe au statut payé selon le flux WooCommerce. Lors de `payment.failed`, une commande encore impayée passe au statut échoué.
 
-Puis :
+## Déroulement d'une commande
 
-```txt id="x3u9j0"
-Téléverser une extension
-```
+1. Le client choisit Kobara dans le checkout WooCommerce.
+2. Le serveur WordPress crée le paiement avec une clé d'idempotence propre à la commande.
+3. Le client est redirigé vers le checkout Kobara.
+4. Kobara traite le moyen disponible choisi ou présélectionné.
+5. Le webhook signé confirme le résultat à WooCommerce.
 
-Sélectionnez :
+La page de retour du navigateur ne doit jamais être utilisée seule comme preuve de paiement. La mise à jour fiable vient du webhook signé.
 
-```txt id="5m1w4f"
-kobara-woocommerce-gateway.zip
-```
+## Dépannage
 
-Cliquez :
+### Kobara n'apparaît pas au checkout
 
-```txt id="6g5v0m"
-Installer maintenant
-```
+- vérifiez que la passerelle est activée ;
+- renseignez la clé correspondant au mode sélectionné ;
+- utilisez HTG ou USD comme devise WooCommerce ;
+- vérifiez que WooCommerce et le plugin sont actifs.
 
----
+### La commande reste en attente
 
-## Étape 3 — Activer le plugin
+- contrôlez que l'URL webhook est active dans le même environnement que la clé API ;
+- vérifiez que le secret webhook est identique dans Kobara et WooCommerce ;
+- consultez **WooCommerce > État > Journaux** et l'historique des webhooks Kobara.
 
-Après installation :
+### L'API refuse un moyen de paiement
 
-```txt id="t2r9v6"
-Activer l’extension
-```
+Le moyen demandé n'est peut-être pas activé pour le marchand. Pour les cartes et portefeuilles internationaux, vérifiez également l'activation du compte USD.
 
----
+## Mise à jour depuis la version 1
 
-## Étape 4 — Activer Kobara dans WooCommerce
+Après installation de la version 2 :
 
-Dans WordPress :
-
-```txt id="8q2n7p"
-WooCommerce → Réglages → Paiements
-```
-
-Activez :
-
-```txt id="0m5h3u"
-Kobara WooCommerce Gateway
-```
-
----
-
-## Étape 5 — Ajouter vos clés API
-
-Dans les paramètres Kobara WooCommerce :
-
-### Clé publique
-
-```txt id="3r8n2x"
-kbr_pk_live_xxxxx
-```
-
----
-
-## Clé secrète
-
-```txt id="v8y5q1"
-kbr_sk_live_VOTRE_CLE_API
-```
-
----
-
-## Étape 6 — Configurer le mode
-
-Le plugin supporte :
-
-| Mode | Description     |
-| ---- | --------------- |
-| Test | Développement   |
-| Live | Paiements réels |
-
----
-
-## Test Mode
-
-Utiliser :
-
-```txt id="q5x1v9"
-kbr_pk_test_
-kbr_sk_test_
-```
-
----
-
-## Live Mode
-
-Utiliser :
-
-```txt id="s0d6m2"
-kbr_pk_live_
-kbr_sk_live_
-```
-
----
-
-## Fonctionnement du paiement
-
-### 1. Client clique “Payer”
-
-Sur votre boutique WooCommerce.
-
----
-
-### 2. WooCommerce appelle Kobara
-
-Le plugin :
-
-* sécurise les données ;
-* crée le paiement Kobara ;
-* contacte l’API Kobara.
-
----
-
-### 3. Kobara communique avec MonCash
-
-Kobara :
-
-* prépare le checkout MonCash ;
-* sécurise la transaction ;
-* génère la session paiement.
-
----
-
-### 4. Redirection MonCash
-
-Le client est redirigé vers :
-
-```txt id="4t6v3y"
-checkout.kobara.app
-```
-
----
-
-### 5. Confirmation paiement
-
-Après paiement :
-
-* Kobara reçoit confirmation ;
-* le webhook est déclenché ;
-* WooCommerce met à jour la commande.
-
----
-
-## Statuts WooCommerce
-
-| Statut     | Description         |
-| ---------- | ------------------- |
-| Pending    | Paiement en attente |
-| Processing | Paiement reçu       |
-| Completed  | Paiement terminé    |
-| Failed     | Paiement échoué     |
-| Refunded   | Paiement remboursé  |
-
----
-
-## Webhooks automatiques
-
-Le plugin configure automatiquement :
-
-* synchronisation paiements ;
-* confirmation commandes ;
-* mise à jour temps réel.
-
----
-
-## URL Webhook WooCommerce
-
-Exemple :
-
-```txt id="3y5j7x"
-https://votre-site.com/?wc-api=kobara_webhook
-```
-
----
-
-## Vérification signature
-
-Le plugin vérifie automatiquement :
-
-* la signature webhook ;
-* la sécurité ;
-* la validité des événements.
-
----
-
-## Interface Checkout
-
-Le plugin fournit :
-
-* checkout mobile-first ;
-* expérience MonCash moderne ;
-* paiement rapide ;
-* UX optimisée Haïti.
-
----
-
-## Fonctionnalités avancées
-
-### Support QR Code
-
-Le plugin peut afficher :
-
-* QR paiement ;
-* liens rapides ;
-* checkout mobile.
-
----
-
-## Paiements mobiles
-
-Compatible :
-
-* Android ;
-* iPhone ;
-* navigateur mobile ;
-* application MonCash.
-
----
-
-## Notifications automatiques
-
-Le plugin peut :
-
-* envoyer email confirmation ;
-* mettre à jour commande ;
-* notifier admin ;
-* synchroniser dashboard Kobara.
-
----
-
-## Dashboard Kobara
-
-Toutes les transactions apparaissent automatiquement dans :
-
-```txt id="9h7q0f"
-Dashboard → Payments
-```
-
----
-
-## Données synchronisées
-
-| Donnée    | Synchronisée |
-| --------- | ------------ |
-| Paiements | ✅            |
-| Clients   | ✅            |
-| Commandes | ✅            |
-| Montants  | ✅            |
-| Status    | ✅            |
-| Retraits  | ✅            |
-
----
-
-## Sécurité
-
-Le plugin :
-
-* utilise HTTPS ;
-* chiffre les requêtes ;
-* utilise les webhooks signés ;
-* protège les clés API.
-
----
-
-## Important sécurité
-
-⚠️ Vos Secret Keys restent uniquement sur votre serveur WordPress.
-
-Elles ne sont jamais :
-
-* envoyées au navigateur ;
-* exposées au client ;
-* visibles publiquement.
-
----
-
-## Architecture sécurisée
-
-```txt id="8v0n5f"
-Client
-↓
-WooCommerce
-↓
-Plugin Kobara
-↓
-API Kobara
-↓
-MonCash Infrastructure
-↓
-MonCash
-```
-
----
-
-## Gestion des erreurs
-
-Le plugin gère automatiquement :
-
-* paiements échoués ;
-* timeout ;
-* erreurs réseau ;
-* annulations utilisateur.
-
----
-
-## Messages utilisateur
-
-Exemple :
-
-```txt id="5f7s1w"
-Paiement confirmé avec succès.
-```
-
-ou :
-
-```txt id="8k3u6n"
-Le paiement a échoué. Veuillez réessayer.
-```
-
----
-
-## Logs WooCommerce
-
-Disponible dans :
-
-```txt id="4w9p8u"
-WooCommerce → Status → Logs
-```
-
----
-
-## Sandbox & Tests
-
-Le mode test permet :
-
-* tester sans argent réel ;
-* simuler paiements ;
-* tester webhooks ;
-* tester WooCommerce.
-
----
-
-## Bonnes pratiques
-
-### À faire
-
-✅ utiliser HTTPS
-✅ activer webhooks
-✅ utiliser mode test avant production
-✅ sauvegarder WordPress
-✅ utiliser clés Live uniquement en production
-
----
-
-### À éviter
-
-❌ exposer Secret Key
-❌ modifier le plugin directement
-❌ utiliser le mode live pendant les tests
-
----
-
-## Cas d’utilisation
-
-Le plugin est idéal pour :
-
-* boutiques ecommerce ;
-* ventes digitales ;
-* formations ;
-* abonnements ;
-* dons ;
-* marketplaces ;
-* SaaS.
-
----
-
+1. ouvrez de nouveau les réglages Kobara ;
+2. choisissez l'expérience de paiement ;
+3. vérifiez le mode et la clé secrète ;
+4. remplacez l'ancien webhook par le secret correspondant à l'environnement ;
+5. réalisez une commande Sandbox complète avant la Production.
