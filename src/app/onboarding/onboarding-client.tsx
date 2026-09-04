@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { completeOnboarding } from './actions';
+import { getDashboardUrl } from '@/lib/utils';
+import { markClientSessionActive } from '@/lib/session-inactivity';
 
 export function OnboardingClient({ defaultEmail }: { defaultEmail: string }) {
   const router = useRouter();
@@ -33,7 +35,8 @@ export function OnboardingClient({ defaultEmail }: { defaultEmail: string }) {
         setLoading(false);
         return;
       }
-      window.location.href = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://dashboard.kobara.app';
+      markClientSessionActive();
+      window.location.assign(getDashboardUrl('/dashboard'));
     } catch (err: any) {
       setError(err.message || 'Une erreur est survenue');
       setLoading(false);

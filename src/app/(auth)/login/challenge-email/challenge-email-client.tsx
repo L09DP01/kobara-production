@@ -7,6 +7,8 @@ import {
   sendEmailOtpAction,
   verifyEmailOtpAction
 } from '@/app/dashboard/settings/actions';
+import { getDashboardUrl } from '@/lib/utils';
+import { markClientSessionActive } from '@/lib/session-inactivity';
 import {
   Shield,
   Mail,
@@ -86,7 +88,8 @@ export function ChallengeEmailClient({ userEmail }: { userEmail: string }) {
       const res = await verifyEmailOtpAction(otp);
       if (res.success) {
         setSuccess(true);
-        window.location.href = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://dashboard.kobara.app';
+        markClientSessionActive();
+        window.location.assign(getDashboardUrl('/dashboard'));
       }
     } catch (err: any) {
       setError(err.message || 'Le code de vérification est invalide ou expiré.');

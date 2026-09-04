@@ -46,36 +46,6 @@ export default function DashboardLayoutClient({
     };
   }, [isGuest]);
 
-  useEffect(() => {
-    if (isGuest) return;
-
-    let stopped = false;
-
-    const checkSession = async () => {
-      try {
-        const response = await fetch('/api/dashboard/session-status', {
-          method: 'GET',
-          cache: 'no-store',
-          credentials: 'same-origin',
-        });
-        if (!response.ok) return;
-        const status = await response.json();
-        if (!stopped && status.active === false) {
-          window.location.href = '/logout';
-        }
-      } catch {
-        // The server-side dashboard guard remains the source of truth.
-      }
-    };
-
-    const intervalId = window.setInterval(checkSession, 120_000);
-
-    return () => {
-      stopped = true;
-      window.clearInterval(intervalId);
-    };
-  }, [isGuest]);
-
   // Guest view: no sidebar, no top-nav toggle — just the content
   if (isGuest) {
     return (

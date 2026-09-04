@@ -30,9 +30,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const loginUrl = isLocal 
+  const sessionExpired = request.nextUrl.searchParams.get('reason') === 'inactive';
+  const loginUrl = (isLocal
     ? `http://${hostname.replace('dashboard.', '').split(':')[0]}:3000/login`
-    : `${process.env.NEXT_PUBLIC_APP_URL || 'https://kobara.app'}/login`;
+    : `${process.env.NEXT_PUBLIC_APP_URL || 'https://kobara.app'}/login`) +
+    (sessionExpired ? '?error=session_expired' : '');
 
   const response = NextResponse.redirect(loginUrl);
 

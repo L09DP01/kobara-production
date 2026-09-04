@@ -16,6 +16,7 @@
     "test:withdrawals": "node --experimental-strip-types --test tests/withdrawals.test.js",
     "test:business-name": "node --experimental-strip-types --test tests/business-name.test.js",
     "test:webhooks": "node --experimental-strip-types --test tests/webhook-environment-isolation.test.js",
+    "test:session-inactivity": "node --experimental-strip-types --test tests/session-inactivity.test.js",
     "generate-openapi": "tsx src/lib/server/openapi.ts",
     "verify-api-contracts": "node scripts/verify-api-contracts.js",
     "generate:docs": "node scripts/generate-docs-content.mjs",

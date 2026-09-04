@@ -8,6 +8,8 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle2, XCircle, Loader2 } f
 import { useTranslation } from '@/context/LanguageContext'
 import { verifyCredentialsAction } from '../actions'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
+import { getDashboardUrl } from '@/lib/utils'
+import { markClientSessionActive } from '@/lib/session-inactivity'
 
 function LoginContent() {
   const { t, language } = useTranslation();
@@ -26,7 +28,7 @@ function LoginContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(
     errorParam === 'session_expired' 
-      ? (language === 'fr' ? 'Votre session a expiré après 2 heures d\'inactivité. Veuillez vous reconnecter.' : 'Your session expired after 2 hours of inactivity. Please log in again.')
+      ? (language === 'fr' ? 'Votre session a expiré après 20 minutes d\'inactivité. Veuillez vous reconnecter.' : 'Your session expired after 20 minutes of inactivity. Please log in again.')
       : (errorParam || '')
   );
 
@@ -73,11 +75,8 @@ function LoginContent() {
         setLoading(false);
       } else {
         // Success! Redirect to the dashboard
-        let dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://dashboard.kobara.app';
-        if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-          dashboardUrl = '/dashboard';
-        }
-        window.location.href = dashboardUrl;
+        markClientSessionActive();
+        window.location.assign(getDashboardUrl('/dashboard'));
       }
     } catch (err: any) {
       setError(err?.message || (language === "fr" ? "Une erreur inattendue est survenue." : "An unexpected error occurred."));
@@ -276,11 +275,8 @@ function LoginContent() {
                 setError(res.error);
                 setLoading(false);
               } else {
-                let dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://dashboard.kobara.app';
-                if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-                  dashboardUrl = '/dashboard';
-                }
-                window.location.href = dashboardUrl;
+                markClientSessionActive();
+                window.location.assign(getDashboardUrl('/dashboard'));
               }
             } catch (err: any) {
               console.error(err);

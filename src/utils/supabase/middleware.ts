@@ -1,4 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  SESSION_ACTIVITY_COOKIE_MAX_AGE_SECONDS,
+  isSessionInactive,
+} from '@/lib/session-inactivity';
 
 export async function updateSession(request: NextRequest) {
   // Forward the pathname so server layouts can detect the current route
@@ -109,18 +113,12 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  // Vérifier l'inactivité de la session (2 heures)
+  // Expire authenticated sessions after 20 minutes without user activity.
   if (userLoggedIn) {
     const lastActivity = request.cookies.get('kobara_last_activity')?.value;
     const now = Date.now();
-    const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
-    // If lastActivity is missing but session token exists, treat as expired (inconsistent state)
-    const isExpiredByInactivity = lastActivity 
-      ? (now - parseInt(lastActivity, 10)) > TWO_HOURS_MS
-      : false; // If no lastActivity cookie at all, set it fresh below
-
-    if (lastActivity && isExpiredByInactivity) {
+    if (lastActivity && isSessionInactive(lastActivity, now)) {
         // Session expirée par inactivité → supprimer tous les cookies
         const response = NextResponse.redirect(
           hostname.includes('localhost') || hostname.includes('local')
@@ -150,7 +148,7 @@ export async function updateSession(request: NextRequest) {
     const cookieDomain = hostname.includes('localhost') || hostname.includes('local') ? 'localhost' : '.kobara.app';
     response.cookies.set('kobara_last_activity', now.toString(), {
       domain: cookieDomain,
-      maxAge: TWO_HOURS_MS / 1000,
+      maxAge: SESSION_ACTIVITY_COOKIE_MAX_AGE_SECONDS,
       path: '/',
       httpOnly: true,
       sameSite: 'lax',
@@ -165,7 +163,7 @@ export async function updateSession(request: NextRequest) {
       const redirectResponse = NextResponse.redirect(redirectUrl);
       redirectResponse.cookies.set('kobara_last_activity', now.toString(), {
         domain: cookieDomain,
-        maxAge: TWO_HOURS_MS / 1000,
+        maxAge: SESSION_ACTIVITY_COOKIE_MAX_AGE_SECONDS,
         path: '/',
         httpOnly: true,
         sameSite: 'lax',

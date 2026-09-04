@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { ensureCurrentSessionIsAllowed } from "@/app/dashboard/settings/sessions-actions";
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
 import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
+import { SessionInactivityGuard } from '@/components/dashboard/session-inactivity-guard';
 
 export default async function DashboardLayout({
   children,
@@ -224,16 +225,19 @@ export default async function DashboardLayout({
       .maybeSingle();
 
     return (
-      <ClosurePayoutView
-        merchantEmail={merchant.email}
-        merchantName={merchant.business_name}
-        availableBalance={Number(merchant.available_balance || 0)}
-        payoutStatus={fraudCase?.payout_status || 'pending_instructions'}
-        payoutDetails={fraudCase?.payout_details || {}}
-        payoutDeadline={fraudCase?.payout_deadline_at}
-        supportEmail={process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@kobara.app"}
-        supportPhone={process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+509 3100 0000"}
-      />
+      <>
+        <SessionInactivityGuard />
+        <ClosurePayoutView
+          merchantEmail={merchant.email}
+          merchantName={merchant.business_name}
+          availableBalance={Number(merchant.available_balance || 0)}
+          payoutStatus={fraudCase?.payout_status || 'pending_instructions'}
+          payoutDetails={fraudCase?.payout_details || {}}
+          payoutDeadline={fraudCase?.payout_deadline_at}
+          supportEmail={process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@kobara.app"}
+          supportPhone={process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+509 3100 0000"}
+        />
+      </>
     );
   }
 
@@ -250,12 +254,15 @@ export default async function DashboardLayout({
   if (isSuspended) {
     const { SuspendedAccountView } = await import("@/components/dashboard/SuspendedAccountView");
     return (
-      <SuspendedAccountView
-        merchantEmail={merchant.email}
-        merchantName={merchant.business_name}
-        supportPhone={process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+509 3100 0000"}
-        supportEmail={process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@kobara.app"}
-      />
+      <>
+        <SessionInactivityGuard />
+        <SuspendedAccountView
+          merchantEmail={merchant.email}
+          merchantName={merchant.business_name}
+          supportPhone={process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+509 3100 0000"}
+          supportEmail={process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@kobara.app"}
+        />
+      </>
     );
   }
 
@@ -267,6 +274,7 @@ export default async function DashboardLayout({
 
     return (
       <div className="min-h-[100dvh] bg-[#07101D] text-white antialiased">
+        <SessionInactivityGuard />
         <header className="border-b border-[#1E2A38] bg-[#020B14]">
           <div className="mx-auto flex h-16 w-full max-w-[960px] items-center justify-between px-5 sm:px-8">
             <a href="https://kobara.app" className="flex items-center gap-3 font-bold">
@@ -287,18 +295,21 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardLayoutClient
-      merchant={merchant ?? undefined}
-      user={dbUser}
-      isGuest={!merchant}
-      initialNotifications={notifications}
-      accessibleMerchants={accessibleMerchants}
-      userRole={userRole}
-      hasPasskey={hasPasskey}
-      subscriptionEntitlement={subscriptionEntitlement}
-      isTelegramLinked={isTelegramLinked}
-    >
-      {children}
-    </DashboardLayoutClient>
+    <>
+      <SessionInactivityGuard />
+      <DashboardLayoutClient
+        merchant={merchant ?? undefined}
+        user={dbUser}
+        isGuest={!merchant}
+        initialNotifications={notifications}
+        accessibleMerchants={accessibleMerchants}
+        userRole={userRole}
+        hasPasskey={hasPasskey}
+        subscriptionEntitlement={subscriptionEntitlement}
+        isTelegramLinked={isTelegramLinked}
+      >
+        {children}
+      </DashboardLayoutClient>
+    </>
   );
 }

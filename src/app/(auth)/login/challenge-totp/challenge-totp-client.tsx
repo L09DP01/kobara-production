@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../actions';
 import { verifyTotpChallengeAction } from '@/app/dashboard/settings/actions';
+import { getDashboardUrl } from '@/lib/utils';
+import { markClientSessionActive } from '@/lib/session-inactivity';
 import {
   Shield,
   Smartphone,
@@ -32,7 +34,8 @@ export function ChallengeTotpClient({ userEmail }: { userEmail: string }) {
       const res = await verifyTotpChallengeAction(otp);
       if (res.success) {
         setSuccess(true);
-        window.location.href = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://dashboard.kobara.app';
+        markClientSessionActive();
+        window.location.assign(getDashboardUrl('/dashboard'));
       }
     } catch (err: any) {
       setError(err.message || 'Le code de vérification est invalide. Veuillez réessayer.');
