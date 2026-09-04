@@ -11,6 +11,7 @@ interface PaymentActionResult {
   redirectUrl?: string;
   paymentId?: string;
   paymentMethod?: string;
+  error?: string;
 }
 
 interface PublicPaymentLink {
@@ -103,6 +104,11 @@ export default function PaymentFormClient({
         formData.set('provider', backendProvider);
         try {
           const result = await processPaymentAction(formData);
+          if (result?.error) {
+            setClientError(result.error);
+            setIsSubmitting(false);
+            return;
+          }
           if (result?.redirectUrl) {
             window.location.assign(result.redirectUrl);
             return;

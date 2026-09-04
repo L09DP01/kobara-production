@@ -1,8 +1,7 @@
 "use server";
-/* eslint-disable @typescript-eslint/no-explicit-any -- Payment rows and redirect errors are runtime-shaped. */
+/* eslint-disable @typescript-eslint/no-explicit-any -- Payment rows and provider errors are runtime-shaped. */
 
 import { createAdminClient } from "@/utils/supabase/admin";
-import { redirect } from "next/navigation";
 import { getMerchantCurrentPlan } from "@/lib/server/plans";
 import { createPaymentGateway, getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import {
@@ -181,59 +180,14 @@ export async function processPayment(formData: FormData) {
   const getRandom = (charset: string) => charset.charAt(Math.floor(Math.random() * charset.length));
   
   const randomPart = getRandom(digits) + getRandom(letters) + getRandom(letters) + getRandom(digits) + getRandom(digits);
-  let referenceCode = prefix + randomPart;
+  const referenceCode = prefix + randomPart;
 
-  // 1.8 Anti-boucle & Réutilisation de session : Vérifier si un paiement non réglé existe déjà pour ce client sur ce lien
-  const nowIso = new Date().toISOString();
   let payment: any = null;
   let txRef: string = '';
-  let isReusedPayment = false;
 
-  if (customerId) {
-    const { data: existingPayment } = await supabaseAdmin
-      .from('payments')
-      .select('id, kobara_reference, reference_code, amount, fee_amount, net_amount, provider, payment_method, metadata, expires_at, status')
-      .eq('merchant_id', merchantId)
-      .eq('payment_link_id', paymentLinkId)
-      .eq('customer_id', customerId)
-      .eq('environment', linkInfo.environment)
-      .eq('status', 'pending')
-      .gt('expires_at', nowIso)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingPayment) {
-      payment = existingPayment;
-      txRef = existingPayment.kobara_reference;
-      referenceCode = existingPayment.reference_code || referenceCode;
-      isReusedPayment = true;
-
-      // Mettre à jour les informations si le client a changé de mode ou de montant
-      const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-      await supabaseAdmin
-        .from('payments')
-        .update({
-          amount: grossAmount,
-          fee_amount: feeAmount,
-          net_amount: netAmount,
-          provider: provider,
-          payment_method: provider,
-          expires_at: expiresAt,
-          metadata: {
-            ...(existingPayment.metadata || {}),
-            ...(customerAddress ? { address: customerAddress } : {}),
-            customer_name: customerName,
-            customer_email: customerEmail,
-            customer_phone: customerPhone,
-          }
-        })
-        .eq('id', existingPayment.id);
-    }
-  }
-
-  // 2. Si aucun paiement en attente réutilisable n'existe, en créer un nouveau
-  if (!payment) {
+  // A provider reference is single-use. Keep previous pending attempts intact so
+  // late provider callbacks can still be matched to their original payment.
+  {
     const externalRef = crypto.randomUUID();
     txRef = createPaymReference('KOB');
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes expiration
@@ -314,30 +268,15 @@ export async function processPayment(formData: FormData) {
       };
     }
 
-    let gatewayRes: Awaited<ReturnType<typeof createPaymentGateway>>;
-    try {
-      gatewayRes = await createPaymentGateway({
-        amount: grossAmount,
-        reference: txRef,
-        provider,
-        paymentMethodType: methodType,
-        phoneNumber: customerPhone,
-        description: `Paiement pour ${customerName}`,
-        environment: 'live',
-      });
-    } catch (initializationError) {
-      if (!isReusedPayment) {
-        const { error: discardError } = await supabaseAdmin
-          .from('payments')
-          .delete()
-          .eq('id', payment.id)
-          .eq('status', 'pending');
-        if (discardError) {
-          console.error(JSON.stringify({ event: 'discard_uninitialized_payment_failed', payment_id: payment.id, code: discardError.code }));
-        }
-      }
-      throw initializationError;
-    }
+    const gatewayRes = await createPaymentGateway({
+      amount: grossAmount,
+      reference: txRef,
+      provider,
+      paymentMethodType: methodType,
+      phoneNumber: customerPhone,
+      description: `Paiement pour ${customerName}`,
+      environment: 'live',
+    });
 
     const safePaymentUrl = sanitizePaymentRedirectUrl(gatewayRes.paymentUrl);
 
@@ -399,9 +338,6 @@ export async function processPayment(formData: FormData) {
 
     throw new Error("Le fournisseur n'a pas retourné d'URL de paiement.");
   } catch (error: any) {
-    if (error?.message?.includes('NEXT_REDIRECT') || error?.digest?.includes('NEXT_REDIRECT')) {
-      throw error;
-    }
     console.error("Erreur d'initialisation du paiement:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     const failedProcessor = paymentProviderConfig.active_provider === 'paym'
@@ -409,20 +345,22 @@ export async function processPayment(formData: FormData) {
       : provider === 'moncash'
         ? 'bazik'
         : 'sms_gateway';
-    await supabaseAdmin.from('payments').update({
-      status: 'failed',
-      provider,
-      payment_method: provider,
-      metadata: {
-        ...(payment.metadata || {}),
-        payment_processor: failedProcessor,
-        wallet_provider: provider,
-        provider_error: errorMessage,
-        customer_name: customerName,
-        customer_email: customerEmail,
-        customer_phone: customerPhone,
-      },
-    }).eq('id', payment.id);
-    redirect(`${publicPaymentPath}?error=${encodeURIComponent(errorMessage)}`);
+    if (payment?.id) {
+      await supabaseAdmin.from('payments').update({
+        status: 'failed',
+        provider,
+        payment_method: provider,
+        metadata: {
+          ...(payment.metadata || {}),
+          payment_processor: failedProcessor,
+          wallet_provider: provider,
+          provider_error: errorMessage,
+          customer_name: customerName,
+          customer_email: customerEmail,
+          customer_phone: customerPhone,
+        },
+      }).eq('id', payment.id);
+    }
+    return { error: errorMessage };
   }
 }
