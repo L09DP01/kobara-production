@@ -6,6 +6,7 @@ import { WithdrawalOtpService } from '@/lib/server/security/withdrawal-otp';
 import { WithdrawalService } from '@/lib/server/withdrawals/withdrawal.service';
 import { canCreateWithdrawal } from '@/lib/server/access';
 import { getMerchantFundsAvailability } from '@/lib/server/withdrawals/funds-availability';
+import { B2BTransferService } from '@/lib/server/transfers/b2b-transfer.service';
 
 export class TelegramBotService {
   /**
@@ -15,7 +16,8 @@ export class TelegramBotService {
     return {
       keyboard: [
         [{ text: '💰 Mon Solde (Live)' }, { text: '🔗 Créer un Lien' }],
-        [{ text: '💸 Demander un Retrait' }, { text: '⭐ Mon Abonnement' }],
+        [{ text: '🏦 Transfert B2B' }, { text: '💸 Demander un Retrait' }],
+        [{ text: '⭐ Mon Abonnement' }],
         [{ text: '🔔 Statut & Paramètres' }, { text: '❓ Aide' }],
       ],
       resize_keyboard: true,
@@ -102,6 +104,10 @@ export class TelegramBotService {
 
     if (text === '💸 Demander un Retrait' || text === '/retrait' || text === '/withdraw') {
       return this.startWithdrawFlow(chatId, merchant);
+    }
+
+    if (text === '🏦 Transfert B2B' || text === '/b2b' || text === '/transfert' || text === '/transfer') {
+      return this.startB2BTransferFlow(chatId, merchant);
     }
 
     if (text === '⭐ Mon Abonnement' || text === '/abonnement' || text === '/plan') {
@@ -295,6 +301,7 @@ L'équipe de sécurité Kobara — https://kobara.app
     message += `\n\n<i>Note : Seules les données réelles (Live) sont affichées dans ce bot.</i>`;
 
     const inlineKeyboard: any[] = [
+      [{ text: '🏦 Transfert B2B', callback_data: 'action:b2b' }],
       [{ text: '💸 Demander un Retrait', callback_data: 'action:withdraw' }],
       [{ text: '🔗 Créer un Lien', callback_data: 'action:create_link' }],
     ];
@@ -412,6 +419,70 @@ L'équipe de sécurité Kobara — https://kobara.app
     return { success: true };
   }
 
+  private static async startB2BTransferFlow(chatId: string | number, merchant: any, messageId?: number) {
+    const supabase = createAdminClient();
+    const { data: freshMerchant } = await supabase
+      .from('merchants')
+      .select('id, email, status, kyc_status, available_balance')
+      .eq('id', merchant.id)
+      .single();
+
+    if (!freshMerchant
+      || freshMerchant.status !== 'active'
+      || !['approved', 'verified'].includes(freshMerchant.kyc_status)) {
+      await this.sendOrEditMessage(
+        chatId,
+        `⚠️ <b>Transfert B2B non autorisé</b>\n\nVotre compte Live doit être actif et vérifié avant d'effectuer un transfert.`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Retour au menu', callback_data: 'action:main_menu' }]] } },
+        messageId,
+      );
+      return { success: true };
+    }
+
+    const totalBalance = Number(freshMerchant.available_balance || 0);
+    const funds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', totalBalance);
+    if (funds.withdrawableBalance < 1) {
+      await this.sendOrEditMessage(
+        chatId,
+        `⚠️ <b>Solde insuffisant</b>\n\nAucun fonds n'est actuellement disponible pour un transfert B2B.`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Retour au menu', callback_data: 'action:main_menu' }]] } },
+        messageId,
+      );
+      return { success: true };
+    }
+
+    const access = await canCreateWithdrawal(merchant.id, 1);
+    if (!access.allowed) {
+      await this.sendOrEditMessage(
+        chatId,
+        `⚠️ <b>Transfert B2B indisponible</b>\n\nVotre compte ne peut pas effectuer ce transfert pour le moment.`,
+        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Retour au menu', callback_data: 'action:main_menu' }]] } },
+        messageId,
+      );
+      return { success: true };
+    }
+
+    await this.updateSessionState(chatId, {
+      step: 'b2b_receiver',
+      maxAvailable: funds.withdrawableBalance,
+    });
+
+    if (messageId) await TelegramClient.deleteMessage(chatId, messageId);
+    await TelegramClient.sendMessage(
+      chatId,
+      `🏦 <b>NOUVEAU TRANSFERT B2B</b>\n\nSolde disponible : <b>${funds.withdrawableBalance.toLocaleString('fr-HT')} HTG</b>\n\nSaisissez l'<b>adresse e-mail Kobara du marchand destinataire</b> :\n\n<i>Tapez /cancel pour annuler.</i>`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          keyboard: [[{ text: '❌ Annuler' }]],
+          resize_keyboard: true,
+          one_time_keyboard: true,
+        },
+      },
+    );
+    return { success: true };
+  }
+
   /**
    * Gestion de la machine d'état conversationnelle
    */
@@ -422,6 +493,134 @@ L'équipe de sécurité Kobara — https://kobara.app
     merchant: any
   ) {
     const supabase = createAdminClient();
+
+    // --- TRANSFERT B2B ---
+    if (state.step === 'b2b_receiver') {
+      const receiverEmail = text.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(receiverEmail)) {
+        await TelegramClient.sendMessage(chatId, "⚠️ Adresse e-mail invalide. Saisissez l'adresse utilisée par le marchand sur Kobara.");
+        return { success: true };
+      }
+
+      const { data: receiver } = await supabase
+        .from('merchants')
+        .select('id, email, business_name, status, kyc_status')
+        .ilike('email', receiverEmail)
+        .limit(1)
+        .maybeSingle();
+
+      if (!receiver) {
+        await TelegramClient.sendMessage(chatId, "⚠️ Aucun marchand Kobara ne correspond à cette adresse e-mail.");
+        return { success: true };
+      }
+      if (receiver.id === merchant.id) {
+        await TelegramClient.sendMessage(chatId, "⚠️ Vous ne pouvez pas effectuer un transfert vers votre propre compte.");
+        return { success: true };
+      }
+      if (receiver.status !== 'active' || !['approved', 'verified'].includes(receiver.kyc_status)) {
+        await TelegramClient.sendMessage(chatId, "⚠️ Le compte destinataire n'est pas actif et vérifié.");
+        return { success: true };
+      }
+
+      await this.updateSessionState(chatId, {
+        ...state,
+        step: 'b2b_amount',
+        receiverEmail: receiver.email,
+        receiverBusinessName: receiver.business_name,
+      });
+      await TelegramClient.sendMessage(
+        chatId,
+        `🏢 Destinataire : <b>${this.escapeHtml(receiver.business_name)}</b>\n📧 <code>${this.escapeHtml(receiver.email)}</code>\n\nSaisissez le <b>montant à transférer</b> en HTG (minimum 1 HTG) :`,
+        { parse_mode: 'HTML' },
+      );
+      return { success: true };
+    }
+
+    if (state.step === 'b2b_amount') {
+      const amount = Number(text.trim().replace(',', '.'));
+      if (!Number.isFinite(amount) || amount < 1 || Math.round(amount * 100) / 100 !== amount) {
+        await TelegramClient.sendMessage(chatId, "⚠️ Montant invalide. Saisissez au moins 1 HTG, avec deux décimales maximum.");
+        return { success: true };
+      }
+
+      const funds = await getMerchantFundsAvailability(
+        merchant.id,
+        'live',
+        'HTG',
+        Number(merchant.available_balance || 0),
+      );
+      if (amount > funds.withdrawableBalance) {
+        await TelegramClient.sendMessage(chatId, `⚠️ Votre solde disponible est de <b>${funds.withdrawableBalance.toLocaleString('fr-HT')} HTG</b>.`, { parse_mode: 'HTML' });
+        return { success: true };
+      }
+
+      const access = await canCreateWithdrawal(merchant.id, amount);
+      if (!access.allowed) {
+        await TelegramClient.sendMessage(chatId, "⚠️ Ce transfert dépasse une limite ou n'est pas autorisé pour votre compte.");
+        return { success: true };
+      }
+
+      const otpIssue = await WithdrawalOtpService.sendWithdrawalOtp({
+        merchantId: merchant.id,
+        userEmail: merchant.email,
+        amount,
+        method: `B2B vers ${state.receiverEmail}`,
+        operation: 'b2b',
+      });
+      if (!otpIssue.success) {
+        await this.updateSessionState(chatId, {});
+        await TelegramClient.sendMessage(chatId, `❌ ${otpIssue.error || "Impossible d'envoyer le code de sécurité."}`, { reply_markup: this.getMainKeyboard() });
+        return { success: true };
+      }
+
+      await this.updateSessionState(chatId, { ...state, step: 'b2b_otp', amount });
+      await TelegramClient.sendMessage(
+        chatId,
+        `🔐 <b>CONFIRMATION REQUISE</b>\n\nTransfert : <b>${amount.toLocaleString('fr-HT')} HTG</b>\nDestinataire : <b>${this.escapeHtml(state.receiverBusinessName)}</b>\n\nUn code à 6 chiffres a été envoyé à <b>${this.escapeHtml(merchant.email)}</b>. Saisissez-le pour confirmer :`,
+        { parse_mode: 'HTML' },
+      );
+      return { success: true };
+    }
+
+    if (state.step === 'b2b_otp') {
+      const otpCode = text.replace(/\D/g, '');
+      if (otpCode.length !== 6) {
+        await TelegramClient.sendMessage(chatId, '⚠️ Le code doit comporter exactement 6 chiffres.');
+        return { success: true };
+      }
+
+      const otp = await WithdrawalOtpService.verifyWithdrawalOtp({ merchantId: merchant.id, code: otpCode });
+      if (!otp.success) {
+        await TelegramClient.sendMessage(chatId, `❌ <b>Code refusé</b>\n\n${this.escapeHtml(otp.error || 'Code invalide.')}`, { parse_mode: 'HTML' });
+        return { success: true };
+      }
+
+      await TelegramClient.sendMessage(chatId, '⏳ Comptabilisation du transfert en cours...');
+      const transfer = await B2BTransferService.processTransfer({
+        senderId: merchant.id,
+        receiverEmail: state.receiverEmail,
+        amount: Number(state.amount),
+        environment: 'live',
+        source: 'telegram',
+      });
+      await this.updateSessionState(chatId, {});
+
+      if (!transfer.success) {
+        await TelegramClient.sendMessage(
+          chatId,
+          `❌ <b>Transfert non effectué</b>\n\n${this.escapeHtml(transfer.error || 'Le transfert a échoué.')}`,
+          { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() },
+        );
+        return { success: true };
+      }
+
+      await TelegramClient.sendMessage(
+        chatId,
+        `✅ <b>TRANSFERT B2B RÉUSSI</b>\n\n💰 <b>Montant :</b> ${Number(state.amount).toLocaleString('fr-HT')} HTG\n🏢 <b>Destinataire :</b> ${this.escapeHtml(transfer.receiverBusinessName || state.receiverBusinessName)}\n🆔 <b>Référence :</b> <code>${this.escapeHtml(transfer.reference || transfer.transferId || '')}</code>\n💼 <b>Nouveau solde :</b> ${Number(transfer.senderBalanceAfter || 0).toLocaleString('fr-HT')} HTG`,
+        { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() },
+      );
+      return { success: true };
+    }
 
     // --- CRÉATION DE LIEN ---
     if (state.step === 'link_amount') {
@@ -708,6 +907,10 @@ L'équipe de sécurité Kobara — https://kobara.app
 
     if (data === 'action:withdraw') {
       return this.startWithdrawFlow(chatId, merchant, messageId);
+    }
+
+    if (data === 'action:b2b') {
+      return this.startB2BTransferFlow(chatId, merchant, messageId);
     }
 
     if (data === 'action:create_link') {
@@ -1320,7 +1523,7 @@ Cliquez ci-dessous pour effectuer votre paiement sur <b>${methodName}</b>. Dès 
   private static async handleHelp(chatId: string | number, merchant: any, messageId?: number) {
     await this.sendOrEditMessage(
       chatId,
-      `❓ <b>CENTRE D'AIDE & SUPPORT KOBARA</b>\n\nBesoin d'aide avec votre compte <b>${merchant.business_name}</b> ?\n\n🤖 <b>Assistant IA :</b> Posez vos questions sur les paiements, APIs, frais ou retraits pour une réponse immédiate.\n\n🟢 <b>Support WhatsApp :</b> Notre équipe humaine est disponible au +509 4003 5664 (Lun-Ven, 9h-17h).\n\n📢 <b>Forum & Communauté :</b> Rejoignez les marchands et développeurs sur notre canal officiel.`,
+      `❓ <b>CENTRE D'AIDE & SUPPORT KOBARA</b>\n\nBesoin d'aide avec votre compte <b>${merchant.business_name}</b> ?\n\n🏦 <b>Transfert B2B :</b> utilisez /b2b pour envoyer des HTG à un autre marchand Kobara vérifié.\n\n🤖 <b>Assistant IA :</b> Posez vos questions sur les paiements, APIs, frais ou retraits pour une réponse immédiate.\n\n🟢 <b>Support WhatsApp :</b> Notre équipe humaine est disponible au +509 4003 5664 (Lun-Ven, 9h-17h).\n\n📢 <b>Forum & Communauté :</b> Rejoignez les marchands et développeurs sur notre canal officiel.`,
       {
         parse_mode: 'HTML',
         reply_markup: {
@@ -1349,5 +1552,12 @@ Cliquez ci-dessous pour effectuer votre paiement sur <b>${methodName}</b>. Dès 
         updated_at: new Date().toISOString(),
       })
       .eq('telegram_chat_id', String(chatId));
+  }
+
+  private static escapeHtml(value: unknown) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
   }
 }

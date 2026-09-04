@@ -42,6 +42,7 @@ export class WithdrawalOtpService {
     userEmail: string;
     amount?: number;
     method?: string;
+    operation?: 'withdrawal' | 'b2b';
   }): Promise<{ success: boolean; error?: string }> {
     const supabase = createAdminClient();
 
@@ -96,11 +97,13 @@ export class WithdrawalOtpService {
     const methodText = params.method || 'Non spécifié';
 
     // 5. Envoyer l'email avec le bon sujet
-    const emailSubject = 'Code de vérification de retrait — Kobara';
+    const isB2B = params.operation === 'b2b';
+    const operationLabel = isB2B ? 'transfert B2B' : 'retrait';
+    const emailSubject = `Code de vérification de ${operationLabel} — Kobara`;
     const emailBody = `
 Bonjour,
 
-Une demande de retrait a été initiée sur votre compte Kobara :
+Une demande de ${operationLabel} a été initiée sur votre compte Kobara :
 - Montant : ${amountText}
 - Méthode : ${methodText}
 
@@ -121,8 +124,8 @@ L'équipe de sécurité Kobara
         text: emailBody,
         html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-          <h2 style="color: #ea580c; margin-top: 0;">Vérification de retrait</h2>
-          <p>Une demande de retrait a été initiée sur votre compte Kobara :</p>
+          <h2 style="color: #ea580c; margin-top: 0;">Vérification de ${operationLabel}</h2>
+          <p>Une demande de ${operationLabel} a été initiée sur votre compte Kobara :</p>
           <div style="background: #f9fafb; padding: 12px; border-radius: 6px; font-size: 13px; color: #4b5563; margin-bottom: 20px;">
             <strong>Montant :</strong> ${amountText}<br/>
             <strong>Méthode :</strong> ${methodText}

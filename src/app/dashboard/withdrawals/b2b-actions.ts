@@ -1,7 +1,6 @@
 'use server'
 
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
-import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import speakeasy from 'speakeasy';
 import { canCreateWithdrawal } from '@/lib/server/access';
@@ -9,9 +8,10 @@ import { headers } from 'next/headers';
 import { normalizeSixDigitCode } from '@/lib/two-factor';
 import { getClientIp, withdrawalsLimiter } from '@/lib/server/security/rate-limit';
 import { WithdrawalOtpService } from '@/lib/server/security/withdrawal-otp';
+import { B2BTransferService } from '@/lib/server/transfers/b2b-transfer.service';
 
 export async function executeB2BTransfer(amount: number, receiverEmail: string, code2fa?: string) {
-  const { user, merchant, userRole, supabase } = await getCurrentUserAndMerchant();
+  const { merchant, userRole, supabase } = await getCurrentUserAndMerchant();
 
   if (!merchant) {
     return { error: "Merchant not found" };
@@ -102,63 +102,22 @@ export async function executeB2BTransfer(amount: number, receiverEmail: string, 
     }
   }
 
-  const adminClient = createAdminClient();
-
-  // Validate receiver KYC status
-  const { data: receiverData, error: receiverError } = await adminClient
-    .from('merchants')
-    .select('id, status, kyc_status')
-    .eq('email', receiverEmail)
-    .single();
-
-  if (receiverError || !receiverData) {
-    return { error: "Marchand destinataire introuvable." };
-  }
-
-  if (receiverData.status !== 'active' || (receiverData.kyc_status !== 'approved' && receiverData.kyc_status !== 'verified')) {
-    return { error: "Le compte de ce marchand n'est pas vérifié ou est inactif. Le transfert ne peut pas être effectué." };
-  }
-
-  // Executing the secure RPC function
-  const { data: rpcResult, error: rpcError } = await adminClient.rpc('process_b2b_transfer', {
-    p_sender_id: merchant.id,
-    p_receiver_email: receiverEmail,
-    p_amount: amount,
-    p_environment: 'live'
+  const transfer = await B2BTransferService.processTransfer({
+    senderId: merchant.id,
+    receiverEmail,
+    amount,
+    environment: 'live',
+    source: 'dashboard',
   });
 
-  if (rpcError) {
-    console.error("B2B Transfer RPC Error:", rpcError);
-    return { error: "Erreur lors de l'exécution du transfert. Veuillez réessayer." };
-  }
-
-  if (!rpcResult.success) {
+  if (!transfer.success) {
     return {
-      error: rpcResult.error || "Le transfert a échoué.",
-      code: rpcResult.code,
-      withdrawableBalance: rpcResult.withdrawable_balance,
+      error: transfer.error || "Le transfert a échoué.",
+      code: transfer.code,
+      withdrawableBalance: transfer.withdrawableBalance,
     };
   }
 
-  // Notifications
-  const { notifyB2BTransferSent, notifyB2BTransferReceived, notifyAdminWithdrawalCreated } = await import('@/lib/server/notifications');
-  try {
-    const { data: senderData } = await adminClient.from('merchants').select('email, business_name').eq('id', merchant.id).single();
-    if (senderData) {
-      await notifyB2BTransferSent(merchant.id, senderData.email, amount, receiverEmail);
-    }
-    
-    const { data: receiverData } = await adminClient.from('merchants').select('email').eq('id', rpcResult.receiver_id).single();
-    if (receiverData) {
-      await notifyB2BTransferReceived(rpcResult.receiver_id, receiverData.email, amount, senderData?.business_name || 'Un marchand');
-    }
-
-    // Notifier l'admin pour tous les transferts B2B
-    await notifyAdminWithdrawalCreated(merchant.id, amount, 'B2B Transfer', undefined, receiverEmail, amount);
-  } catch(e) { 
-    console.error("Notifications for B2B failed", e); 
-  }
-
   revalidatePath('/dashboard/withdrawals');
-  return { success: true };
+  return { success: true, reference: transfer.reference };
 }

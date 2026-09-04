@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMobileToken } from "@/lib/auth/mobile-verify";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { B2BTransferService } from "@/lib/server/transfers/b2b-transfer.service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,33 +41,27 @@ export async function POST(req: NextRequest) {
     }
     if (recipient.kyc_status !== 'approved') return NextResponse.json({ error: "Le destinataire ne peut pas recevoir de transfert." }, { status: 403 });
 
-    // 3. Call the RPC function process_b2b_transfer
-    const { data: result, error: rpcError } = await supabaseAdmin.rpc('process_b2b_transfer', {
-      p_sender_id: sender.id,
-      p_receiver_email: recipient.email,
-      p_amount: Number(amount),
-      p_environment: 'live' // Force live environment for the MVP
+    const result = await B2BTransferService.processTransfer({
+      senderId: sender.id,
+      receiverEmail: recipient.email,
+      amount: Number(amount),
+      environment: 'live',
+      source: 'mobile',
     });
 
-    if (rpcError) {
-      console.error("RPC Error:", rpcError);
-      return NextResponse.json({ error: "Erreur lors de la transaction." }, { status: 500 });
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.error || "Erreur lors de la transaction.", code: result.code },
+        { status: 400 },
+      );
     }
 
-    // The RPC returns a JSON object like { success: true/false, error: 'msg', ... }
-    const responseData = result as any;
-
-    if (responseData && responseData.success === false) {
-      return NextResponse.json({ error: responseData.error }, { status: 400 });
-    }
-
-    // Success
-    return NextResponse.json({ 
-      success: true, 
-      transfer: responseData 
+    return NextResponse.json({
+      success: true,
+      transfer: result,
     });
-    
-  } catch (error: any) {
+
+  } catch (error: unknown) {
     console.error("Transfer error:", error);
     return NextResponse.json(
       { error: "Erreur serveur" },

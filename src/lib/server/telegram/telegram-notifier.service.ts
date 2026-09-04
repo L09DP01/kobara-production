@@ -4,6 +4,40 @@ import { createAdminClient } from '@/utils/supabase/admin';
 import { TelegramClient } from './telegram-client';
 
 export class TelegramNotifierService {
+  static async notifyB2BTransferReceived(params: {
+    receiverId: string;
+    senderBusinessName: string;
+    amount: number;
+    reference: string;
+  }) {
+    const supabase = createAdminClient();
+    const { data: telegramAccount } = await supabase
+      .from('merchant_telegram_accounts')
+      .select('telegram_chat_id, notifications_enabled')
+      .eq('merchant_id', params.receiverId)
+      .maybeSingle();
+
+    if (!telegramAccount?.notifications_enabled) {
+      return { success: false, reason: 'Telegram account not linked or notifications disabled' };
+    }
+
+    const senderName = params.senderBusinessName
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    return TelegramClient.sendMessage(
+      telegramAccount.telegram_chat_id,
+      `🏦 <b>TRANSFERT B2B REÇU</b>\n\n💰 <b>Montant :</b> <code>${params.amount.toLocaleString('fr-HT')} HTG</code>\n🏢 <b>Expéditeur :</b> ${senderName}\n🆔 <b>Référence :</b> <code>${params.reference}</code>\n\nVotre solde Kobara a été crédité.`,
+      {
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [[{ text: '💰 Voir mon solde', callback_data: 'action:balance' }]],
+        },
+      },
+    );
+  }
+
   /**
    * Envoie une notification instantanée de paiement reçu au marchand (STRICTEMENT EN MODE LIVE)
    */
