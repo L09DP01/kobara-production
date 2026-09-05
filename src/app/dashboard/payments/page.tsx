@@ -2,6 +2,7 @@ import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import Link from "next/link";
 import { PaymentsFilter } from "./payments-filter";
 import ExportCsvButton from "./ExportCsvButton";
+import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
 
 export default async function PaymentsPage({
   searchParams
@@ -181,10 +182,10 @@ export default async function PaymentsPage({
                           payment.status === 'failed' ? 'bg-red-500' :
                           'bg-orange-500'
                         }`}>
-                          {(payment.customers?.name || 'CI').substring(0, 2).toUpperCase()}
+                          {(payment.customers?.name || payment.metadata?.sender_business_name || 'CI').substring(0, 2).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <div className="font-bold text-white text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[160px] md:max-w-none">{payment.customers?.name || 'Client Inconnu'}</div>
+                          <div className="font-bold text-white text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[160px] md:max-w-none">{payment.customers?.name || payment.metadata?.sender_business_name || 'Client Inconnu'}</div>
                           <div className="text-slate-400 text-[10px] sm:text-[11px] font-mono truncate max-w-[100px] sm:max-w-[140px] md:max-w-none">{payment.kobara_reference || `KOB-${payment.id.substring(0, 8).toUpperCase()}`}</div>
                         </div>
                       </div>
@@ -214,7 +215,7 @@ export default async function PaymentsPage({
                       <div className="flex items-center gap-2 text-slate-400">
                         <span className="material-symbols-outlined text-[16px]">smartphone</span>
                         <span className="capitalize text-xs sm:text-sm text-white font-bold">
-                          {payment.payment_method?.toLowerCase() === 'natcash' || payment.provider?.toLowerCase() === 'natcash' ? 'NatCash' : 'MonCash'}
+                          {getPaymentMethodDisplay(payment.payment_method, payment.provider)}
                         </span>
                       </div>
                     </td>

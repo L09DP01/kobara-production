@@ -6,6 +6,10 @@ const migration = fs.readFileSync(
   new URL('../supabase/migrations/20260904171402_harden_b2b_balance_credit.sql', import.meta.url),
   'utf8',
 );
+const ledgerMigration = fs.readFileSync(
+  new URL('../supabase/migrations/20260904211105_record_b2b_as_payment_and_withdrawal.sql', import.meta.url),
+  'utf8',
+);
 const service = fs.readFileSync(
   new URL('../src/lib/server/transfers/b2b-transfer.service.ts', import.meta.url),
   'utf8',
@@ -46,9 +50,27 @@ test('B2B migration verifies both balance mutations before returning success', (
 
 test('B2B server service rejects incomplete accounting results', () => {
   assert.match(service, /rpc\.receiver_balance_after === undefined/);
+  assert.match(service, /!rpc\.withdrawal_id/);
+  assert.match(service, /!rpc\.payment_id/);
   assert.match(service, /INCOMPLETE_ACCOUNTING_RESULT/);
   assert.match(service, /canCreateWithdrawal\(params\.senderId, amount\)/);
-  assert.match(service, /admin\.rpc\('process_b2b_transfer_v2'/);
+  assert.match(service, /admin\.rpc\('process_b2b_transfer_v3'/);
+});
+
+test('B2B v3 records one completed withdrawal and one succeeded payment', () => {
+  assert.match(ledgerMigration, /INSERT INTO public\.withdrawals/);
+  assert.match(ledgerMigration, /INSERT INTO public\.payments/);
+  assert.match(ledgerMigration, /'completed',\s*'b2b'/);
+  assert.match(ledgerMigration, /'succeeded',\s*'b2b',\s*'b2b',\s*'b2b'/);
+  assert.match(ledgerMigration, /withdrawal_id = v_withdrawal_id/);
+  assert.match(ledgerMigration, /payment_id = v_payment_id/);
+  assert.match(ledgerMigration, /v_transfer\.created_at, v_transfer\.created_at, v_transfer\.created_at/);
+});
+
+test('B2B canonical history does not trigger a second balance movement', () => {
+  assert.match(ledgerMigration, /Insert directly as succeeded/);
+  assert.doesNotMatch(ledgerMigration, /UPDATE public\.payments[\s\S]{0,300}SET status = 'succeeded'/);
+  assert.match(ledgerMigration, /balance_reserved_at,[\s\S]+NULL,/);
 });
 
 test('Telegram B2B flow requires OTP and always executes in live mode', () => {

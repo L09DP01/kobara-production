@@ -8,6 +8,8 @@ type B2BTransferRpcResult = {
   error?: string;
   code?: string;
   transfer_id?: string;
+  withdrawal_id?: string;
+  payment_id?: string;
   receiver_id?: string;
   receiver_email?: string;
   receiver_business_name?: string;
@@ -22,6 +24,8 @@ export type B2BTransferResult = {
   error?: string;
   code?: string;
   transferId?: string;
+  withdrawalId?: string;
+  paymentId?: string;
   reference?: string;
   receiverId?: string;
   receiverEmail?: string;
@@ -79,7 +83,7 @@ export class B2BTransferService {
     }
 
     const admin = createAdminClient();
-    const { data: result, error: rpcError } = await admin.rpc('process_b2b_transfer_v2', {
+    const { data: result, error: rpcError } = await admin.rpc('process_b2b_transfer_v3', {
       p_sender_id: params.senderId,
       p_receiver_email: receiverEmail,
       p_amount: amount,
@@ -101,7 +105,12 @@ export class B2BTransferService {
       };
     }
 
-    if (!rpc.transfer_id || !rpc.receiver_id || rpc.receiver_balance_after === undefined) {
+    if (!rpc.transfer_id
+      || !rpc.withdrawal_id
+      || !rpc.payment_id
+      || !rpc.receiver_id
+      || rpc.sender_balance_after === undefined
+      || rpc.receiver_balance_after === undefined) {
       console.error('[B2BTransferService] RPC returned an incomplete accounting result:', rpc);
       return { success: false, error: "Le transfert a été enregistré mais sa confirmation comptable est incomplète. Contactez le support avec la référence affichée.", code: 'INCOMPLETE_ACCOUNTING_RESULT', reference: rpc.reference };
     }
@@ -109,6 +118,8 @@ export class B2BTransferService {
     const response: B2BTransferResult = {
       success: true,
       transferId: rpc.transfer_id,
+      withdrawalId: rpc.withdrawal_id,
+      paymentId: rpc.payment_id,
       reference: rpc.reference,
       receiverId: rpc.receiver_id,
       receiverEmail: rpc.receiver_email || receiverEmail,

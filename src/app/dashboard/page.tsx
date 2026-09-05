@@ -11,6 +11,7 @@ import { PayPalService } from "@/lib/server/payments/paypal";
 import UsdAccountSection from "@/components/dashboard/UsdAccountSection";
 import DashboardChartWrapper from "./analytics/DashboardChartWrapper";
 import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
+import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
 
 interface DashboardPayment {
   id: string;
@@ -19,6 +20,8 @@ interface DashboardPayment {
   currency?: string | null;
   status: string;
   payment_method?: string | null;
+  provider?: string | null;
+  metadata?: { sender_business_name?: string | null } | null;
   created_at: string;
   customers?: { name?: string | null; email?: string | null } | null;
 }
@@ -216,7 +219,7 @@ export default async function DashboardPage() {
                 <div key={payment.id} className="flex min-h-[72px] items-center justify-between gap-3 py-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <StatusIcon className={`h-5 w-5 shrink-0 ${statusColor}`} />
-                    <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{payment.customers?.name || payment.payment_method?.toUpperCase() || "Paiement"}</p><p className="mt-1 text-xs text-slate-500">{new Date(payment.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {new Date(payment.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p></div>
+                    <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{payment.customers?.name || payment.metadata?.sender_business_name || getPaymentMethodDisplay(payment.payment_method, payment.provider)}</p><p className="mt-1 text-xs text-slate-500">{new Date(payment.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} · {new Date(payment.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</p></div>
                   </div>
                   <div className="shrink-0 text-right"><p className="text-sm font-bold text-white">{Number(payment.amount).toLocaleString("fr-FR")} {payment.currency || "HTG"}</p><p className={`mt-1 text-[10px] font-bold uppercase ${statusColor}`}>{statusLabel}</p></div>
                 </div>

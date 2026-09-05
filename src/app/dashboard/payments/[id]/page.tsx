@@ -1,6 +1,7 @@
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
 
 type Params = Promise<{ id: string }>;
 
@@ -94,7 +95,7 @@ export default async function PaymentDetailsPage(props: { params: Params }) {
               <div className="flex justify-between items-center py-2 border-b border-white/10">
                 <span className="text-slate-400 text-sm">Méthode de paiement</span>
                 <span className="font-bold text-white text-sm capitalize">
-                  {payment.payment_method?.toLowerCase() === 'natcash' || payment.provider?.toLowerCase() === 'natcash' ? 'NatCash' : 'MonCash'}
+                  {getPaymentMethodDisplay(payment.payment_method, payment.provider)}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
@@ -109,18 +110,18 @@ export default async function PaymentDetailsPage(props: { params: Params }) {
           {/* Customer Card */}
           <div className="bg-white/5 rounded-3xl border border-white/10 p-6 shadow-sm hover:shadow-md transition-shadow">
             <h3 className="text-xl font-bold text-white mb-4">Client</h3>
-            {customer ? (
+            {customer || payment.metadata?.sender_business_name ? (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center text-white font-bold uppercase">
-                    {customer.name ? customer.name.charAt(0) : '?'}
+                    {(customer?.name || payment.metadata?.sender_business_name || '?').charAt(0)}
                   </div>
                   <div>
-                    <p className="font-bold text-white">{customer.name || 'Client Inconnu'}</p>
-                    {customer.email && <p className="text-slate-400 text-sm">{customer.email}</p>}
+                    <p className="font-bold text-white">{customer?.name || payment.metadata?.sender_business_name || 'Marchand Kobara'}</p>
+                    {(customer?.email || payment.metadata?.sender_email) && <p className="text-slate-400 text-sm">{customer?.email || payment.metadata?.sender_email}</p>}
                   </div>
                 </div>
-                {customer.phone && (
+                {customer?.phone && (
                   <div className="pt-3 flex items-center gap-2 text-slate-400 text-sm">
                     <span className="material-symbols-outlined text-[16px]">call</span>
                     {customer.phone}
@@ -132,10 +133,10 @@ export default async function PaymentDetailsPage(props: { params: Params }) {
             )}
           </div>
           
-          <button className="w-full flex justify-center items-center gap-2 px-4 py-3 bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold text-red-400 hover:bg-red-500/30 transition-colors shadow-sm">
+          {payment.provider !== 'b2b' && <button className="w-full flex justify-center items-center gap-2 px-4 py-3 bg-red-500/20 border border-red-500/20 rounded-xl text-sm font-bold text-red-400 hover:bg-red-500/30 transition-colors shadow-sm">
             <span className="material-symbols-outlined text-[18px]">currency_exchange</span>
             Rembourser
-          </button>
+          </button>}
         </div>
       </div>
     </div>
