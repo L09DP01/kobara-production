@@ -11,6 +11,11 @@ interface DiditVerificationButtonProps {
   onSuccess?: () => void;
 }
 
+type DiditSessionResult = {
+  error?: string;
+  url?: string;
+};
+
 export function DiditVerificationButton({
   buttonText = "Commencer la vérification d'identité",
   className = "",
@@ -31,7 +36,7 @@ export function DiditVerificationButton({
         },
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({})) as DiditSessionResult;
 
       if (!res.ok || !data.url) {
         throw new Error(data.error || "Impossible d'initialiser la session de vérification.");
@@ -40,9 +45,9 @@ export function DiditVerificationButton({
       // Redirection directe fluide vers la page de vérification sécurisée
       // Évite tout blocage d'iframe X-Frame-Options et garantit un accès caméra optimal
       window.location.href = data.url;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Didit KYC Button] Erreur:", err);
-      setError(err.message || "Une erreur est survenue lors de l'ouverture de la vérification.");
+      setError(err instanceof Error ? err.message : "Une erreur est survenue lors de l'ouverture de la vérification.");
       setLoading(false);
     }
   };

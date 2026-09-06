@@ -1,11 +1,51 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 
-// Workflow ID officiel Didit ("Free KYC")
-const DIDIT_WORKFLOW_ID = "50c7c3ca-5bfc-43fe-92d6-6c1471020ace";
+const DEFAULT_DIDIT_WORKFLOW_ID = "50c7c3ca-5bfc-43fe-92d6-6c1471020ace";
+const DIDIT_SESSION_ENDPOINT = "https://verification.didit.me/v3/session/";
 
-export async function POST(req: NextRequest) {
+type DiditSessionResponse = {
+  session_id?: unknown;
+  url?: unknown;
+};
+
+function getProviderErrorDetail(rawBody: string) {
+  try {
+    const parsed = JSON.parse(rawBody) as { detail?: unknown };
+    return typeof parsed.detail === "string" ? parsed.detail : rawBody;
+  } catch {
+    return rawBody;
+  }
+}
+
+function getClientError(status: number, detail: string) {
+  const normalizedDetail = detail.toLowerCase();
+
+  if (normalizedDetail.includes("enough credits")) {
+    return {
+      status: 503,
+      code: "KYC_PROVIDER_CAPACITY",
+      error: "Le service de vérification d'identité est temporairement indisponible. Veuillez réessayer plus tard.",
+    };
+  }
+
+  if (status === 401 || status === 403) {
+    return {
+      status: 503,
+      code: "KYC_PROVIDER_CONFIGURATION",
+      error: "Le service de vérification d'identité est temporairement indisponible. Veuillez contacter le support.",
+    };
+  }
+
+  return {
+    status: 502,
+    code: "KYC_SESSION_CREATION_FAILED",
+    error: "Impossible d'initialiser la session de vérification d'identité. Veuillez réessayer.",
+  };
+}
+
+export async function POST() {
   try {
     const { merchant } = await getCurrentUserAndMerchant();
     if (!merchant) {
@@ -21,20 +61,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kobara.app';
-    const callbackUrl = `${appUrl}/dashboard/kyc`;
+    const workflowId = process.env.DIDIT_WORKFLOW_ID?.trim() || DEFAULT_DIDIT_WORKFLOW_ID;
+    const dashboardUrl = (process.env.NEXT_PUBLIC_DASHBOARD_URL || "https://dashboard.kobara.app").replace(/\/+$/, "");
+    const callbackUrl = `${dashboardUrl}/kyc`;
 
     // Appel à l'API Didit v3 pour initialiser une session
-    const diditRes = await fetch("https://verification.didit.me/v3/session/", {
+    const diditRes = await fetch(DIDIT_SESSION_ENDPOINT, {
       method: "POST",
       headers: {
         "x-api-key": apiKey,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        workflow_id: DIDIT_WORKFLOW_ID,
+        workflow_id: workflowId,
         vendor_data: merchant.id,
         callback: callbackUrl,
+        callback_method: "both",
         metadata: {
           merchant_id: merchant.id,
           business_name: merchant.business_name || '',
@@ -46,14 +88,26 @@ export async function POST(req: NextRequest) {
     if (!diditRes.ok) {
       const errorText = await diditRes.text().catch(() => '');
       console.error("[Didit KYC] Échec de création de session (status " + diditRes.status + "):", errorText);
+      const clientError = getClientError(diditRes.status, getProviderErrorDetail(errorText));
       return NextResponse.json(
-        { error: "Impossible d'initialiser la session de vérification d'identité.", detail: errorText },
-        { status: 502 }
+        { error: clientError.error, code: clientError.code },
+        { status: clientError.status }
       );
     }
 
-    const sessionData = await diditRes.json();
+    const sessionData = await diditRes.json() as DiditSessionResponse;
     const { url, session_id } = sessionData;
+
+    if (typeof url !== "string" || !url.startsWith("https://") || typeof session_id !== "string") {
+      console.error("[Didit KYC] Réponse de création de session invalide.");
+      return NextResponse.json(
+        {
+          error: "Le service de vérification a renvoyé une réponse invalide. Veuillez réessayer.",
+          code: "KYC_PROVIDER_INVALID_RESPONSE",
+        },
+        { status: 502 }
+      );
+    }
 
     // Enregistrer ou mettre à jour la session dans la base de données
     const supabase = createAdminClient();
@@ -94,7 +148,7 @@ export async function POST(req: NextRequest) {
       url,
       session_id,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Didit KYC] Erreur inattendue:", error);
     return NextResponse.json({ error: "Une erreur est survenue lors de la création de la session." }, { status: 500 });
   }
