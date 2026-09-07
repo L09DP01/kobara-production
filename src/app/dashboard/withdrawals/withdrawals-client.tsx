@@ -14,6 +14,7 @@ function getWithdrawalMethodDisplay(methodOrProvider?: string | null): string {
   if (val.includes('zelle')) return 'Zelle';
   if (val.includes('paypal')) return 'PayPal';
   if (val.includes('b2b')) return 'Transfert B2B';
+  if (val.includes('system_subscription')) return 'Abonnement Kobara';
   return 'MonCash';
 }
 
@@ -176,6 +177,7 @@ export function WithdrawalsClient({
     : filterStatus === 'pending'
       ? withdrawals.filter(w => w.status === 'pending' || w.status === 'pending_approval')
       : withdrawals.filter(w => w.status === filterStatus);
+  const selectedIsSubscriptionDebit = selectedWithdrawal?.provider === 'system_subscription';
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -550,6 +552,7 @@ export function WithdrawalsClient({
               <tbody className="divide-y divide-white/10">
                 {filteredWithdrawals.length > 0 ? filteredWithdrawals.map(w => {
                   const cfg = getStatusConfig(w.status);
+                  const isSubscriptionDebit = w.provider === 'system_subscription';
                   return (
                     <tr
                       key={w.id}
@@ -562,13 +565,17 @@ export function WithdrawalsClient({
                       </td>
                       <td className="py-4 px-5">
                         <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[16px] text-slate-400">smartphone</span>
+                          <span className="material-symbols-outlined text-[16px] text-slate-400">{isSubscriptionDebit ? 'receipt_long' : 'smartphone'}</span>
                           <span className="font-bold text-white text-sm">{getWithdrawalMethodDisplay(w.provider || w.method)}</span>
                         </div>
                       </td>
                       <td className="py-4 px-5">
                         <div className="font-bold text-white">-{formatWithdrawalAmount(w.total || w.amount, w.currency)}</div>
-                        <div className="mt-0.5 text-xs text-slate-500">Reçu : {formatWithdrawalAmount(w.payout_amount || w.amount, w.payout_currency || w.currency)}</div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          {isSubscriptionDebit
+                            ? w.description || 'Paiement du plan Kobara'
+                            : `Reçu : ${formatWithdrawalAmount(w.payout_amount || w.amount, w.payout_currency || w.currency)}`}
+                        </div>
                       </td>
                       <td className="py-4 px-5">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${cfg.bg} ${cfg.text}`}>
@@ -641,7 +648,7 @@ export function WithdrawalsClient({
 
             <div className="p-6 space-y-4">
               <div className="flex justify-between items-center pb-4 border-b border-white/10">
-                <span className="text-sm text-slate-400">Montant brut (déduit)</span>
+                <span className="text-sm text-slate-400">{selectedIsSubscriptionDebit ? 'Montant payé' : 'Montant brut (déduit)'}</span>
                 <span className="font-bold text-white">{formatWithdrawalAmount(selectedWithdrawal.total || selectedWithdrawal.amount, selectedWithdrawal.currency)}</span>
               </div>
               <div className="flex justify-between items-center pb-4 border-b border-white/10">
@@ -649,7 +656,7 @@ export function WithdrawalsClient({
                 <span className="font-bold text-orange-400">-{formatWithdrawalAmount(selectedWithdrawal.fees || 0, selectedWithdrawal.currency)}</span>
               </div>
               <div className="flex justify-between items-center pb-4 border-b border-white/10">
-                <span className="text-sm font-bold text-white">Montant net (reçu)</span>
+                <span className="text-sm font-bold text-white">{selectedIsSubscriptionDebit ? 'Montant appliqué au plan' : 'Montant net (reçu)'}</span>
                 <span className="text-xl font-bold text-green-400">{formatWithdrawalAmount(selectedWithdrawal.payout_amount || selectedWithdrawal.amount, selectedWithdrawal.payout_currency || selectedWithdrawal.currency)}</span>
               </div>
 
@@ -664,12 +671,12 @@ export function WithdrawalsClient({
                 <div className="flex justify-between items-center">
                   <span className="text-xs text-slate-400">Méthode</span>
                   <span className="text-sm font-bold text-white capitalize flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px] text-orange-500">smartphone</span>
+                    <span className="material-symbols-outlined text-[16px] text-orange-500">{selectedIsSubscriptionDebit ? 'receipt_long' : 'smartphone'}</span>
                     {getWithdrawalMethodDisplay(selectedWithdrawal.provider || selectedWithdrawal.method)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs text-slate-400">Destinataire</span>
+                  <span className="text-xs text-slate-400">{selectedIsSubscriptionDebit ? 'Service' : 'Destinataire'}</span>
                   <span className="text-sm font-bold text-white">{selectedWithdrawal.wallet || 'Non spécifié'}</span>
                 </div>
                 <div className="flex justify-between items-center">

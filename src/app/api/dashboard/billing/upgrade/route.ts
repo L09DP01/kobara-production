@@ -103,9 +103,18 @@ export async function POST(request: NextRequest) {
         ...(promoCodeId ? { p_promo_code_id: promoCodeId } : { p_activation_source: 'balance' }),
       });
       if (error) {
+        console.error(JSON.stringify({
+          event: 'subscription_balance_purchase_failed',
+          merchant_id: merchant.id,
+          plan_id: plan.id,
+          code: error.code,
+          message: error.message,
+        }));
         const message = error.message.includes('insufficient_balance')
           ? 'Solde insuffisant pour effectuer ce paiement.'
-          : `Impossible d’activer le plan: ${error.message}`;
+          : error.message.includes('promo_')
+            ? 'Le code promo n’est plus applicable. Veuillez le vérifier puis réessayer.'
+            : 'Impossible d’activer le plan. Veuillez réessayer.';
         return NextResponse.json({ error: message }, { status: 400 });
       }
       try {
