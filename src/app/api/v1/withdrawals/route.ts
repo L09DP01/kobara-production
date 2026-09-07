@@ -137,13 +137,17 @@ export async function POST(request: NextRequest) {
         kyc_required: "La vérification KYC est requise pour effectuer un retrait.",
         plan_required: "Un plan actif est requis pour effectuer un retrait.",
         subscription_expired: "Votre abonnement a expiré.",
-        withdrawal_limit_reached: "Votre limite journalière de retrait est atteinte.",
+        withdrawal_limit_reached: `Votre limite journalière de retrait est atteinte (${access.used?.toLocaleString('fr-FR')}/${access.limit?.toLocaleString('fr-FR')} HTG).`,
       };
       return apiJson(request, {
         status: "error",
         error: access.reason,
         code: access.reason.toUpperCase(),
         message: messages[access.reason] || "Retrait non autorisé.",
+        limit: access.limit,
+        used: access.used,
+        requested: access.requested,
+        remaining: access.remaining,
       }, 403, rateHeaders);
     }
 

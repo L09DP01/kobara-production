@@ -12,6 +12,7 @@ interface PaymentActionResult {
   paymentId?: string;
   paymentMethod?: string;
   error?: string;
+  code?: string;
 }
 
 interface PublicPaymentLink {
@@ -32,6 +33,7 @@ export default function PaymentFormClient({
   providerConfig,
   transactionFeePercent,
   allowCardPayment = false,
+  paymentsBlocked = false,
 }: { 
   link: PublicPaymentLink,
   processPaymentAction: (formData: FormData) => Promise<PaymentActionResult | void>,
@@ -39,6 +41,7 @@ export default function PaymentFormClient({
   providerConfig: PaymentProviderConfig,
   transactionFeePercent: number,
   allowCardPayment?: boolean,
+  paymentsBlocked?: boolean,
 }) {
   const moncashAvailable = providerConfig.active_provider === 'bazik'
     ? true
@@ -75,6 +78,10 @@ export default function PaymentFormClient({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     setClientError(null);
+    if (paymentsBlocked) {
+      e.preventDefault();
+      return;
+    }
     const amountVal = link.amount ? Number(link.amount) : Number((e.currentTarget.elements.namedItem('amount') as HTMLInputElement)?.value || 0);
     if (amountVal < 20) {
       e.preventDefault();
@@ -445,7 +452,7 @@ export default function PaymentFormClient({
       {(!internationalPaymentId || !isInternationalMethod) && (
         <button
           type="submit"
-          disabled={isSubmitting || (!moncashAvailable && !natcashAvailable && !allowCardPayment)}
+          disabled={paymentsBlocked || isSubmitting || (!moncashAvailable && !natcashAvailable && !allowCardPayment)}
           className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-[#F95005] px-4 text-base font-bold text-white transition-colors hover:bg-[#ff6420] disabled:cursor-not-allowed disabled:opacity-70"
         >
           <Lock size={18} />

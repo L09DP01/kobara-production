@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       const message = expired
         ? "Votre abonnement a expiré. Les limites du plan gratuit sont maintenant appliquées. Renouvelez votre abonnement pour continuer."
         : accessCheck.reason === 'payment_limit_reached'
-          ? "La limite mensuelle de paiements de votre plan est atteinte. Changez de plan pour continuer."
+          ? `La limite mensuelle de paiements de votre plan est atteinte (${accessCheck.used}/${accessCheck.limit}). Changez de plan pour continuer.`
           : accessCheck.reason === 'kyc_required'
             ? "La vérification du compte est requise avant d'accepter des paiements en mode Live."
             : "Votre compte ne dispose pas d'un plan permettant de créer ce paiement.";
@@ -67,6 +67,9 @@ export async function POST(request: NextRequest) {
         renewal_url: expired || accessCheck.reason === 'payment_limit_reached'
           ? 'https://dashboard.kobara.app/billing'
           : undefined,
+        limit: accessCheck.limit,
+        used: accessCheck.used,
+        remaining: accessCheck.remaining,
       }, { status: 403 });
     }
 
@@ -343,6 +346,22 @@ export async function POST(request: NextRequest) {
 
     if (dbError) {
       console.error("Payment insertion error:", dbError);
+      const quotaMatch = dbError.message?.match(/payment_limit_reached:(\d+):(\d+)/);
+      if (quotaMatch) {
+        const limit = Number(quotaMatch[1]);
+        const used = Number(quotaMatch[2]);
+        return NextResponse.json({
+          status: 'error',
+          error: `La limite mensuelle de paiements est atteinte (${used}/${limit}).`,
+          message: `La limite mensuelle de paiements est atteinte (${used}/${limit}). Changez de plan pour continuer.`,
+          code: 'PAYMENT_LIMIT_REACHED',
+          reason: 'payment_limit_reached',
+          limit,
+          used,
+          remaining: 0,
+          renewal_url: 'https://dashboard.kobara.app/billing',
+        }, { status: 403 });
+      }
       return NextResponse.json({ error: "Internal Database Error" }, { status: 500 });
     }
 

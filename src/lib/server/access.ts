@@ -11,7 +11,14 @@ export type AccessDenialReason =
   | 'api_key_limit_reached'
   | 'withdrawal_limit_reached';
 
-export type AccessCheck = { allowed: true } | { allowed: false; reason: AccessDenialReason };
+export type AccessCheck = { allowed: true } | {
+  allowed: false;
+  reason: AccessDenialReason;
+  limit?: number;
+  used?: number;
+  requested?: number;
+  remaining?: number;
+};
 
 export async function getMerchantAccess(merchantId: string) {
   return getMerchantSubscriptionEntitlement(merchantId);
@@ -56,7 +63,14 @@ export async function canCreatePayment(merchantId: string, environment: 'test' |
     if (environment === 'live' && access.plan?.monthly_payment_limit !== null) {
       const currentCount = await getMonthlyPaymentCount(merchantId);
       if (currentCount >= Number(access.plan?.monthly_payment_limit ?? 0)) {
-        return { allowed: false, reason: expiredLimitReason(access, 'payment_limit_reached') };
+        const limit = Number(access.plan?.monthly_payment_limit ?? 0);
+        return {
+          allowed: false,
+          reason: expiredLimitReason(access, 'payment_limit_reached'),
+          limit,
+          used: currentCount,
+          remaining: Math.max(0, limit - currentCount),
+        };
       }
     }
     return { allowed: true };
@@ -76,7 +90,13 @@ export async function canCreateApiKey(merchantId: string, environment: 'test' | 
     if (limit !== null) {
       const currentCount = await getApiKeysCount(merchantId, environment);
       if (currentCount >= Number(limit)) {
-        return { allowed: false, reason: expiredLimitReason(access, 'api_key_limit_reached') };
+        return {
+          allowed: false,
+          reason: expiredLimitReason(access, 'api_key_limit_reached'),
+          limit: Number(limit),
+          used: currentCount,
+          remaining: Math.max(0, Number(limit) - currentCount),
+        };
       }
     }
     return { allowed: true };
@@ -93,7 +113,15 @@ export async function canCreateWithdrawal(merchantId: string, amount: number): P
     if (access.plan?.daily_withdrawal_limit !== null) {
       const currentDailyTotal = await getDailyWithdrawalTotal(merchantId);
       if (currentDailyTotal + amount > Number(access.plan?.daily_withdrawal_limit ?? 0)) {
-        return { allowed: false, reason: expiredLimitReason(access, 'withdrawal_limit_reached') };
+        const limit = Number(access.plan?.daily_withdrawal_limit ?? 0);
+        return {
+          allowed: false,
+          reason: expiredLimitReason(access, 'withdrawal_limit_reached'),
+          limit,
+          used: currentDailyTotal,
+          requested: amount,
+          remaining: Math.max(0, limit - currentDailyTotal),
+        };
       }
     }
     return { allowed: true };

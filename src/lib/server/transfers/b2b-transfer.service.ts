@@ -72,7 +72,7 @@ export class B2BTransferService {
       if (!access.allowed) {
         const messages = {
           subscription_expired: 'Votre abonnement a expiré.',
-          withdrawal_limit_reached: 'Votre limite journalière est atteinte.',
+          withdrawal_limit_reached: `Votre limite journalière est atteinte (${access.used?.toLocaleString('fr-FR')}/${access.limit?.toLocaleString('fr-FR')} HTG).`,
           kyc_required: 'Votre compte doit être vérifié pour effectuer ce transfert.',
           plan_required: 'Un plan actif est requis pour effectuer ce transfert.',
           payment_limit_reached: 'Accès refusé.',
@@ -92,6 +92,15 @@ export class B2BTransferService {
 
     if (rpcError) {
       console.error('[B2BTransferService] Atomic transfer failed:', rpcError);
+      const quotaMatch = rpcError.message?.match(/withdrawal_limit_reached:([0-9.]+):([0-9.]+):([0-9.]+)/);
+      if (quotaMatch) {
+        const [, limit, used, requested] = quotaMatch.map(Number);
+        return {
+          success: false,
+          error: `Votre limite journalière est atteinte (${used.toLocaleString('fr-FR')}/${limit.toLocaleString('fr-FR')} HTG utilisés, ${requested.toLocaleString('fr-FR')} HTG demandés).`,
+          code: 'WITHDRAWAL_LIMIT_REACHED',
+        };
+      }
       return { success: false, error: "Le transfert n'a pas pu être comptabilisé. Aucun débit ne doit être considéré comme définitif.", code: 'TRANSFER_FAILED' };
     }
 

@@ -24,7 +24,10 @@ export async function generateApiKey(name: string) {
     if (!accessCheck.allowed) {
       if (accessCheck.reason === 'kyc_required') return { error: "Vous devez vérifier votre compte (KYC) pour créer une clé Live." };
       if (accessCheck.reason === 'subscription_expired') return { error: "Votre abonnement a expiré. Renouvelez-le pour créer davantage de clés API.", code: 'SUBSCRIPTION_EXPIRED' };
-      if (accessCheck.reason === 'api_key_limit_reached') return { error: "Vous avez atteint la limite de clés API de votre plan. Veuillez révoquer votre clé existante pour en créer une nouvelle." };
+      if (accessCheck.reason === 'api_key_limit_reached') return {
+        error: `Vous avez atteint la limite de clés API de votre plan (${accessCheck.used}/${accessCheck.limit}). Veuillez révoquer une clé existante pour en créer une nouvelle.`,
+        code: 'API_KEY_LIMIT_REACHED',
+      };
       return { error: "Accès refusé" };
     }
 
@@ -50,6 +53,13 @@ export async function generateApiKey(name: string) {
         code: error.code || null,
         message: error.message,
       }));
+      const quotaMatch = error.message?.match(/api_key_limit_reached:(\d+):(\d+)/);
+      if (quotaMatch) {
+        return {
+          error: `Vous avez atteint la limite de clés API de votre plan (${quotaMatch[2]}/${quotaMatch[1]}).`,
+          code: 'API_KEY_LIMIT_REACHED',
+        };
+      }
       return { error: `Impossible de créer la clé API (${error.code || 'DB_ERROR'}).` };
     }
 

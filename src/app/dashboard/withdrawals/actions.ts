@@ -77,7 +77,10 @@ export async function requestWithdrawal(
     if (accessCheck.reason === 'kyc_required') return { error: "Vous devez vérifier votre compte (KYC) pour effectuer des retraits réels." };
     if (accessCheck.reason === 'plan_required') return { error: "Vous devez avoir un plan actif pour retirer des fonds." };
     if (accessCheck.reason === 'subscription_expired') return { error: "Votre abonnement a expiré. Renouvelez-le pour retrouver votre limite Premium.", code: 'SUBSCRIPTION_EXPIRED' };
-    if (accessCheck.reason === 'withdrawal_limit_reached') return { error: "Votre limite de retrait journalière est atteinte." };
+    if (accessCheck.reason === 'withdrawal_limit_reached') return {
+      error: `Votre limite de retrait journalière est atteinte (${accessCheck.used?.toLocaleString('fr-FR')}/${accessCheck.limit?.toLocaleString('fr-FR')} HTG).`,
+      code: 'WITHDRAWAL_LIMIT_REACHED',
+    };
     return { error: "Accès refusé aux retraits." };
   }
 

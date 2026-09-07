@@ -26,7 +26,10 @@ export async function executeB2BTransfer(amount: number, receiverEmail: string, 
     if (accessCheck.reason === 'subscription_expired') {
       return { error: "Votre abonnement a expiré. Renouvelez-le pour retrouver vos limites Premium.", code: 'SUBSCRIPTION_EXPIRED' };
     }
-    if (accessCheck.reason === 'withdrawal_limit_reached') return { error: "Votre limite journalière est atteinte." };
+    if (accessCheck.reason === 'withdrawal_limit_reached') return {
+      error: `Votre limite journalière est atteinte (${accessCheck.used?.toLocaleString('fr-FR')}/${accessCheck.limit?.toLocaleString('fr-FR')} HTG).`,
+      code: 'WITHDRAWAL_LIMIT_REACHED',
+    };
     if (accessCheck.reason === 'kyc_required') return { error: "Votre compte doit être vérifié pour effectuer ce transfert." };
     return { error: 'Accès refusé.' };
   }

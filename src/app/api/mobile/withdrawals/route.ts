@@ -58,11 +58,15 @@ export async function POST(req: NextRequest) {
         ? "Votre compte doit être vérifié (KYC) pour effectuer des retraits."
         : accessCheck.reason === 'subscription_expired'
           ? "Votre abonnement a expiré. Renouvelez-le pour retrouver votre limite Premium."
-          : "Vous avez atteint la limite de retrait de votre forfait actuel.";
+          : `Vous avez atteint la limite de retrait de votre forfait actuel (${accessCheck.used?.toLocaleString('fr-FR')}/${accessCheck.limit?.toLocaleString('fr-FR')} HTG).`;
       return NextResponse.json({
         error: reason,
         code: accessCheck.reason === 'subscription_expired' ? 'SUBSCRIPTION_EXPIRED' : accessCheck.reason,
         renewal_url: accessCheck.reason === 'subscription_expired' ? '/dashboard/billing' : undefined,
+        limit: accessCheck.limit,
+        used: accessCheck.used,
+        requested: accessCheck.requested,
+        remaining: accessCheck.remaining,
       }, { status: 403 });
     }
 

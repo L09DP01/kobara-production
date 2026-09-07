@@ -6,6 +6,7 @@ import PaymentFormClient from "@/components/payments/PaymentFormClient";
 import { ShieldCheck, Zap, HeadphonesIcon, Lock } from "lucide-react";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { canCreatePayment } from "@/lib/server/access";
 
 export default async function PublicPaymentPage({ 
   params, 
@@ -51,6 +52,25 @@ export default async function PublicPaymentPage({
   const transactionFeePercent = plan ? plan.transaction_fee_percent / 100 : 0.04;
   const usdAccount = await PayPalService.getMerchantUsdAccountState(link.merchants || { id: link.merchant_id });
   const allowCardPayment = usdAccount.isActive;
+  let paymentsBlocked = false;
+  let quotaError: string | undefined;
+  try {
+    const accessCheck = await canCreatePayment(link.merchant_id, 'live');
+    if (!accessCheck.allowed) {
+      paymentsBlocked = true;
+      quotaError = accessCheck.reason === 'payment_limit_reached'
+        ? `Ce marchand a atteint sa limite mensuelle de paiements (${accessCheck.used}/${accessCheck.limit}). Aucun autre paiement ne peut être accepté pour le moment.`
+        : "Ce marchand ne peut pas accepter de paiements pour le moment.";
+    }
+  } catch (error) {
+    paymentsBlocked = true;
+    quotaError = "Impossible de vérifier la disponibilité de ce paiement. Veuillez réessayer dans quelques instants.";
+    console.error(JSON.stringify({
+      event: 'payment_link_page_quota_check_failed',
+      merchant_id: link.merchant_id,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+  }
 
   // Check if link is active
   const isExpired = link.expires_at && new Date(link.expires_at) < new Date();
@@ -261,7 +281,8 @@ export default async function PublicPaymentPage({
             <PaymentFormClient 
               link={link} 
               processPaymentAction={processPayment} 
-              initialError={resolvedSearchParams.error}
+              initialError={resolvedSearchParams.error || quotaError}
+              paymentsBlocked={paymentsBlocked}
               providerConfig={providerConfig}
               transactionFeePercent={transactionFeePercent}
               allowCardPayment={allowCardPayment}

@@ -181,6 +181,14 @@ export const WithdrawalService = {
 
     if (prepError) {
       console.error('[WithdrawalService] RPC prepare_automatic_withdrawal error:', prepError);
+      const quotaMatch = prepError.message?.match(/withdrawal_limit_reached:([0-9.]+):([0-9.]+):([0-9.]+)/);
+      if (quotaMatch) {
+        return {
+          success: false,
+          error: `La limite journalière de retrait est atteinte (${Number(quotaMatch[2]).toLocaleString('fr-FR')}/${Number(quotaMatch[1]).toLocaleString('fr-FR')} HTG).`,
+          errorCode: 'WITHDRAWAL_LIMIT_REACHED',
+        };
+      }
       if (prepError.message?.includes('local_funds_pending_release')) {
         return {
           success: false,

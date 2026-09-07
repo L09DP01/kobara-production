@@ -372,12 +372,17 @@ L'équipe de sécurité Kobara — https://kobara.app
 
     const accessCheck = await canCreateWithdrawal(merchant.id, 150);
     if (!accessCheck.allowed) {
+      const reason = accessCheck.reason === 'kyc_required'
+        ? 'Vous devez vérifier votre compte (KYC) pour effectuer des retraits réels.'
+        : accessCheck.reason === 'withdrawal_limit_reached'
+          ? `Votre limite journalière est atteinte (${accessCheck.used?.toLocaleString('fr-FR')}/${accessCheck.limit?.toLocaleString('fr-FR')} HTG).`
+          : 'Accès aux retraits restreint.';
       if (messageId) {
         await TelegramClient.deleteMessage(chatId, messageId);
       }
       await TelegramClient.sendMessage(
         chatId,
-        `⚠️ <b>Retrait non autorisé</b>\n\n${accessCheck.reason === 'kyc_required' ? 'Vous devez vérifier votre compte (KYC) pour effectuer des retraits réels.' : 'Accès aux retraits restreint.'}\n\nRendez-vous sur votre dashboard : https://kobara.app/dashboard/withdrawals`,
+        `⚠️ <b>Retrait non autorisé</b>\n\n${reason}\n\nRendez-vous sur votre dashboard : https://kobara.app/dashboard/withdrawals`,
         { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() }
       );
       return { success: true };
@@ -453,9 +458,12 @@ L'équipe de sécurité Kobara — https://kobara.app
 
     const access = await canCreateWithdrawal(merchant.id, 1);
     if (!access.allowed) {
+      const reason = access.reason === 'withdrawal_limit_reached'
+        ? `Votre limite journalière est atteinte (${access.used?.toLocaleString('fr-FR')}/${access.limit?.toLocaleString('fr-FR')} HTG).`
+        : 'Votre compte ne peut pas effectuer ce transfert pour le moment.';
       await this.sendOrEditMessage(
         chatId,
-        `⚠️ <b>Transfert B2B indisponible</b>\n\nVotre compte ne peut pas effectuer ce transfert pour le moment.`,
+        `⚠️ <b>Transfert B2B indisponible</b>\n\n${reason}`,
         { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Retour au menu', callback_data: 'action:main_menu' }]] } },
         messageId,
       );
@@ -556,7 +564,10 @@ L'équipe de sécurité Kobara — https://kobara.app
 
       const access = await canCreateWithdrawal(merchant.id, amount);
       if (!access.allowed) {
-        await TelegramClient.sendMessage(chatId, "⚠️ Ce transfert dépasse une limite ou n'est pas autorisé pour votre compte.");
+        const reason = access.reason === 'withdrawal_limit_reached'
+          ? `Ce transfert dépasse votre limite journalière (${access.used?.toLocaleString('fr-FR')}/${access.limit?.toLocaleString('fr-FR')} HTG utilisés, ${amount.toLocaleString('fr-FR')} HTG demandés).`
+          : "Ce transfert n'est pas autorisé pour votre compte.";
+        await TelegramClient.sendMessage(chatId, `⚠️ ${reason}`);
         return { success: true };
       }
 

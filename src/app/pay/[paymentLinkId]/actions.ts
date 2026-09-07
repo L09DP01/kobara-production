@@ -11,6 +11,13 @@ import {
   sanitizePaymentRedirectUrl,
 } from "@/lib/payment-routing";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { canCreatePayment } from "@/lib/server/access";
+
+function paymentLimitError(limit?: number, used?: number) {
+  const normalizedLimit = Number(limit || 0);
+  const normalizedUsed = Number(used ?? normalizedLimit);
+  return `Ce marchand a atteint sa limite mensuelle de paiements (${normalizedUsed}/${normalizedLimit}). Aucun autre paiement ne peut être accepté avant le mois prochain ou le changement de plan.`;
+}
 
 export async function processPayment(formData: FormData) {
   // Use admin client to bypass RLS for public operations
@@ -64,6 +71,33 @@ export async function processPayment(formData: FormData) {
     || ['suspended', 'permanently_closed'].includes(verifiedMerchant.account_access || '')
   ) {
     throw new Error("Ce marchand ne peut pas accepter de paiements pour le moment.");
+  }
+
+  let accessCheck;
+  try {
+    accessCheck = await canCreatePayment(merchantId, 'live');
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'payment_link_quota_check_failed',
+      merchant_id: merchantId,
+      message: error instanceof Error ? error.message : String(error),
+    }));
+    return {
+      error: "Impossible de vérifier la disponibilité de ce paiement. Veuillez réessayer dans quelques instants.",
+      code: 'PAYMENT_LIMIT_CHECK_UNAVAILABLE',
+    };
+  }
+  if (!accessCheck.allowed) {
+    if (accessCheck.reason === 'payment_limit_reached') {
+      return {
+        error: paymentLimitError(accessCheck.limit, accessCheck.used),
+        code: 'PAYMENT_LIMIT_REACHED',
+      };
+    }
+    if (accessCheck.reason === 'subscription_expired') {
+      return { error: "L'abonnement de ce marchand a expiré et sa limite de paiements est atteinte.", code: 'SUBSCRIPTION_EXPIRED' };
+    }
+    return { error: "Ce marchand ne peut pas accepter de paiements pour le moment.", code: accessCheck.reason.toUpperCase() };
   }
 
   if (isInternational) {
@@ -222,6 +256,13 @@ export async function processPayment(formData: FormData) {
 
     if (paymentError || !newPayment) {
       console.error("Erreur de création de paiement:", paymentError);
+      const quotaMatch = paymentError?.message?.match(/payment_limit_reached:(\d+):(\d+)/);
+      if (quotaMatch) {
+        return {
+          error: paymentLimitError(Number(quotaMatch[1]), Number(quotaMatch[2])),
+          code: 'PAYMENT_LIMIT_REACHED',
+        };
+      }
       throw new Error("Erreur lors de l'initialisation du paiement");
     }
 
