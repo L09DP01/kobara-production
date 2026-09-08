@@ -50,7 +50,7 @@ export default function SystemCoreLayout({ children }: { children: React.ReactNo
   ];
 
   return (
-    <div className="fixed inset-0 bg-slate-950 text-slate-100 flex font-mono selection:bg-red-500/30">
+    <div className="fixed inset-0 flex min-w-0 bg-slate-950 font-mono text-slate-100 selection:bg-red-500/30">
       <AdminSessionManager>
         {/* Sidebar */}
         {menuOpen && <button aria-label="Fermer le menu" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-black/60 md:hidden" />}
@@ -105,25 +105,25 @@ export default function SystemCoreLayout({ children }: { children: React.ReactNo
         </aside>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-[100dvh] overflow-hidden">
+        <div className="flex min-h-[100dvh] min-w-0 flex-1 flex-col overflow-hidden">
           {/* Topbar for mobile and breadcrumbs/status */}
-          <header className="h-16 border-b border-slate-800 bg-slate-900/30 backdrop-blur-md flex items-center justify-between px-6">
-            <div className="flex items-center gap-2 text-slate-400 text-sm">
+          <header className="flex h-16 min-w-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/30 px-3 backdrop-blur-md sm:px-6">
+            <div className="flex min-w-0 items-center gap-2 text-sm text-slate-400">
               <button aria-label="Ouvrir le menu" onClick={() => setMenuOpen(true)} className="p-1 -ml-2 md:hidden"><Menu className="w-5 h-5" /></button>
               <Terminal className="w-4 h-4" />
               <span className="text-slate-500">~</span>
-              <span className="text-slate-300">{pathname.replace('/system-core', '') || '/dashboard'}</span>
+              <span className="truncate text-slate-300">{pathname.replace('/system-core', '') || '/dashboard'}</span>
             </div>
             
-            <div className="text-xs text-slate-500 bg-slate-800/50 px-3 py-1 rounded-full border border-slate-700/50 flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 rounded-full border border-slate-700/50 bg-slate-800/50 px-2.5 py-1 text-xs text-slate-500 sm:px-3">
               <ShieldAlert className="w-3 h-3 text-red-500" />
               ADMIN
             </div>
           </header>
 
           {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-6 md:p-8">
-            <div className="max-w-7xl mx-auto">
+          <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-5 md:p-8">
+            <div className="mx-auto min-w-0 max-w-7xl [&_button]:focus-visible:outline-none [&_button]:focus-visible:ring-2 [&_button]:focus-visible:ring-red-500 [&_input]:min-w-0 [&_select]:min-w-0">
               {children}
             </div>
           </main>

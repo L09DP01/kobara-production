@@ -18,8 +18,8 @@ export default async function AdminAuditPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">SECURITY AUDIT LOGS</h1>
       
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 shadow-xl">
+        <table className="min-w-[900px] w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-950/50 border-b border-slate-800 text-slate-400">
             <tr>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">TIMESTAMP</th>

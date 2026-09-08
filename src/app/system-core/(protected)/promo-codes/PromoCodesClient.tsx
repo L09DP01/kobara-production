@@ -52,7 +52,7 @@ export default function PromoCodesClient({ promoCodes, plans, merchants }: { pro
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Formulaire de création */}
         <div className="lg:col-span-1">
-          <form onSubmit={handleSubmit} className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
             <h2 className="text-sm font-bold text-slate-400 flex items-center gap-2 mb-4">
               <Plus className="w-4 h-4" />
               NOUVEAU CODE
@@ -101,7 +101,7 @@ export default function PromoCodesClient({ promoCodes, plans, merchants }: { pro
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="text-xs text-slate-500 mb-1 block">Usages max</label>
                 <input name="max_uses" type="number" min="1" placeholder="Infini" className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-orange-500" />
@@ -127,10 +127,10 @@ export default function PromoCodesClient({ promoCodes, plans, merchants }: { pro
           ) : (
             <div className="grid gap-4">
               {promoCodes.map(code => (
-                <div key={code.id} className={`bg-slate-900 border rounded-xl p-5 flex items-center justify-between ${code.is_active ? 'border-slate-800' : 'border-slate-800/50 opacity-50'}`}>
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-black text-white tracking-wider bg-slate-800 px-3 py-1 rounded-md">{code.code}</h3>
+                <div key={code.id} className={`flex flex-col gap-4 rounded-xl border bg-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 ${code.is_active ? 'border-slate-800' : 'border-slate-800/50 opacity-50'}`}>
+                  <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap items-center gap-3">
+                      <h3 className="max-w-full break-all rounded-md bg-slate-800 px-3 py-1 text-lg font-black tracking-wider text-white sm:text-xl">{code.code}</h3>
                       <span className="text-lg font-bold text-green-400">-{code.discount_percentage}%</span>
                       {!code.is_active && <span className="text-xs bg-red-500/10 text-red-500 px-2 py-0.5 rounded-full border border-red-500/20">INACTIF</span>}
                     </div>
@@ -160,7 +160,7 @@ export default function PromoCodesClient({ promoCodes, plans, merchants }: { pro
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex shrink-0 flex-row gap-2 sm:flex-col sm:items-end">
                     <button 
                       onClick={() => handleToggle(code.id, code.is_active)}
                       disabled={isPending}

@@ -118,7 +118,7 @@ export function AdminWithdrawalsClient({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <h1 className="text-2xl font-bold tracking-tight">PAYOUTS MANAGEMENT</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           {pendingApproval > 0 && (
             <div className="bg-red-500/10 text-red-400 px-3 py-1 rounded border border-red-500/20 text-xs font-bold flex items-center gap-1.5">
               <AlertTriangle className="w-3 h-3" />
@@ -155,8 +155,8 @@ export function AdminWithdrawalsClient({
         ))}
       </div>
       
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 shadow-xl">
+        <table className="min-w-[920px] w-full text-left text-sm">
           <thead className="bg-slate-950/50 border-b border-slate-800 text-slate-400">
             <tr>
               <th className="px-5 py-4 font-semibold tracking-wider text-xs">RÉFÉRENCE</th>

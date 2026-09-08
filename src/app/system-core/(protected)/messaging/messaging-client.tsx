@@ -542,7 +542,7 @@ export default function MessagingClient({ initialAudiences, initialCampaigns }: 
           </div>
 
           {/* Right Column: Campaign Composer & Batch Configuration */}
-          <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
+          <div className="space-y-6 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 lg:col-span-7">
             <form onSubmit={handleCreateCampaign} className="space-y-5">
               <div>
                 <h2 className="text-sm font-bold text-slate-300 flex items-center gap-2">
@@ -937,7 +937,7 @@ export default function MessagingClient({ initialAudiences, initialCampaigns }: 
 
           {/* RECIPIENT INSPECTOR DRAWER / MODAL */}
           {selectedCampaignId && campaignDetails && (
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-5">
+            <div className="space-y-5 rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
@@ -1021,8 +1021,8 @@ export default function MessagingClient({ initialAudiences, initialCampaigns }: 
               </div>
 
               {/* Recipients Table */}
-              <div className="border border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto rounded-xl border border-slate-800">
+                <table className="min-w-[760px] w-full text-left text-xs">
                   <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 font-mono">
                     <tr>
                       <th className="py-3 px-4">DESTINATAIRE</th>

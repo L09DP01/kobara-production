@@ -15,15 +15,15 @@ export default async function AdminSupportPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold tracking-tight">SUPPORT DESK</h1>
         <div className="bg-red-500/10 text-red-500 px-3 py-1 rounded border border-red-500/20 text-xs font-bold">
           {tickets?.filter(t => t.status === 'open' || t.status === 'pending_admin').length || 0} REQUIRES ATTENTION
         </div>
       </div>
       
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 shadow-xl">
+        <table className="min-w-[760px] w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-950/50 border-b border-slate-800 text-slate-400">
             <tr>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">TICKET ID</th>

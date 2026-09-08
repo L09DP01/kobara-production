@@ -34,8 +34,8 @@ export default async function SystemAlertsPage() {
             {active ? <AlertTriangle className="h-6 w-6 shrink-0 text-red-400" /> : <CircleCheck className="h-6 w-6 shrink-0 text-emerald-400" />}
             <div><h2 className="font-bold text-white">{active ? 'SERVICES SUSPENDUS' : 'SERVICES OPÉRATIONNELS'}</h2><p className="mt-1 text-sm text-slate-400">{active ? state.maintenance_message : 'Les paiements, retraits, connexions et inscriptions sont actifs.'}</p></div>
           </div>
-          <form action={toggleAction}>
-            <button disabled={!canManage} className={`flex min-w-60 items-center justify-center gap-2 border px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${active ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-red-500 bg-red-600 text-white'}`}>
+          <form action={toggleAction} className="w-full lg:w-auto">
+            <button disabled={!canManage} className={`flex w-full items-center justify-center gap-2 border px-5 py-3 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 lg:min-w-60 ${active ? 'border-emerald-500 bg-emerald-600 text-white' : 'border-red-500 bg-red-600 text-white'}`}>
               <Power className="h-4 w-4" />{active ? 'RÉACTIVER LE SYSTÈME' : 'PAUSER LE SYSTÈME'}
             </button>
           </form>

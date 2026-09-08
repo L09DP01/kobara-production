@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import Link from "next/link";
-import { ArrowLeft, Ban, CheckCircle2, ShieldAlert, Store, Activity, CreditCard, Clock, Zap, RefreshCw } from "lucide-react";
+import { ArrowLeft, Ban, CheckCircle2, ShieldAlert, Store, Activity, CreditCard, Clock, Zap, RefreshCw, Pencil } from "lucide-react";
 import { getMerchantSubscriptionEntitlement, syncSubscriptionLifecycle } from '@/lib/server/plans';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { MerchantPayPalToggle } from './MerchantPayPalToggle';
@@ -91,12 +91,12 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-8">
+      <div className="mb-8 flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
         <Link href="/system-core/merchants" className="p-2 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight uppercase flex items-center gap-3">
+        <div className="min-w-0">
+          <h1 className="flex flex-wrap items-center gap-2 break-words text-xl font-bold uppercase tracking-tight sm:gap-3 sm:text-2xl">
             {merchant.business_name || 'UNNAMED_ENTITY'}
             <span className={`px-2 py-0.5 rounded text-xs font-bold ${
               merchant.status === 'active' ? 'bg-green-500/10 text-green-500 border border-green-500/20' :
@@ -105,21 +105,21 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
               {merchant.status.toUpperCase()}
             </span>
           </h1>
-          <div className="text-slate-500 font-mono text-sm mt-1">ID: {merchant.id}</div>
+          <div className="mt-1 break-all font-mono text-xs text-slate-500 sm:text-sm">ID: {merchant.id}</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
             <h2 className="text-sm font-bold text-slate-400 mb-6 flex items-center gap-2">
               <Store className="w-4 h-4" />
               BUSINESS INTELLIGENCE
             </h2>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
                 <div className="text-xs text-slate-500 mb-1">EMAIL CONTACT</div>
-                <div className="font-mono text-slate-200">{merchant.email}</div>
+                <div className="break-all font-mono text-slate-200">{merchant.email}</div>
               </div>
               <div>
                 <div className="text-xs text-slate-500 mb-1">PHONE</div>
@@ -148,12 +148,12 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
           </div>
 
           {/* Financial Metrics */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
             <h2 className="text-sm font-bold text-slate-400 mb-6 flex items-center gap-2">
               <Activity className="w-4 h-4" />
               FINANCIAL METRICS
             </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
               <div className="p-4 bg-slate-950/50 rounded-lg border border-slate-800/50">
                 <div className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Zap className="w-3 h-3" /> NET VOLUME (LIVE)</div>
                 <div className="text-xl font-bold text-green-400">{totalNetLive.toLocaleString()} HTG</div>
@@ -186,7 +186,7 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
 
         {/* Sidebar */}
         <div className="space-y-6">
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
             <h2 className="text-sm font-bold text-slate-400 mb-6 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" />
               SECURITY PROTOCOLS
@@ -300,13 +300,13 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
       </div>
 
       {/* All Payments Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-        <div className="flex items-center justify-between mb-6">
+      <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-sm font-bold text-slate-400 flex items-center gap-2">
             <CreditCard className="w-4 h-4" />
             LIVE PAYMENTS ({payments.length})
           </h2>
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex flex-wrap items-center gap-3 text-xs">
             <span className="text-green-400">● {succeededLive.length} succeeded</span>
             <span className="text-amber-400">● {pendingAll.length} pending</span>
             <span className="text-red-400">● {failedAll.length} failed</span>
@@ -317,7 +317,7 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
           <div className="text-center py-12 text-slate-500">NO TRANSACTIONS RECORDED</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-[1120px] w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-800 text-xs text-slate-500">
                   <th className="text-left py-3 px-3 font-medium">ID</th>
@@ -330,6 +330,7 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
                   <th className="text-center py-3 px-3 font-medium">ENV</th>
                   <th className="text-center py-3 px-3 font-medium">STATUS</th>
                   <th className="text-left py-3 px-3 font-medium">DATE</th>
+                  <th className="text-center py-3 px-3 font-medium">ACTION</th>
                 </tr>
               </thead>
               <tbody>
@@ -370,6 +371,18 @@ export default async function AdminMerchantDetailPage(props: { params: Promise<{
                     </td>
                     <td className="py-3 px-3 text-slate-400 text-xs whitespace-nowrap">
                       {new Date(p.created_at).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      {p.status === 'pending' ? (
+                        <Link
+                          href={`/system-core/transactions/${p.id}?edit=1`}
+                          aria-label={`Corriger le paiement ${p.kobara_reference || p.id}`}
+                          title="Corriger ce paiement en attente"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-amber-500/30 text-amber-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        </Link>
+                      ) : null}
                     </td>
                   </tr>
                 ))}

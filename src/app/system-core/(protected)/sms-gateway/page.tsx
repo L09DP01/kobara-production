@@ -61,8 +61,8 @@ export default async function AdminSmsGatewayPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Passerelle SMS NatCash</h1>
           <p className="text-slate-400">Supervision et Rapprochement Manuel</p>
@@ -71,7 +71,7 @@ export default async function AdminSmsGatewayPage() {
 
       <div className="bg-slate-900/50 rounded-xl shadow-sm border border-slate-800 overflow-hidden backdrop-blur-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="min-w-[980px] w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-800/50 border-b border-slate-800">
                 <th className="py-3 px-4 text-xs font-semibold text-slate-400 uppercase">Heure</th>
@@ -119,14 +119,14 @@ export default async function AdminSmsGatewayPage() {
                         
                         {(sms.status === 'failed' || sms.status === 'pending') && (
                           <div className="flex flex-col gap-2 p-3 bg-slate-800/30 rounded border border-slate-700">
-                            <form action={manualValidateSMS} className="flex gap-2 items-center">
+                            <form action={manualValidateSMS} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                               <input type="hidden" name="smsId" value={sms.id} />
                               <input 
                                 type="text" 
                                 name="paymentId" 
                                 placeholder="ID Paiement (UUID)" 
                                 required
-                                className="text-xs px-3 py-1.5 rounded border border-slate-600 bg-slate-900 w-48 text-slate-200 focus:outline-none focus:border-blue-500"
+                                className="w-full rounded border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 sm:w-48"
                               />
                               <button type="submit" className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
                                 Lier & Valider

@@ -1,10 +1,23 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil, Save, X } from 'lucide-react';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { updatePendingPayment } from '../actions';
 
-export default async function AdminTransactionDetail({ params }: { params: Promise<{ id: string }> }) {
+const errorMessages: Record<string, string> = {
+  reference: 'Le code de référence doit contenir entre 4 et 64 lettres ou chiffres.',
+  method: 'Cette méthode de paiement ne peut pas être sélectionnée.',
+  not_found: 'Ce paiement Live est introuvable.',
+  not_pending: "Ce paiement n'est plus en attente et ne peut plus être modifié.",
+  update_failed: "La correction n'a pas pu être enregistrée.",
+};
+
+export default async function AdminTransactionDetail({ params, searchParams }: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ edit?: string; saved?: string; error?: string }>;
+}) {
   const { id } = await params;
+  const query = await searchParams;
   const supabase = createAdminClient();
   const { data: payment } = await supabase
     .from('payments')
@@ -35,18 +48,72 @@ export default async function AdminTransactionDetail({ params }: { params: Promi
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start gap-4">
+      <div className="flex flex-wrap items-start gap-3 sm:gap-4">
         <Link href="/system-core/transactions" className="p-2 border border-slate-700 rounded text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></Link>
         <div><h1 className="text-xl font-bold">TRANSACTION</h1><p className="text-xs text-slate-500 font-mono mt-1 break-all">{payment.id}</p></div>
-        <span className="ml-auto px-2 py-1 text-xs font-bold rounded border border-slate-700">{payment.status?.toUpperCase()}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="px-2 py-1 text-xs font-bold rounded border border-slate-700">{payment.status?.toUpperCase()}</span>
+          {payment.status === 'pending' && query.edit !== '1' ? (
+            <Link href={`/system-core/transactions/${id}?edit=1`} aria-label="Corriger ce paiement" title="Corriger ce paiement en attente" className="inline-flex h-9 w-9 items-center justify-center rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10">
+              <Pencil className="h-4 w-4" />
+            </Link>
+          ) : null}
+        </div>
       </div>
 
+      {query.saved === '1' ? <p className="border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">Correction enregistrée et ajoutée au journal d’audit.</p> : null}
+      {query.error ? <p className="border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{errorMessages[query.error] || 'Une erreur est survenue.'}</p> : null}
+
+      {payment.status === 'pending' && query.edit === '1' ? (
+        <section className="border border-amber-500/30 bg-slate-900 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-amber-300">CORRIGER LE PAIEMENT EN ATTENTE</h2>
+              <p className="mt-1 text-xs text-slate-500">Les montants et la référence Kobara restent protégés.</p>
+            </div>
+            <Link href={`/system-core/transactions/${id}`} aria-label="Annuler la correction" className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-slate-700 text-slate-400 hover:text-white"><X className="h-4 w-4" /></Link>
+          </div>
+          <form action={updatePendingPayment} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <input type="hidden" name="payment_id" value={id} />
+            <label className="space-y-1.5 text-xs text-slate-400">Code de référence
+              <input name="reference_code" required minLength={4} maxLength={64} pattern="[A-Za-z0-9]+" defaultValue={payment.reference_code || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+            </label>
+            <label className="space-y-1.5 text-xs text-slate-400">Référence externe
+              <input name="external_reference" maxLength={120} defaultValue={payment.external_reference || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+            </label>
+            <label className="space-y-1.5 text-xs text-slate-400">Méthode
+              <select name="payment_method" defaultValue={payment.payment_method || payment.provider || 'moncash'} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500">
+                <option value="moncash">MonCash</option>
+                <option value="moncash_ussd">MonCash USSD</option>
+                <option value="natcash">NatCash</option>
+                <option value="paypal">PayPal</option>
+                <option value="card">Carte</option>
+                <option value="carte">Carte (API)</option>
+                <option value="apple_pay">Apple Pay</option>
+                <option value="google_pay">Google Pay</option>
+                <option value="balance">Solde Kobara</option>
+                <option value="kobara">Transfert Kobara</option>
+              </select>
+            </label>
+            <label className="space-y-1.5 text-xs text-slate-400">Nom du client
+              <input name="customer_name" maxLength={120} defaultValue={payment.metadata?.customer_name || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+            </label>
+            <label className="space-y-1.5 text-xs text-slate-400 md:col-span-2">Téléphone du client
+              <input name="customer_phone" inputMode="tel" maxLength={32} defaultValue={payment.metadata?.customer_phone || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+            </label>
+            <button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-400 md:col-span-2 md:w-auto md:justify-self-end">
+              <Save className="h-4 w-4" /> ENREGISTRER LA CORRECTION
+            </button>
+          </form>
+        </section>
+      ) : null}
+
       <div className="grid md:grid-cols-2 gap-6">
-        <section className="bg-slate-900 border border-slate-800 rounded p-5">
+        <section className="min-w-0 bg-slate-900 border border-slate-800 rounded p-4 sm:p-5">
           <h2 className="text-sm font-bold text-slate-400 mb-4">PAIEMENT</h2>
           <dl className="space-y-3">{fields.map(([label, value]) => <div key={label} className="flex justify-between gap-4 border-b border-slate-800 pb-2"><dt className="text-xs text-slate-500">{label}</dt><dd className="text-xs text-slate-200 text-right break-all">{value || '—'}</dd></div>)}</dl>
         </section>
-        <section className="bg-slate-900 border border-slate-800 rounded p-5">
+        <section className="min-w-0 bg-slate-900 border border-slate-800 rounded p-4 sm:p-5">
           <h2 className="text-sm font-bold text-slate-400 mb-4">MARCHAND</h2>
           <p className="font-bold text-white">{payment.merchants?.business_name || 'Inconnu'}</p>
           <p className="text-xs text-slate-500 mt-1">{payment.merchants?.email}</p>

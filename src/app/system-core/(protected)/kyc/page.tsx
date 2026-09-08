@@ -188,8 +188,8 @@ export default async function AdminKYCPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
+      <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="flex items-center gap-3 text-xl font-bold tracking-tight sm:text-2xl">
           <ShieldAlert className="w-6 h-6 text-amber-500" />
           KYC MANUAL REVIEW
         </h1>
@@ -208,36 +208,36 @@ export default async function AdminKYCPage() {
         <div className="space-y-6">
           {profiles.map((p) => (
             <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-              <div className="p-4 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
-                <div>
+              <div className="flex flex-col gap-3 border-b border-slate-800 bg-slate-950/50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <div className="font-bold text-slate-200">{p.merchants?.business_name || 'Unknown'}</div>
-                  <div className="text-xs text-slate-500 font-mono">{p.merchants?.id}</div>
+                  <div className="break-all text-xs text-slate-500 font-mono">{p.merchants?.id}</div>
                 </div>
-                <div className="text-right">
+                <div className="sm:text-right">
                   <div className="text-xs text-slate-400">SUBMITTED ON</div>
                   <div className="text-sm font-mono text-slate-200">{new Date(p.created_at).toLocaleString()}</div>
                 </div>
               </div>
 
-              <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6 p-4 sm:p-6 md:grid-cols-2">
                 <div className="space-y-4">
                   <h3 className="text-xs font-bold text-slate-500 tracking-wider flex items-center gap-2">
                     <FileText className="w-4 h-4" /> EXTRACTED DATA
                   </h3>
                   <div className="bg-slate-950 p-4 rounded border border-slate-800 font-mono text-sm space-y-2">
-                    <div className="grid grid-cols-3">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
                       <span className="text-slate-500">FIRST NAME:</span>
                       <span className="col-span-2 text-slate-300">{p.full_name?.split(' ')[0] || 'N/A'}</span>
                     </div>
-                    <div className="grid grid-cols-3">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
                       <span className="text-slate-500">LAST NAME:</span>
                       <span className="col-span-2 text-slate-300">{p.full_name?.split(' ').slice(1).join(' ') || 'N/A'}</span>
                     </div>
-                    <div className="grid grid-cols-3">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
                       <span className="text-slate-500">DOC TYPE:</span>
                       <span className="col-span-2 text-slate-300 uppercase">{p.document_type || 'N/A'}</span>
                     </div>
-                    <div className="grid grid-cols-3">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
                       <span className="text-slate-500">DOC NUMBER:</span>
                       <span className="col-span-2 text-slate-300">{p.document_number_hash ? '***' + p.document_number_hash.slice(-4) : 'N/A'}</span>
                     </div>
@@ -292,7 +292,7 @@ export default async function AdminKYCPage() {
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
                     <div className="bg-slate-950 border border-slate-800 rounded p-2 text-slate-400">Liveness <strong className="block text-white mt-1">{Number(p.liveness_score || 0).toFixed(0)}%</strong></div>
                     <div className="bg-slate-950 border border-slate-800 rounded p-2 text-slate-400">Face match <strong className="block text-white mt-1">{Number(p.face_match_score || 0).toFixed(0)}%</strong></div>
                     <div className="bg-slate-950 border border-slate-800 rounded p-2 text-slate-400">Risque <strong className="block text-white mt-1">{Number(p.risk_score || 0).toFixed(0)}%</strong></div>
@@ -300,20 +300,20 @@ export default async function AdminKYCPage() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-800 bg-slate-950/30 flex justify-end gap-3">
-                <form action={rejectKYC} className="flex-1 max-w-xs flex gap-2">
+              <div className="flex flex-col gap-3 border-t border-slate-800 bg-slate-950/30 p-4 sm:flex-row sm:justify-end">
+                <form action={rejectKYC} className="flex w-full flex-col gap-2 sm:max-w-md sm:flex-1 sm:flex-row">
                   <input type="hidden" name="id" value={p.id} />
                   <input type="hidden" name="merchant_id" value={p.merchant_id} />
-                  <input type="text" name="reason" placeholder="Reason (optional)" className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 text-xs text-slate-200 focus:outline-none focus:border-red-500" />
-                  <button type="submit" className="flex items-center gap-1 bg-red-600/10 hover:bg-red-600/20 text-red-500 border border-red-600/30 px-4 py-2 rounded text-xs font-bold transition-colors">
+                  <input type="text" name="reason" placeholder="Reason (optional)" className="min-h-10 min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-3 text-xs text-slate-200 focus:border-red-500 focus:outline-none" />
+                  <button type="submit" className="flex min-h-10 items-center justify-center gap-1 rounded border border-red-600/30 bg-red-600/10 px-4 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-600/20">
                     <X className="w-3 h-3" /> REJECT
                   </button>
                 </form>
 
-                <form action={approveKYC}>
+                <form action={approveKYC} className="w-full sm:w-auto">
                   <input type="hidden" name="id" value={p.id} />
                   <input type="hidden" name="merchant_id" value={p.merchant_id} />
-                  <button type="submit" className="h-full flex items-center gap-1 bg-green-600 text-white px-6 py-2 rounded text-xs font-bold hover:bg-green-700 transition-colors shadow-[0_0_10px_rgba(22,163,74,0.3)]">
+                  <button type="submit" className="flex min-h-10 w-full items-center justify-center gap-1 rounded bg-green-600 px-6 py-2 text-xs font-bold text-white shadow-[0_0_10px_rgba(22,163,74,0.3)] transition-colors hover:bg-green-700 sm:w-auto">
                     <Check className="w-3 h-3" /> APPROVE
                   </button>
                 </form>
@@ -401,7 +401,7 @@ export default async function AdminKYCPage() {
                   {/* RAPPORT AI COMPLIANCE ANALYST */}
                   {fc.ai_compliance_report && (
                     <div className="p-3 bg-slate-950/80 border border-indigo-500/30 rounded-lg text-xs space-y-1.5">
-                      <div className="flex items-center justify-between text-indigo-400 font-bold uppercase tracking-wider">
+                      <div className="flex flex-col gap-1 font-bold uppercase tracking-wider text-indigo-400 sm:flex-row sm:items-center sm:justify-between">
                         <span>🤖 Analyse IA de Conformité (Interne)</span>
                         <span className="text-[10px] text-slate-500">Confiance : {fc.ai_compliance_report.confidence_level || 'Certain'}</span>
                       </div>
@@ -455,16 +455,16 @@ export default async function AdminKYCPage() {
                       <div className="text-xs text-slate-300">
                         Méthode : {fc.payout_details?.payoutMethod} | Compte : {fc.payout_details?.payoutAccountNumber} ({fc.payout_details?.payoutAccountName})
                       </div>
-                      <form action={processClosurePayoutAction} className="flex items-center gap-2 pt-1">
+                      <form action={processClosurePayoutAction} className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center">
                         <input type="hidden" name="fraud_case_id" value={fc.id} />
                         <input
                           type="text"
                           name="transaction_reference"
                           placeholder="Réf Transaction MonCash / Virement"
-                          className="bg-slate-900 border border-slate-700 rounded text-xs px-2.5 py-1.5 text-white focus:outline-none flex-1"
+                          className="min-h-10 min-w-0 flex-1 rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-white focus:outline-none"
                           required
                         />
-                        <button type="submit" className="bg-amber-600 hover:bg-amber-500 text-white text-xs px-3 py-1.5 rounded font-bold transition-all">
+                        <button type="submit" className="min-h-10 rounded bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition-all hover:bg-amber-500">
                           Valider le Règlement
                         </button>
                       </form>

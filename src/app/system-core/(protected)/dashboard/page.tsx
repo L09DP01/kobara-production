@@ -47,7 +47,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-3 mb-8 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-2xl font-bold tracking-tight">SYSTEM OVERVIEW</h1>
         <div className={`flex items-center gap-2 text-xs font-semibold px-3 py-1 border rounded ${systemHealthy ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
           <Activity className="w-3 h-3" />
@@ -63,8 +63,8 @@ export default async function AdminDashboardPage() {
             <p className="mt-1 text-xs text-slate-400">{maintenanceActive ? maintenance.maintenance_message : maintenance.message}</p>
           </div>
         </div>
-        <form action={maintenanceAction}>
-          <button type="submit" disabled={adminSession.user.role !== 'super_admin'} className={`min-w-52 px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 ${maintenanceActive ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
+        <form action={maintenanceAction} className="w-full md:w-auto">
+          <button type="submit" disabled={adminSession.user.role !== 'super_admin'} className={`w-full px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 md:min-w-52 ${maintenanceActive ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
             {maintenanceActive ? 'RÉACTIVER LES SERVICES' : 'SUSPENDRE MAINTENANT'}
           </button>
         </form>
@@ -121,7 +121,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col">
+        <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 flex flex-col">
           <h2 className="text-sm font-bold text-slate-300 mb-6 tracking-wider">TRANSACTION VOLUME (30 DAYS)</h2>
           <div className="h-64 flex items-end gap-1 border-b border-slate-700/50 pt-4" aria-label="Volume des transactions sur 30 jours">
             {volumeByDay.map(day => <div key={day.key} title={`${day.label}: ${day.volume.toLocaleString('fr-FR')} HTG`} className="flex-1 min-w-0 bg-blue-500/70 hover:bg-blue-400 transition-colors" style={{ height: `${Math.max(day.volume > 0 ? 4 : 1, (day.volume / maxDailyVolume) * 100)}%` }} />)}
@@ -130,7 +130,7 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Recent Merchants */}
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
           <h2 className="text-sm font-bold text-slate-300 mb-6 tracking-wider">LATEST ONBOARDINGS</h2>
           <div className="space-y-4">
             {recentMerchants?.map(merchant => (

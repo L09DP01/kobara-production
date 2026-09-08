@@ -1,5 +1,5 @@
 import { createAdminClient } from "@/utils/supabase/admin";
-import { Search, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Search, ArrowDownLeft, ArrowUpRight, Pencil } from "lucide-react";
 import Link from "next/link";
 
 export default async function AdminTransactionsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
@@ -28,8 +28,8 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <h1 className="text-2xl font-bold tracking-tight">GLOBAL LEDGER</h1>
-        <form method="get" className="flex w-full sm:w-auto gap-2">
-          <select name="status" defaultValue={status} className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300">
+        <form method="get" className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <select name="status" defaultValue={status} className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 sm:w-auto">
             <option value="">Tous statuts</option>
             <option value="pending">En attente</option>
             <option value="succeeded">Réussi</option>
@@ -49,8 +49,8 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
         </form>
       </div>
       
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 shadow-xl">
+        <table className="min-w-[780px] w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-950/50 border-b border-slate-800 text-slate-400">
             <tr>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">TRANSACTION ID</th>
@@ -58,6 +58,7 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">AMOUNT (HTG)</th>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">STATUS</th>
               <th className="px-6 py-4 font-semibold tracking-wider text-xs">TIMESTAMP</th>
+              <th className="px-4 py-4 font-semibold tracking-wider text-xs text-right">ACTION</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800">
@@ -93,11 +94,23 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
                 <td className="px-6 py-4 text-slate-400 font-mono text-xs">
                   {new Date(p.created_at).toLocaleString()}
                 </td>
+                <td className="px-4 py-4 text-right">
+                  {p.status === 'pending' ? (
+                    <Link
+                      href={`/system-core/transactions/${p.id}?edit=1`}
+                      aria-label={`Corriger le paiement ${p.id}`}
+                      title="Corriger ce paiement en attente"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded border border-amber-500/30 text-amber-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Link>
+                  ) : null}
+                </td>
               </tr>
             ))}
             {(!payments || payments.length === 0) && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center gap-2">
                     <Search className="w-6 h-6 opacity-20" />
                     <p>No transactions found in the ledger.</p>
