@@ -63,6 +63,12 @@ export interface NowPaymentsCheckout {
   valid_until: string | null;
 }
 
+export interface NowPaymentsPaymentMinimum {
+  payCurrency: KobaraCryptoCurrencyId;
+  minimumCrypto: number;
+  minimumUsd: number;
+}
+
 export interface NowPaymentsPayment {
   payment_id: string | number;
   payment_status: string;
@@ -91,6 +97,43 @@ function getNowPaymentsSdk() {
     ipnCallbackUrl: 'https://api.kobara.app/webhooks/nowpayments',
     timeoutMs: 15_000,
   });
+}
+
+export async function getNowPaymentsPaymentMinimum(
+  currencyInput: string,
+): Promise<NowPaymentsPaymentMinimum> {
+  const payCurrency = currencyInput.trim().toLowerCase();
+  if (!isKobaraCryptoCurrency(payCurrency)) {
+    throw new Error('Cette devise ou ce réseau crypto n’est pas autorisé.');
+  }
+
+  const sdk = getNowPaymentsSdk();
+  const minimum = await sdk.getMinimumPaymentAmount({
+    fromCurrency: payCurrency,
+    toCurrency: payCurrency,
+    fixedRate: true,
+    feePaidByUser: false,
+  });
+  const minimumCrypto = Number(minimum.min_amount);
+  if (!Number.isFinite(minimumCrypto) || minimumCrypto <= 0) {
+    throw new Error('NOWPayments n’a pas retourné de minimum valide.');
+  }
+
+  const usdEstimate = await sdk.estimatePrice({
+    amount: minimumCrypto,
+    fromCurrency: payCurrency,
+    toCurrency: 'usd',
+  });
+  const estimatedUsd = Number(usdEstimate.estimated_amount);
+  if (!Number.isFinite(estimatedUsd) || estimatedUsd <= 0) {
+    throw new Error('Le minimum crypto ne peut pas être converti en USD.');
+  }
+
+  return {
+    payCurrency,
+    minimumCrypto,
+    minimumUsd: Math.ceil(estimatedUsd * 100) / 100,
+  };
 }
 
 function getNowPaymentsPayoutSdk() {

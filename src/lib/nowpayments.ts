@@ -66,11 +66,13 @@ export function getPublicCryptoCheckoutError(error: unknown): PublicCryptoChecko
   const code = typeof providerError?.code === 'string' ? providerError.code : '';
   const message = typeof providerError?.message === 'string' ? providerError.message : '';
   const httpStatus = typeof providerError?.httpStatus === 'number' ? providerError.httpStatus : null;
+  const details = providerError?.details && typeof providerError.details === 'object'
+    ? providerError.details as Record<string, unknown>
+    : {};
+  const providerMessage = [details.message, details.error, message]
+    .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
 
   if (code === 'BELOW_MINIMUM_PAYMENT_AMOUNT') {
-    const details = providerError?.details && typeof providerError.details === 'object'
-      ? providerError.details as Record<string, unknown>
-      : {};
     const estimatedPayAmount = Number(details.estimatedPayAmount);
     const minimumPayAmount = Number(details.minimumPayAmount);
     const priceAmount = Number(details.priceAmount);
@@ -109,6 +111,18 @@ export function getPublicCryptoCheckoutError(error: unknown): PublicCryptoChecko
       code: 'CRYPTO_PROVIDER_UNAVAILABLE',
       message: 'Le service crypto ne répond pas pour le moment. Réessayez dans quelques instants.',
       status: 503,
+    };
+  }
+
+  if (code === 'API_REQUEST_FAILED') {
+    const normalizedProviderMessage = providerMessage?.toLowerCase() || '';
+    const unavailableCurrency = /currency|coin|network|not available|not supported|unsupported/.test(normalizedProviderMessage);
+    return {
+      code: unavailableCurrency ? 'CRYPTO_CURRENCY_UNAVAILABLE' : 'CRYPTO_PROVIDER_REJECTED',
+      message: unavailableCurrency
+        ? 'Cette crypto ou ce réseau est temporairement indisponible chez NOWPayments. Choisissez une autre option.'
+        : 'NOWPayments a refusé l’initialisation de ce paiement. Choisissez une autre crypto ou réessayez dans quelques instants.',
+      status: httpStatus && httpStatus >= 400 && httpStatus < 500 ? 422 : 502,
     };
   }
 

@@ -45,6 +45,19 @@ test('crypto checkout configuration failures are safe for public display', () =>
   });
 });
 
+test('provider currency failures tell the customer to choose another network', () => {
+  assert.deepEqual(getPublicCryptoCheckoutError({
+    type: 'api',
+    code: 'API_REQUEST_FAILED',
+    httpStatus: 400,
+    details: { message: 'The selected currency is not available' },
+  }), {
+    code: 'CRYPTO_CURRENCY_UNAVAILABLE',
+    message: 'Cette crypto ou ce réseau est temporairement indisponible chez NOWPayments. Choisissez une autre option.',
+    status: 422,
+  });
+});
+
 test('NOWPayments IPN signatures are verified without leaking the secret', () => {
   const payload = { payment_status: 'finished', payment_id: 42, order_id: 'payment-1' };
   const signature = signNowPaymentsPayload(payload, 'test-secret');

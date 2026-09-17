@@ -22,6 +22,12 @@ interface CryptoCheckoutData {
   status: string;
 }
 
+interface CryptoPaymentMinimum {
+  payCurrency: KobaraCryptoCurrencyId;
+  minimumCrypto: number;
+  minimumUsd: number;
+}
+
 interface CryptoCheckoutProps {
   paymentId: string;
   reference: string;
@@ -61,12 +67,43 @@ export function CryptoCheckout({
   const [checkout, setCheckout] = useState<CryptoCheckoutData | null>(existingCheckout);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [minimum, setMinimum] = useState<CryptoPaymentMinimum | null>(null);
+  const [minimumBusy, setMinimumBusy] = useState(!existingCheckout);
+  const [minimumError, setMinimumError] = useState<string | null>(null);
   const [copied, setCopied] = useState<'address' | 'amount' | 'memo' | null>(null);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(() => secondsUntil(existingCheckout?.validUntil));
   const currency = useMemo(
     () => getKobaraCryptoCurrency(checkout?.payCurrency || selectedCurrency),
     [checkout?.payCurrency, selectedCurrency],
   );
+
+  useEffect(() => {
+    if (checkout) return;
+    const controller = new AbortController();
+
+    const loadMinimum = async () => {
+      try {
+        const params = new URLSearchParams({ paymentId, payCurrency: selectedCurrency });
+        const response = await fetch(`/api/payments/crypto?${params.toString()}`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload?.data) {
+          throw new Error(payload?.error || 'Minimum temporairement indisponible.');
+        }
+        setMinimum(payload.data as CryptoPaymentMinimum);
+      } catch (caught) {
+        if (controller.signal.aborted) return;
+        setMinimumError(caught instanceof Error ? caught.message : 'Minimum temporairement indisponible.');
+      } finally {
+        if (!controller.signal.aborted) setMinimumBusy(false);
+      }
+    };
+
+    void loadMinimum();
+    return () => controller.abort();
+  }, [checkout, paymentId, selectedCurrency]);
 
   useEffect(() => {
     if (!checkout?.providerPaymentId) return;
@@ -118,6 +155,17 @@ export function CryptoCheckout({
     }
   };
 
+  const selectCurrency = (nextCurrency: KobaraCryptoCurrencyId) => {
+    if (busy || checkout) return;
+    setSelectedCurrency(nextCurrency);
+    setError(null);
+    setMinimum(null);
+    setMinimumError(null);
+    setMinimumBusy(true);
+  };
+
+  const amountBelowMinimum = Boolean(minimum && amountUsd < minimum.minimumUsd);
+
   return (
     <main className="min-h-[100dvh] bg-[#080E19] px-4 py-5 text-white sm:px-6 sm:py-8" style={{ '--crypto-accent': accentColor } as CSSProperties}>
       <div className="mx-auto w-full max-w-3xl">
@@ -161,7 +209,7 @@ export function CryptoCheckout({
                         key={option.id}
                         type="button"
                         aria-pressed={active}
-                        onClick={() => setSelectedCurrency(option.id)}
+                        onClick={() => selectCurrency(option.id)}
                         className={`min-h-16 rounded-lg border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 ${active ? 'bg-white/[0.08]' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'}`}
                         style={active ? { borderColor: accentColor } : undefined}
                       >
@@ -170,6 +218,11 @@ export function CryptoCheckout({
                           <span className="min-w-0">
                             <span className="block text-sm font-bold text-white">{option.symbol}</span>
                             <span className="block truncate text-[11px] text-slate-400">{option.network}</span>
+                            {active && minimum?.payCurrency === option.id && (
+                              <span className="mt-1 block text-[10px] font-semibold" style={{ color: accentColor }}>
+                                Min. {minimum.minimumUsd.toFixed(2)} USD
+                              </span>
+                            )}
                           </span>
                         </span>
                       </button>
@@ -177,7 +230,25 @@ export function CryptoCheckout({
                   })}
                 </div>
               </fieldset>
-              <button type="button" onClick={initialize} disabled={busy} className="flex h-12 w-full items-center justify-center gap-2 rounded-lg font-bold text-white disabled:opacity-50" style={{ backgroundColor: accentColor }}>
+              <div className="min-h-10 rounded-lg border border-white/10 bg-[#080E19] px-3 py-2 text-xs text-slate-300" aria-live="polite">
+                {minimumBusy ? (
+                  <span className="flex items-center gap-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Chargement du minimum NOWPayments…</span>
+                ) : minimum ? (
+                  <span>
+                    Minimum actuel pour <strong className="text-white">{currency?.symbol} sur {currency?.network}</strong> :{' '}
+                    <strong style={{ color: accentColor }}>{minimum.minimumUsd.toFixed(2)} USD</strong>{' '}
+                    <span className="text-slate-500">(≈ {minimum.minimumCrypto.toLocaleString('en-US', { maximumFractionDigits: 8 })} {currency?.symbol})</span>
+                  </span>
+                ) : (
+                  <span className="text-amber-300">{minimumError || 'Minimum temporairement indisponible.'}</span>
+                )}
+              </div>
+              {amountBelowMinimum && (
+                <p className="text-sm text-amber-300">
+                  Ce montant est trop faible pour ce réseau. Choisissez une autre crypto ou créez un paiement d’au moins {minimum?.minimumUsd.toFixed(2)} USD.
+                </p>
+              )}
+              <button type="button" onClick={initialize} disabled={busy || minimumBusy || amountBelowMinimum} className="flex h-12 w-full items-center justify-center gap-2 rounded-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: accentColor }}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />} Générer l’adresse de paiement
               </button>
             </div>

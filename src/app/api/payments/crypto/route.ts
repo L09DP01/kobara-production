@@ -6,7 +6,11 @@ import {
   getPublicCryptoCheckoutError,
   isKobaraCryptoCurrency,
 } from '@/lib/nowpayments';
-import { createNowPaymentsCheckout, isNowPaymentsConfigured } from '@/lib/server/payments/nowpayments';
+import {
+  createNowPaymentsCheckout,
+  getNowPaymentsPaymentMinimum,
+  isNowPaymentsConfigured,
+} from '@/lib/server/payments/nowpayments';
 
 const requestSchema = z.object({
   paymentId: z.string().uuid(),
@@ -42,6 +46,52 @@ function publicCheckout(payment: CryptoPaymentRecord) {
         ? payment.nowpayments_payment_payload.valid_until
         : null),
   };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const paymentId = request.nextUrl.searchParams.get('paymentId');
+    const payCurrency = request.nextUrl.searchParams.get('payCurrency');
+    const parsed = requestSchema.safeParse({ paymentId, payCurrency });
+    if (!parsed.success) {
+      return NextResponse.json({ error: 'Paramètres crypto invalides.' }, { status: 400 });
+    }
+
+    const supabase = createAdminClient();
+    const { data: payment, error } = await supabase
+      .from('payments')
+      .select('id, environment, provider, status')
+      .eq('id', parsed.data.paymentId)
+      .maybeSingle();
+
+    if (error || !payment) return NextResponse.json({ error: 'Paiement introuvable.' }, { status: 404 });
+    if (payment.environment !== 'live' || payment.provider !== 'crypto') {
+      return NextResponse.json({ error: 'Ce paiement ne prend pas en charge la crypto.' }, { status: 409 });
+    }
+    if (payment.status !== 'pending') {
+      return NextResponse.json({ error: 'Ce paiement n’est plus disponible.' }, { status: 409 });
+    }
+    if (!isNowPaymentsConfigured()) {
+      const configurationError = getPublicCryptoCheckoutError({ code: 'CRYPTO_NOT_CONFIGURED' });
+      return NextResponse.json({
+        error: configurationError.message,
+        code: configurationError.code,
+      }, { status: configurationError.status });
+    }
+
+    const minimum = await getNowPaymentsPaymentMinimum(parsed.data.payCurrency);
+    return NextResponse.json({ data: minimum });
+  } catch (error) {
+    const publicError = getPublicCryptoCheckoutError(error);
+    console.error('[NOWPayments] Minimum lookup failed:', {
+      code: publicError.code,
+      status: publicError.status,
+    });
+    return NextResponse.json({
+      error: publicError.message,
+      code: publicError.code,
+    }, { status: publicError.status });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -143,8 +193,16 @@ export async function POST(request: NextRequest) {
     }
     throw new Error('La transaction a changé pendant son initialisation.');
   } catch (error) {
-    console.error('[NOWPayments] Direct checkout failed:', error);
     const publicError = getPublicCryptoCheckoutError(error);
+    const providerError = error && typeof error === 'object'
+      ? error as { code?: unknown; httpStatus?: unknown; type?: unknown; details?: unknown }
+      : null;
+    console.error('[NOWPayments] Direct checkout failed:', {
+      code: providerError?.code || publicError.code,
+      httpStatus: providerError?.httpStatus || publicError.status,
+      type: providerError?.type || 'unknown',
+      details: providerError?.details || null,
+    });
     return NextResponse.json({
       error: publicError.message,
       code: publicError.code,
