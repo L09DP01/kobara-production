@@ -12,6 +12,8 @@ import {
 } from "@/lib/payment-routing";
 import { PayPalService } from "@/lib/server/payments/paypal";
 import { canCreatePayment } from "@/lib/server/access";
+import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
+import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 
 function paymentLimitError(limit?: number, used?: number) {
   const normalizedLimit = Number(limit || 0);
@@ -33,10 +35,11 @@ export async function processPayment(formData: FormData) {
 
   const requestedProvider = (formData.get('provider') as string || 'moncash').toLowerCase();
   const isInternational = ['carte', 'card', 'paypal', 'apple_pay', 'google_pay'].includes(requestedProvider);
+  const isCrypto = requestedProvider === 'crypto';
   const provider = isInternational ? 'paypal' : requestedProvider;
   const paymentSource = requestedProvider === 'carte' ? 'card' : requestedProvider;
 
-  if (provider !== 'moncash' && provider !== 'natcash' && provider !== 'paypal') {
+  if (provider !== 'moncash' && provider !== 'natcash' && provider !== 'paypal' && provider !== 'crypto') {
     throw new Error("Fournisseur de portefeuille inconnu");
   }
 
@@ -112,6 +115,10 @@ export async function processPayment(formData: FormData) {
     }
   }
 
+  if (isCrypto && !isNowPaymentsConfigured()) {
+    throw new Error("Les paiements crypto sont temporairement indisponibles.");
+  }
+
   const paymentProviderConfig = await getPaymentProviderConfig();
 
   // Determine base amount (if link has a fixed amount, use it to avoid tampering)
@@ -124,7 +131,7 @@ export async function processPayment(formData: FormData) {
   }
   
   const { plan } = await getMerchantCurrentPlan(merchantId);
-  const feePercent = plan ? (plan.transaction_fee_percent / 100) : 0.04; // Default to 4% if no plan
+  const feePercent = isCrypto ? 0.03 : plan ? (plan.transaction_fee_percent / 100) : 0.04;
   
   const passFeesToCustomer = linkInfo.metadata?.pass_fees_to_customer === true;
 
@@ -224,7 +231,14 @@ export async function processPayment(formData: FormData) {
   {
     const externalRef = crypto.randomUUID();
     txRef = createPaymReference('KOB');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes expiration
+    const expiresAt = new Date(Date.now() + (isCrypto ? 20 : 15) * 60 * 1000).toISOString();
+    const amountUsd = isCrypto
+      ? convertPaymentAmountToUsd(grossAmount, 'HTG', paymentProviderConfig.paypal_htg_per_usd)
+      : null;
+    const feeAmountUsd = amountUsd === null ? null : Number((amountUsd * feePercent).toFixed(2));
+    const netAmountUsd = amountUsd === null || feeAmountUsd === null
+      ? null
+      : Number((amountUsd - feeAmountUsd).toFixed(2));
 
     const { data: newPayment, error: paymentError } = await supabaseAdmin
       .from('payments')
@@ -240,8 +254,12 @@ export async function processPayment(formData: FormData) {
         net_amount: netAmount,
         currency: 'HTG',
         status: 'pending',
-        provider: provider, // 'moncash' or 'natcash'
+        provider,
         payment_method: provider,
+        payment_source: isCrypto ? 'crypto' : undefined,
+        amount_usd: amountUsd,
+        fee_amount_usd: feeAmountUsd,
+        net_amount_usd: netAmountUsd,
         environment: linkInfo.environment,
         expires_at: expiresAt,
         metadata: {
@@ -249,6 +267,10 @@ export async function processPayment(formData: FormData) {
           customer_name: customerName,
           customer_email: customerEmail,
           customer_phone: customerPhone,
+          ...(isCrypto ? {
+            payment_processor: 'nowpayments',
+            htg_per_usd: paymentProviderConfig.paypal_htg_per_usd,
+          } : {}),
         }
       })
       .select('id, metadata')
@@ -278,6 +300,17 @@ export async function processPayment(formData: FormData) {
 
   const publicPaymentPath = `${basePath}/${linkInfo.slug || paymentLinkId}`;
   try {
+    if (isCrypto) {
+      const { notifyPaymentCreated } = await import('@/lib/server/notifications');
+      try {
+        const { data: merchant } = await supabaseAdmin.from('merchants').select('email').eq('id', merchantId).single();
+        if (merchant?.email) await notifyPaymentCreated(merchantId, merchant.email, grossAmount, 'HTG', payment.id);
+      } catch (notificationError) {
+        console.error("Notification failed", notificationError);
+      }
+      return { redirectUrl: `${basePath}/checkout/${payment.id}` };
+    }
+
     const methodTypeValue = (formData.get('methodType') as string) || '';
     let methodType: 'web' | 'ussd' = methodTypeValue === 'ussd' ? 'ussd' : 'web';
     if (provider === 'moncash' && !methodTypeValue) {
@@ -312,7 +345,7 @@ export async function processPayment(formData: FormData) {
     const gatewayRes = await createPaymentGateway({
       amount: grossAmount,
       reference: txRef,
-      provider,
+      provider: provider as 'moncash' | 'natcash' | 'paypal',
       paymentMethodType: methodType,
       phoneNumber: customerPhone,
       description: `Paiement pour ${customerName}`,
@@ -381,11 +414,13 @@ export async function processPayment(formData: FormData) {
   } catch (error: any) {
     console.error("Erreur d'initialisation du paiement:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const failedProcessor = paymentProviderConfig.active_provider === 'paym'
-      ? 'paym'
-      : provider === 'moncash'
-        ? 'bazik'
-        : 'sms_gateway';
+    const failedProcessor = isCrypto
+      ? 'nowpayments'
+      : paymentProviderConfig.active_provider === 'paym'
+        ? 'paym'
+        : provider === 'moncash'
+          ? 'bazik'
+          : 'sms_gateway';
     if (payment?.id) {
       await supabaseAdmin.from('payments').update({
         status: 'failed',
@@ -399,6 +434,10 @@ export async function processPayment(formData: FormData) {
           customer_name: customerName,
           customer_email: customerEmail,
           customer_phone: customerPhone,
+          ...(isCrypto ? {
+            payment_processor: 'nowpayments',
+            htg_per_usd: paymentProviderConfig.paypal_htg_per_usd,
+          } : {}),
         },
       }).eq('id', payment.id);
     }

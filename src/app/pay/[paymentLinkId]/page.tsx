@@ -7,6 +7,7 @@ import { ShieldCheck, Zap, HeadphonesIcon, Lock } from "lucide-react";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { PayPalService } from "@/lib/server/payments/paypal";
 import { canCreatePayment } from "@/lib/server/access";
+import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 
 export default async function PublicPaymentPage({ 
   params, 
@@ -286,6 +287,7 @@ export default async function PublicPaymentPage({
               providerConfig={providerConfig}
               transactionFeePercent={transactionFeePercent}
               allowCardPayment={allowCardPayment}
+              allowCryptoPayment={isNowPaymentsConfigured()}
             />
           </div>
         </div>

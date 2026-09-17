@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Lock, ChevronDown, AlertCircle, ShieldCheck } from "lucide-react";
+import { Lock, ChevronDown, AlertCircle, ShieldCheck, Coins } from "lucide-react";
 import { PaymentProviderConfig } from "@/types/payment-provider";
 import { normalizePaymAmount } from "@/lib/payment-routing";
 import { PayPalExpandedCheckout, type PayPalCheckoutMethod } from "@/app/pay/checkout/[paymentId]/PayPalExpandedCheckout";
@@ -33,6 +33,7 @@ export default function PaymentFormClient({
   providerConfig,
   transactionFeePercent,
   allowCardPayment = false,
+  allowCryptoPayment = false,
   paymentsBlocked = false,
 }: { 
   link: PublicPaymentLink,
@@ -41,6 +42,7 @@ export default function PaymentFormClient({
   providerConfig: PaymentProviderConfig,
   transactionFeePercent: number,
   allowCardPayment?: boolean,
+  allowCryptoPayment?: boolean,
   paymentsBlocked?: boolean,
 }) {
   const moncashAvailable = providerConfig.active_provider === 'bazik'
@@ -50,7 +52,7 @@ export default function PaymentFormClient({
     ? providerConfig.sms_gateway_enabled
     : providerConfig.paym_natcash_web;
 
-  // Selected method in the list: 'card' | 'paypal' | 'moncash' | 'natcash' | 'apple_google_pay'
+  // Selected method in the list: card, PayPal, local wallets, crypto, or the device wallet.
   const [selectedMethod, setSelectedMethod] = useState<string>(
     allowCardPayment ? 'card' : (moncashAvailable ? 'moncash' : 'natcash')
   );
@@ -67,8 +69,9 @@ export default function PaymentFormClient({
     : 0;
   const linkBaseAmount = productAmount + shippingFee;
   const feesPassedToCustomer = link.metadata?.pass_fees_to_customer === true;
+  const effectiveFeePercent = selectedMethod === 'crypto' ? 0.03 : transactionFeePercent;
   const unroundedChargeAmount = feesPassedToCustomer
-    ? linkBaseAmount / (1 - transactionFeePercent)
+    ? linkBaseAmount / (1 - effectiveFeePercent)
     : linkBaseAmount;
   const displayedChargeAmount = selectedMethod === 'natcash' && providerConfig.active_provider === 'paym'
     ? normalizePaymAmount('natcash', unroundedChargeAmount)
@@ -96,6 +99,7 @@ export default function PaymentFormClient({
     ? (isAppleDevice ? 'apple_pay' : 'google_pay')
     : selectedMethod;
   const isInternationalMethod = ['card', 'paypal', 'apple_pay', 'google_pay'].includes(backendProvider);
+  const isCryptoMethod = backendProvider === 'crypto';
   const internationalMethod = isInternationalMethod ? backendProvider as PayPalCheckoutMethod : null;
 
   const handleInternationalEligibility = useCallback((eligibility: Record<PayPalCheckoutMethod, boolean>) => {
@@ -411,7 +415,35 @@ export default function PaymentFormClient({
             </label>
           )}
 
-          {/* 5. APPLE PAY / GOOGLE PAY (selon l'appareil) */}
+          {/* 5. CRYPTO */}
+          {allowCryptoPayment && (
+            <label
+              onClick={() => setSelectedMethod('crypto')}
+              className={`flex min-h-16 cursor-pointer items-center justify-between rounded-lg border p-4 transition-colors ${
+                selectedMethod === 'crypto'
+                  ? 'border-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]'
+                  : 'border-white/10 bg-[#0F1626] hover:bg-white/5'
+              }`}
+            >
+              <input type="radio" name="paymentMethod" value="crypto" checked={selectedMethod === 'crypto'} onChange={() => setSelectedMethod('crypto')} className="sr-only" />
+              <div className="flex items-center gap-3.5">
+                <div className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all ${
+                  selectedMethod === 'crypto' ? 'border-cyan-500' : 'border-slate-500'
+                }`}>
+                  {selectedMethod === 'crypto' && <div className="h-2.5 w-2.5 rounded-full bg-cyan-500" />}
+                </div>
+                <div>
+                  <span className="block text-sm font-bold text-white">Cryptomonnaie</span>
+                  <span className="text-[11px] text-slate-400">BTC, ETH, USDT et autres</span>
+                </div>
+              </div>
+              <div className="flex h-8 w-11 items-center justify-center rounded bg-cyan-500/10 text-cyan-300">
+                <Coins className="h-5 w-5" aria-hidden="true" />
+              </div>
+            </label>
+          )}
+
+          {/* 6. APPLE PAY / GOOGLE PAY (selon l'appareil) */}
           {allowCardPayment && (
             <>
             <label 
@@ -452,14 +484,14 @@ export default function PaymentFormClient({
       {(!internationalPaymentId || !isInternationalMethod) && (
         <button
           type="submit"
-          disabled={paymentsBlocked || isSubmitting || (!moncashAvailable && !natcashAvailable && !allowCardPayment)}
+          disabled={paymentsBlocked || isSubmitting || (!moncashAvailable && !natcashAvailable && !allowCardPayment && !allowCryptoPayment)}
           className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-[#F95005] px-4 text-base font-bold text-white transition-colors hover:bg-[#ff6420] disabled:cursor-not-allowed disabled:opacity-70"
         >
           <Lock size={18} />
           <span>
             {isSubmitting
               ? 'Initialisation sécurisée...'
-              : isInternationalMethod
+              : isInternationalMethod || isCryptoMethod
                 ? 'Continuer'
                 : `Payer ${displayedChargeAmount > 0 ? `${displayedChargeAmount.toLocaleString('fr-FR')} HTG` : ''}`}
           </span>
