@@ -35,10 +35,11 @@ export function getNowPaymentsEnvironmentValue(name: NowPaymentsEnvironmentName)
 }
 
 export function isNowPaymentsConfigured(): boolean {
-  return Boolean(
-    getNowPaymentsEnvironmentValue('NOWPAYMENTS_API_KEY')
-    && getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET'),
-  );
+  return Boolean(getNowPaymentsEnvironmentValue('NOWPAYMENTS_API_KEY'));
+}
+
+export function isNowPaymentsWebhookConfigured(): boolean {
+  return Boolean(getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET'));
 }
 
 export function isNowPaymentsPayoutConfigured(): boolean {
