@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server';
 import { verifyNowPaymentsSignature } from '@/lib/nowpayments';
 import {
   applyNowPaymentsStatus,
+  getNowPaymentsEnvironmentValue,
   getNowPaymentsPayment,
   type NowPaymentsPayment,
 } from '@/lib/server/payments/nowpayments';
 
 export async function POST(request: Request) {
-  const secret = process.env.NOWPAYMENTS_IPN_SECRET?.trim();
+  const secret = getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET');
   if (!secret) {
     console.error('[NOWPayments IPN] NOWPAYMENTS_IPN_SECRET is missing.');
     return NextResponse.json({ error: 'webhook_not_configured' }, { status: 503 });

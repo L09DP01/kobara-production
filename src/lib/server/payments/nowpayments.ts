@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { NowPaymentsSDK } from '@nowpaymentsio/nowpayments-sdk-nodejs';
 import {
@@ -11,18 +12,40 @@ import {
 
 const NOWPAYMENTS_API_BASE = 'https://api.nowpayments.io/v1';
 
+type NowPaymentsEnvironmentName =
+  | 'NOWPAYMENTS_API_KEY'
+  | 'NOWPAYMENTS_IPN_SECRET'
+  | 'NOWPAYMENTS_EMAIL'
+  | 'NOWPAYMENTS_PASSWORD'
+  | 'NOWPAYMENTS_2FA_SECRET';
+
+export function getNowPaymentsEnvironmentValue(name: NowPaymentsEnvironmentName): string {
+  try {
+    const env = getCloudflareContext().env as CloudflareEnv
+      & Partial<Record<NowPaymentsEnvironmentName, string>>;
+    const bindingValue = env[name];
+    if (typeof bindingValue === 'string' && bindingValue.trim()) {
+      return bindingValue.trim();
+    }
+  } catch {
+    // The Cloudflare request context is unavailable in local Node.js execution.
+  }
+
+  return process.env[name]?.trim() || '';
+}
+
 export function isNowPaymentsConfigured(): boolean {
   return Boolean(
-    process.env.NOWPAYMENTS_API_KEY?.trim()
-    && process.env.NOWPAYMENTS_IPN_SECRET?.trim(),
+    getNowPaymentsEnvironmentValue('NOWPAYMENTS_API_KEY')
+    && getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET'),
   );
 }
 
 export function isNowPaymentsPayoutConfigured(): boolean {
   return isNowPaymentsConfigured()
-    && Boolean(process.env.NOWPAYMENTS_EMAIL?.trim())
-    && Boolean(process.env.NOWPAYMENTS_PASSWORD?.trim())
-    && Boolean(process.env.NOWPAYMENTS_2FA_SECRET?.trim());
+    && Boolean(getNowPaymentsEnvironmentValue('NOWPAYMENTS_EMAIL'))
+    && Boolean(getNowPaymentsEnvironmentValue('NOWPAYMENTS_PASSWORD'))
+    && Boolean(getNowPaymentsEnvironmentValue('NOWPAYMENTS_2FA_SECRET'));
 }
 
 export interface NowPaymentsCheckout {
@@ -55,7 +78,7 @@ export interface NowPaymentsPayment {
 }
 
 function getApiKey(): string {
-  const apiKey = process.env.NOWPAYMENTS_API_KEY?.trim();
+  const apiKey = getNowPaymentsEnvironmentValue('NOWPAYMENTS_API_KEY');
   if (!apiKey) throw new Error('NOWPAYMENTS_API_KEY est manquante.');
   return apiKey;
 }
@@ -63,7 +86,7 @@ function getApiKey(): string {
 function getNowPaymentsSdk() {
   return new NowPaymentsSDK({
     apiKey: getApiKey(),
-    ipnSecret: process.env.NOWPAYMENTS_IPN_SECRET?.trim(),
+    ipnSecret: getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET'),
     ipnCallbackUrl: 'https://api.kobara.app/webhooks/nowpayments',
     timeoutMs: 15_000,
   });
@@ -75,10 +98,10 @@ function getNowPaymentsPayoutSdk() {
   }
   return new NowPaymentsSDK({
     apiKey: getApiKey(),
-    ipnSecret: process.env.NOWPAYMENTS_IPN_SECRET?.trim(),
-    email: process.env.NOWPAYMENTS_EMAIL?.trim(),
-    password: process.env.NOWPAYMENTS_PASSWORD?.trim(),
-    twoFactorSecret: process.env.NOWPAYMENTS_2FA_SECRET?.trim(),
+    ipnSecret: getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET'),
+    email: getNowPaymentsEnvironmentValue('NOWPAYMENTS_EMAIL'),
+    password: getNowPaymentsEnvironmentValue('NOWPAYMENTS_PASSWORD'),
+    twoFactorSecret: getNowPaymentsEnvironmentValue('NOWPAYMENTS_2FA_SECRET'),
     payoutIpnCallbackUrl: 'https://api.kobara.app/webhooks/nowpayments/payouts',
     timeoutMs: 20_000,
   });

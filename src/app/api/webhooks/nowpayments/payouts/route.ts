@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyNowPaymentsSignature } from '@/lib/nowpayments';
 import {
   applyNowPaymentsPayoutStatus,
+  getNowPaymentsEnvironmentValue,
   getNowPaymentsPayout,
 } from '@/lib/server/payments/nowpayments';
 
@@ -12,7 +13,7 @@ interface PayoutIpnPayload {
 }
 
 export async function POST(request: Request) {
-  const secret = process.env.NOWPAYMENTS_IPN_SECRET?.trim();
+  const secret = getNowPaymentsEnvironmentValue('NOWPAYMENTS_IPN_SECRET');
   if (!secret) return NextResponse.json({ error: 'webhook_not_configured' }, { status: 503 });
 
   let payload: PayoutIpnPayload;
