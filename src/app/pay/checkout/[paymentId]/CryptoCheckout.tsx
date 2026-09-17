@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import Image from 'next/image';
 import { Check, Clock3, Copy, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
@@ -164,8 +165,13 @@ export function CryptoCheckout({
                         className={`min-h-16 rounded-lg border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 ${active ? 'bg-white/[0.08]' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'}`}
                         style={active ? { borderColor: accentColor } : undefined}
                       >
-                        <span className="block text-sm font-bold text-white">{option.symbol}</span>
-                        <span className="block text-[11px] text-slate-400">{option.network}</span>
+                        <span className="flex items-center gap-2.5">
+                          <Image src={option.logo} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full" />
+                          <span className="min-w-0">
+                            <span className="block text-sm font-bold text-white">{option.symbol}</span>
+                            <span className="block truncate text-[11px] text-slate-400">{option.network}</span>
+                          </span>
+                        </span>
                       </button>
                     );
                   })}
@@ -190,7 +196,10 @@ export function CryptoCheckout({
                 <div>
                   <p className="text-xs font-bold uppercase text-slate-400">Envoyez exactement</p>
                   <div className="mt-1 flex items-center justify-between gap-3">
-                    <p className="min-w-0 break-all text-xl font-black text-white">{checkout.payAmount} {currency?.symbol}</p>
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      {currency && <Image src={currency.logo} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full" />}
+                      <p className="min-w-0 break-all text-xl font-black text-white">{checkout.payAmount} {currency?.symbol}</p>
+                    </div>
                     <button type="button" onClick={() => copy(String(checkout.payAmount), 'amount')} aria-label="Copier le montant" className="shrink-0 rounded-md border border-white/10 p-2 text-slate-300 hover:bg-white/10">{copied === 'amount' ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}</button>
                   </div>
                   <p className="mt-1 text-xs text-slate-400">Réseau {currency?.network || checkout.network}</p>

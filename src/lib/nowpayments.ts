@@ -1,17 +1,17 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const KOBARA_CRYPTO_CURRENCIES = [
-  { id: 'btc', symbol: 'BTC', name: 'Bitcoin', network: 'Bitcoin', networkGroup: 'bitcoin' },
-  { id: 'eth', symbol: 'ETH', name: 'Ethereum', network: 'Ethereum', networkGroup: 'ethereum' },
-  { id: 'trx', symbol: 'TRX', name: 'TRON', network: 'TRON', networkGroup: 'tron' },
-  { id: 'ton', symbol: 'TON', name: 'Toncoin', network: 'TON', networkGroup: 'ton' },
-  { id: 'bnbbsc', symbol: 'BNB', name: 'BNB', network: 'BSC', networkGroup: 'bsc' },
-  { id: 'usdttrc20', symbol: 'USDT', name: 'Tether USD', network: 'TRON', networkGroup: 'tron' },
-  { id: 'usdterc20', symbol: 'USDT', name: 'Tether USD', network: 'Ethereum', networkGroup: 'ethereum' },
-  { id: 'usdc', symbol: 'USDC', name: 'USD Coin', network: 'Ethereum', networkGroup: 'ethereum' },
-  { id: 'usdtbsc', symbol: 'USDT', name: 'Tether USD', network: 'BSC', networkGroup: 'bsc' },
-  { id: 'pyusd', symbol: 'PYUSD', name: 'PayPal USD', network: 'Ethereum', networkGroup: 'ethereum' },
-  { id: 'usdcbsc', symbol: 'USDC', name: 'USD Coin', network: 'BSC', networkGroup: 'bsc' },
+  { id: 'btc', symbol: 'BTC', name: 'Bitcoin', network: 'Bitcoin', networkGroup: 'bitcoin', logo: '/crypto/btc.png' },
+  { id: 'eth', symbol: 'ETH', name: 'Ethereum', network: 'Ethereum', networkGroup: 'ethereum', logo: '/crypto/eth.png' },
+  { id: 'trx', symbol: 'TRX', name: 'TRON', network: 'TRON', networkGroup: 'tron', logo: '/crypto/trx.png' },
+  { id: 'ton', symbol: 'TON', name: 'Toncoin', network: 'TON', networkGroup: 'ton', logo: '/crypto/ton.png' },
+  { id: 'bnbbsc', symbol: 'BNB', name: 'BNB', network: 'BSC', networkGroup: 'bsc', logo: '/crypto/bnb.png' },
+  { id: 'usdttrc20', symbol: 'USDT', name: 'Tether USD', network: 'TRON', networkGroup: 'tron', logo: '/crypto/usdt.png' },
+  { id: 'usdterc20', symbol: 'USDT', name: 'Tether USD', network: 'Ethereum', networkGroup: 'ethereum', logo: '/crypto/usdt.png' },
+  { id: 'usdc', symbol: 'USDC', name: 'USD Coin', network: 'Ethereum', networkGroup: 'ethereum', logo: '/crypto/usdc.png' },
+  { id: 'usdtbsc', symbol: 'USDT', name: 'Tether USD', network: 'BSC', networkGroup: 'bsc', logo: '/crypto/usdt.png' },
+  { id: 'pyusd', symbol: 'PYUSD', name: 'PayPal USD', network: 'Ethereum', networkGroup: 'ethereum', logo: '/crypto/pyusd.png' },
+  { id: 'usdcbsc', symbol: 'USDC', name: 'USD Coin', network: 'BSC', networkGroup: 'bsc', logo: '/crypto/usdc.png' },
 ] as const;
 
 export type KobaraCryptoCurrency = (typeof KOBARA_CRYPTO_CURRENCIES)[number];
@@ -45,6 +45,78 @@ export function getCryptoWithdrawalMinimumUsd(currencyId: KobaraCryptoCurrencyId
   if (currency.networkGroup === 'bitcoin') return 25;
   if (currency.networkGroup === 'ethereum') return 50;
   return 10;
+}
+
+interface CryptoProviderError {
+  code?: unknown;
+  type?: unknown;
+  httpStatus?: unknown;
+  message?: unknown;
+  details?: unknown;
+}
+
+export interface PublicCryptoCheckoutError {
+  code: string;
+  message: string;
+  status: number;
+}
+
+export function getPublicCryptoCheckoutError(error: unknown): PublicCryptoCheckoutError {
+  const providerError = error && typeof error === 'object' ? error as CryptoProviderError : null;
+  const code = typeof providerError?.code === 'string' ? providerError.code : '';
+  const message = typeof providerError?.message === 'string' ? providerError.message : '';
+  const httpStatus = typeof providerError?.httpStatus === 'number' ? providerError.httpStatus : null;
+
+  if (code === 'BELOW_MINIMUM_PAYMENT_AMOUNT') {
+    const details = providerError?.details && typeof providerError.details === 'object'
+      ? providerError.details as Record<string, unknown>
+      : {};
+    const estimatedPayAmount = Number(details.estimatedPayAmount);
+    const minimumPayAmount = Number(details.minimumPayAmount);
+    const priceAmount = Number(details.priceAmount);
+    const payCurrency = typeof details.payCurrency === 'string'
+      ? details.payCurrency.toUpperCase()
+      : 'cette devise';
+    const minimumUsd = estimatedPayAmount > 0 && minimumPayAmount > 0 && priceAmount > 0
+      ? Math.ceil(((priceAmount * minimumPayAmount) / estimatedPayAmount) * 100) / 100
+      : null;
+
+    return {
+      code,
+      message: minimumUsd
+        ? `Le montant minimum pour ${payCurrency} est d’environ ${minimumUsd.toFixed(2)} USD.`
+        : `Le montant est inférieur au minimum requis pour ${payCurrency}.`,
+      status: 422,
+    };
+  }
+
+  const configurationFailure = providerError?.type === 'configuration'
+    || code === 'CRYPTO_NOT_CONFIGURED'
+    || httpStatus === 401
+    || httpStatus === 403
+    || message.includes('NOWPAYMENTS_API_KEY')
+    || message.includes('NOWPAYMENTS_IPN_SECRET');
+  if (configurationFailure) {
+    return {
+      code: 'CRYPTO_NOT_CONFIGURED',
+      message: 'Le paiement crypto est temporairement indisponible. La configuration du service doit être terminée.',
+      status: 503,
+    };
+  }
+
+  if (providerError?.type === 'network' || providerError?.type === 'timeout') {
+    return {
+      code: 'CRYPTO_PROVIDER_UNAVAILABLE',
+      message: 'Le service crypto ne répond pas pour le moment. Réessayez dans quelques instants.',
+      status: 503,
+    };
+  }
+
+  return {
+    code: code || 'CRYPTO_INITIALIZATION_FAILED',
+    message: 'Le paiement crypto ne peut pas être initialisé pour le moment.',
+    status: 502,
+  };
 }
 
 export type NowPaymentsStatus =

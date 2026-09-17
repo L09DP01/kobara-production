@@ -6,6 +6,7 @@ import {
   CRYPTO_PAYMENT_WINDOW_MS,
   getCryptoPaymentExpiresAt,
   getCryptoWithdrawalMinimumUsd,
+  getPublicCryptoCheckoutError,
   isKobaraCryptoCurrency,
   signNowPaymentsPayload,
   sortObjectDeep,
@@ -17,6 +18,30 @@ test('NOWPayments payload sorting is recursive and preserves arrays', () => {
     a: { b: 3, y: 2 },
     list: [{ a: 2, z: 1 }],
     z: 1,
+  });
+});
+
+test('crypto checkout errors expose a useful minimum without leaking provider details', () => {
+  assert.deepEqual(getPublicCryptoCheckoutError({
+    code: 'BELOW_MINIMUM_PAYMENT_AMOUNT',
+    details: {
+      estimatedPayAmount: 10,
+      minimumPayAmount: 25,
+      payCurrency: 'trx',
+      priceAmount: 1.19,
+    },
+  }), {
+    code: 'BELOW_MINIMUM_PAYMENT_AMOUNT',
+    message: 'Le montant minimum pour TRX est d’environ 2.98 USD.',
+    status: 422,
+  });
+});
+
+test('crypto checkout configuration failures are safe for public display', () => {
+  assert.deepEqual(getPublicCryptoCheckoutError(new Error('NOWPAYMENTS_API_KEY est manquante.')), {
+    code: 'CRYPTO_NOT_CONFIGURED',
+    message: 'Le paiement crypto est temporairement indisponible. La configuration du service doit être terminée.',
+    status: 503,
   });
 });
 

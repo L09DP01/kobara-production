@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/utils/supabase/admin';
-import { getCryptoPaymentExpiresAt, isKobaraCryptoCurrency } from '@/lib/nowpayments';
-import { createNowPaymentsCheckout } from '@/lib/server/payments/nowpayments';
+import {
+  getCryptoPaymentExpiresAt,
+  getPublicCryptoCheckoutError,
+  isKobaraCryptoCurrency,
+} from '@/lib/nowpayments';
+import { createNowPaymentsCheckout, isNowPaymentsConfigured } from '@/lib/server/payments/nowpayments';
 
 const requestSchema = z.object({
   paymentId: z.string().uuid(),
@@ -72,6 +76,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ data: publicCheckout(payment) });
     }
 
+    if (!isNowPaymentsConfigured()) {
+      const configurationError = getPublicCryptoCheckoutError({ code: 'CRYPTO_NOT_CONFIGURED' });
+      console.error('[NOWPayments] Direct checkout is not configured.');
+      return NextResponse.json({
+        error: configurationError.message,
+        code: configurationError.code,
+      }, { status: configurationError.status });
+    }
+
     const checkout = await createNowPaymentsCheckout({
       paymentId: payment.id,
       amountUsd: Number(payment.amount_usd),
@@ -131,8 +144,10 @@ export async function POST(request: NextRequest) {
     throw new Error('La transaction a changé pendant son initialisation.');
   } catch (error) {
     console.error('[NOWPayments] Direct checkout failed:', error);
+    const publicError = getPublicCryptoCheckoutError(error);
     return NextResponse.json({
-      error: 'Le paiement crypto ne peut pas être initialisé pour le moment.',
-    }, { status: 502 });
+      error: publicError.message,
+      code: publicError.code,
+    }, { status: publicError.status });
   }
 }
