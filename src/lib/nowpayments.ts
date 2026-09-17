@@ -47,6 +47,16 @@ export function getCryptoWithdrawalMinimumUsd(currencyId: KobaraCryptoCurrencyId
   return 10;
 }
 
+export function getCryptoPaymentOperationalMinimumUsd(currencyId: KobaraCryptoCurrencyId): number {
+  const currency = getKobaraCryptoCurrency(currencyId);
+  if (!currency) throw new Error('Devise crypto non supportée.');
+
+  if (currency.networkGroup === 'ethereum') return 50;
+  if (currency.networkGroup === 'bitcoin') return 25;
+  if (currency.id === 'trx') return 10;
+  return 20;
+}
+
 interface CryptoProviderError {
   code?: unknown;
   type?: unknown;
@@ -73,15 +83,18 @@ export function getPublicCryptoCheckoutError(error: unknown): PublicCryptoChecko
     .find((value) => typeof value === 'string' && value.trim()) as string | undefined;
 
   if (code === 'BELOW_MINIMUM_PAYMENT_AMOUNT') {
+    const explicitMinimumUsd = Number(details.minimumUsd);
     const estimatedPayAmount = Number(details.estimatedPayAmount);
     const minimumPayAmount = Number(details.minimumPayAmount);
     const priceAmount = Number(details.priceAmount);
     const payCurrency = typeof details.payCurrency === 'string'
       ? details.payCurrency.toUpperCase()
       : 'cette devise';
-    const minimumUsd = estimatedPayAmount > 0 && minimumPayAmount > 0 && priceAmount > 0
-      ? Math.ceil(((priceAmount * minimumPayAmount) / estimatedPayAmount) * 100) / 100
-      : null;
+    const minimumUsd = explicitMinimumUsd > 0
+      ? explicitMinimumUsd
+      : estimatedPayAmount > 0 && minimumPayAmount > 0 && priceAmount > 0
+        ? Math.ceil(((priceAmount * minimumPayAmount) / estimatedPayAmount) * 100) / 100
+        : null;
 
     return {
       code,

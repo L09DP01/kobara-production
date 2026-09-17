@@ -5,6 +5,7 @@ import {
   convertPaymentAmountToUsd,
   CRYPTO_PAYMENT_WINDOW_MS,
   getCryptoPaymentExpiresAt,
+  getCryptoPaymentOperationalMinimumUsd,
   getCryptoWithdrawalMinimumUsd,
   getPublicCryptoCheckoutError,
   isKobaraCryptoCurrency,
@@ -33,6 +34,20 @@ test('crypto checkout errors expose a useful minimum without leaking provider de
   }), {
     code: 'BELOW_MINIMUM_PAYMENT_AMOUNT',
     message: 'Le montant minimum pour TRX est d’environ 2.98 USD.',
+    status: 422,
+  });
+});
+
+test('crypto checkout errors prefer the enforced USD minimum', () => {
+  assert.deepEqual(getPublicCryptoCheckoutError({
+    code: 'BELOW_MINIMUM_PAYMENT_AMOUNT',
+    details: {
+      minimumUsd: 25,
+      payCurrency: 'btc',
+    },
+  }), {
+    code: 'BELOW_MINIMUM_PAYMENT_AMOUNT',
+    message: 'Le montant minimum pour BTC est d’environ 25.00 USD.',
     status: 422,
   });
 });
@@ -85,6 +100,16 @@ test('crypto withdrawal minimums match the network policy', () => {
   assert.equal(getCryptoWithdrawalMinimumUsd('bnbbsc'), 10);
   assert.equal(getCryptoWithdrawalMinimumUsd('btc'), 25);
   assert.equal(getCryptoWithdrawalMinimumUsd('usdterc20'), 50);
+});
+
+test('crypto payment safety minimums cover provider network costs', () => {
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('trx'), 10);
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('usdttrc20'), 20);
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('ton'), 20);
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('bnbbsc'), 20);
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('btc'), 25);
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('eth'), 50);
+  assert.equal(getCryptoPaymentOperationalMinimumUsd('usdterc20'), 50);
 });
 
 test('crypto checkout expires no later than twenty minutes after creation', () => {

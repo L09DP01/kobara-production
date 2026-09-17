@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Check, Clock3, Copy, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
+  getCryptoPaymentOperationalMinimumUsd,
   getKobaraCryptoCurrency,
   isKobaraCryptoCurrency,
   KOBARA_CRYPTO_CURRENCIES,
@@ -62,7 +63,14 @@ export function CryptoCheckout({
   initialCurrency,
   existingCheckout,
 }: CryptoCheckoutProps) {
-  const initial = isKobaraCryptoCurrency(initialCurrency) ? initialCurrency : 'usdttrc20';
+  const requestedInitial = isKobaraCryptoCurrency(initialCurrency) ? initialCurrency : null;
+  const firstSupportedCurrency = KOBARA_CRYPTO_CURRENCIES.find(
+    (option) => amountUsd >= getCryptoPaymentOperationalMinimumUsd(option.id),
+  )?.id;
+  const initial = requestedInitial
+    && amountUsd >= getCryptoPaymentOperationalMinimumUsd(requestedInitial)
+    ? requestedInitial
+    : firstSupportedCurrency || requestedInitial || 'trx';
   const [selectedCurrency, setSelectedCurrency] = useState<KobaraCryptoCurrencyId>(initial);
   const [checkout, setCheckout] = useState<CryptoCheckoutData | null>(existingCheckout);
   const [busy, setBusy] = useState(false);
@@ -204,21 +212,28 @@ export function CryptoCheckout({
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {KOBARA_CRYPTO_CURRENCIES.map((option) => {
                     const active = option.id === selectedCurrency;
+                    const operationalMinimum = getCryptoPaymentOperationalMinimumUsd(option.id);
+                    const unavailableForAmount = amountUsd < operationalMinimum;
                     return (
                       <button
                         key={option.id}
                         type="button"
                         aria-pressed={active}
+                        disabled={unavailableForAmount}
                         onClick={() => selectCurrency(option.id)}
-                        className={`min-h-16 rounded-lg border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 ${active ? 'bg-white/[0.08]' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'}`}
-                        style={active ? { borderColor: accentColor } : undefined}
+                        className={`min-h-16 rounded-lg border p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 ${unavailableForAmount ? 'cursor-not-allowed border-white/5 bg-white/[0.01] opacity-40 grayscale' : active ? 'bg-white/[0.08]' : 'border-white/10 bg-white/[0.02] hover:bg-white/[0.05]'}`}
+                        style={active && !unavailableForAmount ? { borderColor: accentColor } : undefined}
                       >
                         <span className="flex items-center gap-2.5">
                           <Image src={option.logo} alt="" width={32} height={32} className="h-8 w-8 shrink-0 rounded-full" />
                           <span className="min-w-0">
                             <span className="block text-sm font-bold text-white">{option.symbol}</span>
                             <span className="block truncate text-[11px] text-slate-400">{option.network}</span>
-                            {active && minimum?.payCurrency === option.id && (
+                            {unavailableForAmount ? (
+                              <span className="mt-1 block text-[10px] font-semibold text-slate-400">
+                                Min. {operationalMinimum.toFixed(2)} USD
+                              </span>
+                            ) : active && minimum?.payCurrency === option.id && (
                               <span className="mt-1 block text-[10px] font-semibold" style={{ color: accentColor }}>
                                 Min. {minimum.minimumUsd.toFixed(2)} USD
                               </span>

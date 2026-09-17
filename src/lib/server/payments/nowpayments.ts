@@ -4,6 +4,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { NowPaymentsSDK } from '@nowpaymentsio/nowpayments-sdk-nodejs';
 import {
+  getCryptoPaymentOperationalMinimumUsd,
   isKobaraCryptoCurrency,
   isNowPaymentsTerminalFailure,
   getCryptoWithdrawalMinimumUsd,
@@ -129,10 +130,27 @@ export async function getNowPaymentsPaymentMinimum(
     throw new Error('Le minimum crypto ne peut pas être converti en USD.');
   }
 
+  const minimumUsd = Math.max(
+    Math.ceil(estimatedUsd * 100) / 100,
+    getCryptoPaymentOperationalMinimumUsd(payCurrency),
+  );
+  let displayedMinimumCrypto = minimumCrypto;
+  if (minimumUsd > estimatedUsd) {
+    const cryptoEstimate = await sdk.estimatePrice({
+      amount: minimumUsd,
+      fromCurrency: 'usd',
+      toCurrency: payCurrency,
+    });
+    const estimatedCrypto = Number(cryptoEstimate.estimated_amount);
+    if (Number.isFinite(estimatedCrypto) && estimatedCrypto > 0) {
+      displayedMinimumCrypto = estimatedCrypto;
+    }
+  }
+
   return {
     payCurrency,
-    minimumCrypto,
-    minimumUsd: Math.ceil(estimatedUsd * 100) / 100,
+    minimumCrypto: displayedMinimumCrypto,
+    minimumUsd,
   };
 }
 
@@ -291,6 +309,19 @@ export async function createNowPaymentsCheckout(input: {
   const payCurrency = input.payCurrency.trim().toLowerCase();
   if (!isKobaraCryptoCurrency(payCurrency)) {
     throw new Error('Cette devise ou ce réseau crypto n’est pas autorisé.');
+  }
+
+  const minimum = await getNowPaymentsPaymentMinimum(payCurrency);
+  if (!Number.isFinite(input.amountUsd) || input.amountUsd < minimum.minimumUsd) {
+    const minimumError = new Error('Payment amount is below the operational minimum.') as Error & {
+      code: string;
+      httpStatus: number;
+      details: { minimumUsd: number; payCurrency: KobaraCryptoCurrencyId };
+    };
+    minimumError.code = 'BELOW_MINIMUM_PAYMENT_AMOUNT';
+    minimumError.httpStatus = 422;
+    minimumError.details = { minimumUsd: minimum.minimumUsd, payCurrency };
+    throw minimumError;
   }
 
   const payment = await getNowPaymentsSdk().createDirectPayment({

@@ -109,6 +109,8 @@ Utilisé uniquement avec `provider: "crypto"`. Valeurs autorisées : `btc`, `eth
 
 Kobara demande à NOWPayments de conserver la crypto sélectionnée sans échange vers une autre crypto. Le montant USD de référence est figé lors de la création, les frais Kobara sont de 3 %, et le solde USD reçoit le montant net uniquement après le statut final `finished`. La simple ouverture du checkout ne confirme jamais la transaction.
 
+Le checkout récupère le minimum dynamique de NOWPayments et applique aussi un seuil opérationnel couvrant les frais réseau observés. Une crypto dont le minimum dépasse le montant du lien est grisée et ne peut pas être sélectionnée. Consultez la section [Erreurs API](/docs/errors) pour les codes `BELOW_MINIMUM_PAYMENT_AMOUNT`, `CRYPTO_CURRENCY_UNAVAILABLE` et les erreurs temporaires du fournisseur.
+
 ### `white_label` *(object, optionnel)*
 Personnalise uniquement le checkout crypto créé par l’API. Les champs acceptés sont `label` (80 caractères maximum), `logo_url` (HTTPS obligatoire) et `accent_color` au format hexadécimal `#RRGGBB`. Aucun HTML ou CSS arbitraire n’est accepté.
 
