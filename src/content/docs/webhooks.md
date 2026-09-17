@@ -147,7 +147,7 @@ La vérification doit utiliser le **corps brut reçu**, avant tout `JSON.parse`.
 }
 ```
 
-> **Note :** Le champ `provider` et la méthode de paiement indiquent le moyen réellement utilisé par le client (`"moncash"`, `"natcash"`, `"card"`, `"paypal"`, `"apple_pay"` ou `"google_pay"`), même si vous aviez spécifié `"kobara"` lors de la création du paiement.
+> **Note :** Le champ `provider` et la méthode de paiement indiquent le moyen réellement utilisé par le client (`"moncash"`, `"natcash"`, `"card"`, `"paypal"`, `"apple_pay"`, `"google_pay"` ou `"crypto"`), même si vous aviez spécifié `"kobara"` lors de la création du paiement.
 
 ---
 

@@ -1,4 +1,4 @@
-import { normalizeHaitianPhoneNumber } from '@/lib/payment-routing';
+import { getHaitianMobileWallet, normalizeHaitianPhoneNumber } from '@/lib/payment-routing';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PaymService } from '@/lib/server/paym/paym.service';
@@ -6,6 +6,11 @@ import { BazikService } from '@/lib/server/bazik/bazik.service';
 import { notifyWithdrawalCreated, notifyAdminWithdrawalCreated, notifyWithdrawalSuccess, notifyWithdrawalFailed } from '@/lib/server/notifications';
 import { calculateWithdrawalQuote } from '@/lib/withdrawal-currency';
 import { PayPalService } from '@/lib/server/payments/paypal';
+import {
+  createNowPaymentsPayout,
+  isNowPaymentsConfigured,
+  quoteNowPaymentsPayout,
+} from '@/lib/server/payments/nowpayments';
 
 export interface ProcessWithdrawalParams {
   merchantId: string;
@@ -17,6 +22,8 @@ export interface ProcessWithdrawalParams {
   idempotencyKey?: string;
   environment?: 'test' | 'live';
   description?: string;
+  cryptoCurrency?: string;
+  cryptoExtraId?: string;
 }
 
 export interface ProcessWithdrawalResult {
@@ -46,13 +53,15 @@ export const WithdrawalService = {
       idempotencyKey,
       environment = 'live',
       description = 'Retrait Kobara',
+      cryptoCurrency,
+      cryptoExtraId,
     } = params;
 
     const normalizedMethod = (method || '').trim().toLowerCase();
     const normalizedSourceCurrency = sourceCurrency === 'USD' ? 'USD' : 'HTG';
 
     // 1. Validation de la méthode
-    if (!['moncash', 'natcash', 'zelle', 'paypal'].includes(normalizedMethod)) {
+    if (!['moncash', 'natcash', 'zelle', 'paypal', 'crypto'].includes(normalizedMethod)) {
       return { success: false, error: 'Méthode de retrait non supportée.' };
     }
 
@@ -77,6 +86,23 @@ export const WithdrawalService = {
         };
       }
       normalizedReceiver = validPhone;
+
+      const detectedWallet = getHaitianMobileWallet(validPhone);
+      if (!detectedWallet) {
+        return {
+          success: false,
+          error: 'Ce numéro ne correspond à aucun bloc mobile MonCash ou NatCash reconnu.',
+          errorCode: 'UNSUPPORTED_MOBILE_NETWORK',
+        };
+      }
+      if (detectedWallet !== normalizedMethod) {
+        const expectedMethod = detectedWallet === 'moncash' ? 'MonCash' : 'NatCash';
+        return {
+          success: false,
+          error: `Ce numéro correspond à ${expectedMethod}. Sélectionnez ${expectedMethod} avant de continuer.`,
+          errorCode: 'MOBILE_WALLET_MISMATCH',
+        };
+      }
     } else if (normalizedMethod === 'zelle') {
       if (!normalizedReceiver) {
         return { success: false, error: 'Identifiant Zelle (email ou téléphone) requis.' };
@@ -85,6 +111,8 @@ export const WithdrawalService = {
       if (!normalizedReceiver) {
         return { success: false, error: 'Adresse email ou identifiant PayPal requis.' };
       }
+    } else if (normalizedMethod === 'crypto' && !normalizedReceiver) {
+      return { success: false, error: 'Adresse de portefeuille crypto requise.' };
     }
 
     // 4. Le compte source est choisi par le marchand. Le moyen de réception
@@ -99,7 +127,7 @@ export const WithdrawalService = {
         .eq('id', merchantId)
         .maybeSingle();
       const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
-      if (!usdAccount.isActive) {
+      if (!merchant?.has_usd_account || (!usdAccount.isActive && !isNowPaymentsConfigured())) {
         return {
           success: false,
           error: 'Le compte USD est indisponible ou suspendu. Contactez le support Kobara.',
@@ -119,19 +147,45 @@ export const WithdrawalService = {
       return { success: false, error: 'Le taux de conversion HTG/USD est indisponible.' };
     }
 
-    const quote = calculateWithdrawalQuote({
+    let cryptoQuote = null;
+    if (normalizedMethod === 'crypto') {
+      if (normalizedSourceCurrency !== 'USD') {
+        return { success: false, error: 'Les retraits crypto utilisent le compte USD.' };
+      }
+      try {
+        cryptoQuote = await quoteNowPaymentsPayout({
+          payoutUsd: amount,
+          currency: cryptoCurrency || '',
+          address: normalizedReceiver,
+          extraId: cryptoExtraId,
+        });
+      } catch (error) {
+        return { success: false, error: error instanceof Error ? error.message : 'Cotisation crypto indisponible.' };
+      }
+    }
+
+    const standardQuote = cryptoQuote ? null : calculateWithdrawalQuote({
       amount,
       method: normalizedMethod,
       sourceCurrency: normalizedSourceCurrency,
       exchangeRate,
     });
-    const { payoutCurrency, fees, netSourceAmount: netAmount, grossAmount: total, payoutAmount } = quote;
+    const payoutCurrency = cryptoQuote ? 'USD' : standardQuote!.payoutCurrency;
+    const fees = cryptoQuote ? cryptoQuote.combinedFeeUsd : standardQuote!.fees;
+    const netAmount = cryptoQuote ? cryptoQuote.payoutUsd : standardQuote!.netSourceAmount;
+    const total = cryptoQuote ? cryptoQuote.totalDebitUsd : standardQuote!.grossAmount;
+    const payoutAmount = cryptoQuote ? cryptoQuote.payoutUsd : standardQuote!.payoutAmount;
 
     if (payoutCurrency === 'USD' && payoutAmount < 10) {
       return { success: false, error: `Le montant net à recevoir doit être d'au moins 10 USD.` };
     }
-    if (payoutCurrency === 'HTG' && payoutAmount < 150) {
-      return { success: false, error: 'Le montant net à recevoir doit être d’au moins 150 HTG.' };
+    if (normalizedMethod === 'moncash' || normalizedMethod === 'natcash') {
+      const grossPayoutHtg = normalizedSourceCurrency === 'HTG'
+        ? total
+        : total * exchangeRate;
+      if (grossPayoutHtg < 150) {
+        return { success: false, error: 'Le montant du retrait doit être d’au moins 150 HTG.' };
+      }
     }
 
     const adminClient = createAdminClient();
@@ -231,6 +285,61 @@ export const WithdrawalService = {
 
     const withdrawal = prepResult.withdrawal;
     const withdrawalId = withdrawal.id;
+
+    if (normalizedMethod === 'crypto' && cryptoQuote) {
+      await adminClient.from('withdrawals').update({
+        crypto_currency: cryptoQuote.currency,
+        crypto_payout_amount: cryptoQuote.payoutCrypto,
+        crypto_network_fee: cryptoQuote.networkFeeCrypto,
+      }).eq('id', withdrawalId);
+
+      try {
+        const batch = await createNowPaymentsPayout({
+          withdrawalId,
+          address: normalizedReceiver,
+          extraId: cryptoExtraId,
+          quote: cryptoQuote,
+        });
+        const payout = batch.withdrawals[0];
+        await adminClient.from('withdrawals').update({
+          nowpayments_batch_id: batch.id,
+          nowpayments_payout_id: payout?.id || null,
+          bazik_transaction_id: payout?.id || batch.id,
+          provider_response: JSON.parse(JSON.stringify(batch)),
+          status: payout?.status === 'finished' ? 'completed' : 'pending',
+          ...(payout?.status === 'finished' ? { completed_at: new Date().toISOString() } : {}),
+        }).eq('id', withdrawalId);
+
+        return {
+          success: true,
+          status: payout?.status === 'finished' ? 'completed' : 'pending',
+          withdrawal: { ...withdrawal, status: payout?.status === 'finished' ? 'completed' : 'pending' },
+          requiresVerification: batch.requiresVerification,
+        };
+      } catch (error) {
+        const providerError = error as Error & { batchId?: string };
+        console.error('[NOWPayments] Payout failed:', providerError);
+        if (providerError.batchId) {
+          await adminClient.from('withdrawals').update({
+            nowpayments_batch_id: providerError.batchId,
+            provider_response: { error: providerError.message, batch_id: providerError.batchId },
+          }).eq('id', withdrawalId);
+          return {
+            success: false,
+            status: 'pending',
+            requiresVerification: true,
+            withdrawal,
+            error: 'Le retrait a été créé et attend la confirmation du fournisseur.',
+          };
+        }
+        await adminClient.rpc('fail_and_refund_withdrawal', {
+          p_withdrawal_id: withdrawalId,
+          p_reason: providerError.message || 'Échec du retrait crypto',
+          p_provider_response: { error: providerError.message },
+        });
+        return { success: false, status: 'failed', refunded: true, error: providerError.message || 'Échec du retrait crypto.' };
+      }
+    }
 
     // 7. Retrait manuel (Zelle ou PayPal ou NatCash sous Bazik)
     if (isUsdOrManual) {

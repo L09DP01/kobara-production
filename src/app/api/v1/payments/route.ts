@@ -22,6 +22,7 @@ import { PaymentCreatePayloadSchema } from "@/lib/server/validators";
 import { canCreatePayment } from "@/lib/server/access";
 import { getPublicApiCorsHeaders } from "@/lib/http/api-cors";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
 
 export async function OPTIONS(request: NextRequest) {
   const corsHeaders = getPublicApiCorsHeaders(request.headers.get('origin'));
@@ -107,12 +108,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Validation Error", details: validationResult.error.issues }, { status: 400 });
     }
 
-    const { amount, currency, provider: rawProvider, description, success_url, cancel_url, metadata, customer } = validationResult.data;
+    const { amount, currency, provider: rawProvider, crypto_currency, white_label, description, success_url, cancel_url, metadata, customer } = validationResult.data;
 
     // Normalize provider and requested method
     const isCard = ['carte', 'card', 'paypal', 'apple_pay', 'google_pay'].includes(rawProvider);
-    const provider: 'moncash' | 'natcash' | 'carte' | 'kobara' = isCard
+    const isCrypto = rawProvider === 'crypto';
+    const provider: 'moncash' | 'natcash' | 'carte' | 'crypto' | 'kobara' = isCard
       ? 'carte'
+      : isCrypto
+        ? 'crypto'
       : rawProvider.startsWith('moncash')
         ? 'moncash'
         : rawProvider.startsWith('natcash')
@@ -130,7 +134,7 @@ export async function POST(request: NextRequest) {
         }, { status: 403 });
       }
     }
-    
+
     const explicitlyRequestedUssd = rawProvider.includes('ussd');
 
     // Idempotency check
@@ -297,12 +301,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Save pending payment to DB
-    const feePercent = plan ? (plan.transaction_fee_percent / 100) : 0.04;
+    const feePercent = isCrypto ? 0.03 : plan ? (plan.transaction_fee_percent / 100) : 0.04;
     
     const feeAmount = parseFloat((paymentAmount * feePercent).toFixed(2));
     const netAmount = parseFloat((paymentAmount - feeAmount).toFixed(2));
+    const amountUsd = isCrypto
+      ? convertPaymentAmountToUsd(paymentAmount, currency, paymentProviderConfig.paypal_htg_per_usd)
+      : null;
+    const feeAmountUsd = amountUsd === null ? null : Number((amountUsd * feePercent).toFixed(2));
+    const netAmountUsd = amountUsd === null || feeAmountUsd === null
+      ? null
+      : Number((amountUsd - feeAmountUsd).toFixed(2));
 
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
     const { data: payment, error: dbError } = await supabase.from('payments').insert({
       merchant_id: merchantId,
@@ -318,7 +329,12 @@ export async function POST(request: NextRequest) {
       status: 'pending',
       provider,
       payment_method: gatewayResult?.paymentMethod || provider,
-      expires_at: expiresAt,
+      payment_source: isCrypto ? 'crypto' : undefined,
+      amount_usd: amountUsd,
+      fee_amount_usd: feeAmountUsd,
+      net_amount_usd: netAmountUsd,
+      // NOWPayments owns the invoice expiry and sends the authoritative status by IPN.
+      expires_at: isCrypto ? null : expiresAt,
       success_url: success_url,
       error_url: cancel_url,
       metadata: gatewayResult
@@ -340,7 +356,11 @@ export async function POST(request: NextRequest) {
             customer_phone: customer?.phone,
             requested_payment_source: isCard
               ? (rawProvider === 'apple_pay' || rawProvider === 'google_pay' || rawProvider === 'paypal' ? rawProvider : 'card')
-              : undefined,
+              : isCrypto ? 'crypto' : undefined,
+            crypto_currency: isCrypto ? crypto_currency || null : undefined,
+            crypto_white_label: isCrypto && white_label ? white_label : undefined,
+            payment_description: isCrypto ? description || null : undefined,
+            htg_per_usd: isCrypto && currency === 'HTG' ? paymentProviderConfig.paypal_htg_per_usd : undefined,
           },
     }).select().single();
 
@@ -396,6 +416,8 @@ export async function POST(request: NextRequest) {
         ? rawProvider
         : 'card';
       paymentUrl += `${paymentUrl.includes('?') ? '&' : '?'}method=${checkoutMethod}`;
+    } else if (provider === 'crypto') {
+      paymentUrl += `${paymentUrl.includes('?') ? '&' : '?'}method=crypto`;
     }
 
     // 4. Return response to merchant
@@ -410,6 +432,8 @@ export async function POST(request: NextRequest) {
         status: finalPayment.status,
         environment: finalPayment.environment,
         paid_at: finalPayment.paid_at || null,
+        provider,
+        invoice_id: null,
         checkout_url: paymentUrl,
         url: paymentUrl,
         payment_url: paymentUrl,

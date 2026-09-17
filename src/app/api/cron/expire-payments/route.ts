@@ -17,6 +17,8 @@ export async function GET(request: Request) {
     // never be expired merely because its browser return was interrupted.
     const { reconcilePendingPaymPayments } = await import('@/lib/server/payments/reconcile-subscriptions');
     const paymReconciliation = await reconcilePendingPaymPayments();
+    const { reconcilePendingNowPayments } = await import('@/lib/server/payments/nowpayments');
+    const cryptoReconciliation = await reconcilePendingNowPayments();
 
     // Calculate 24 hours ago
     const yesterday = new Date();
@@ -39,6 +41,7 @@ export async function GET(request: Request) {
         success: true,
         count: 0,
         paymReconciliation,
+        cryptoReconciliation,
         message: "No expired payments found",
       });
     }
@@ -91,6 +94,7 @@ export async function GET(request: Request) {
       success: true, 
       count: paymentsToNotify.length,
       paymReconciliation,
+      cryptoReconciliation,
       message: `Expired ${paymentsToNotify.length} payments`
     });
 

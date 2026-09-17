@@ -4,6 +4,7 @@ import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { WithdrawalsClient } from "./withdrawals-client";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { isNowPaymentsConfigured, isNowPaymentsPayoutConfigured } from "@/lib/server/payments/nowpayments";
 import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
 
 export default async function WithdrawalsPage() {
@@ -41,10 +42,12 @@ export default async function WithdrawalsPage() {
   const providerConfig = await getPaymentProviderConfig();
   const exchangeRate = Number(providerConfig.paypal_htg_per_usd || 130);
   const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
+  const usdBalanceActive = Boolean(merchant.has_usd_account)
+    && (usdAccount.isActive || isNowPaymentsConfigured());
   const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', Number(merchant.available_balance || 0));
   const safeMerchant = {
     available_balance: merchant.available_balance,
-    available_balance_usd: usdAccount.isActive ? merchant.available_balance_usd : 0,
+    available_balance_usd: usdBalanceActive ? merchant.available_balance_usd : 0,
     pending_balance: merchant.pending_balance,
     withdrawable_balance: htgFunds.withdrawableBalance,
   };
@@ -52,10 +55,11 @@ export default async function WithdrawalsPage() {
   return <WithdrawalsClient 
     withdrawals={withdrawals || []} 
     merchant={safeMerchant}
-    usdAccountActive={usdAccount.isActive}
+    usdAccountActive={usdBalanceActive}
     twoFactorMethod={twoFactorMethod} 
     userEmail={user.email!}
     savedMoncashNumber={savedMoncashNumber}
     exchangeRate={exchangeRate}
+    cryptoPayoutEnabled={isNowPaymentsPayoutConfigured()}
   />;
 }

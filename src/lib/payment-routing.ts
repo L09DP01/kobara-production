@@ -22,7 +22,7 @@ export interface PaymentRoute {
 }
 
 export interface ApiCheckoutDestinationInput {
-  requestedProvider: PaymentWallet | 'carte' | 'card' | 'paypal' | 'kobara';
+  requestedProvider: PaymentWallet | 'carte' | 'card' | 'paypal' | 'crypto' | 'kobara';
   environment: 'test' | 'live';
   paymentId: string;
   checkoutBaseUrl: string;
@@ -44,6 +44,22 @@ export function normalizeHaitianPhoneNumber(phoneNumber?: string | null): string
   const digits = (phoneNumber || '').replace(/\D/g, '');
   const normalized = digits.length === 8 ? `509${digits}` : digits;
   return /^509\d{8}$/.test(normalized) ? normalized : null;
+}
+
+export type HaitianMobileWallet = 'moncash' | 'natcash';
+
+/** Classify the official Haitian mobile number blocks before a payout call. */
+export function getHaitianMobileWallet(phoneNumber?: string | null): HaitianMobileWallet | null {
+  const normalized = normalizeHaitianPhoneNumber(phoneNumber);
+  if (!normalized) return null;
+
+  const nationalNumber = normalized.slice(3);
+  if (/^(22|32|33|35|40|41|42|43|55)/.test(nationalNumber)) return 'natcash';
+  if (/^(30|31|34|36|37|38|44|46|47|48)/.test(nationalNumber)
+      || /^(390|391|392|393|394|399|490|491|492|493|494)/.test(nationalNumber)) {
+    return 'moncash';
+  }
+  return null;
 }
 
 export function isValidPaymReference(reference: string): boolean {
@@ -94,7 +110,7 @@ export function sanitizePaymentRedirectUrl(rawUrl: string | null | undefined): s
 export function resolveApiCheckoutUrl(input: ApiCheckoutDestinationInput): string {
   const baseUrl = input.checkoutBaseUrl.replace(/\/$/, '');
 
-  if (input.requestedProvider === 'carte' || input.requestedProvider === 'card' || input.requestedProvider === 'paypal') {
+  if (input.requestedProvider === 'carte' || input.requestedProvider === 'card' || input.requestedProvider === 'paypal' || input.requestedProvider === 'crypto') {
     return input.externalUrl || `${baseUrl}/checkout/${input.paymentId}`;
   }
 

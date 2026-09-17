@@ -22,7 +22,7 @@ export function generateOpenAPI() {
     path: '/v1/payments',
     method: 'post',
     summary: 'Create a new payment',
-    description: 'Initialize a payment transaction. Use provider "moncash", "natcash", "card", "paypal", "apple_pay", or "google_pay" to preselect a method. Use "kobara" (default) for the unified checkout page where the customer chooses. International payment data is collected only on the hosted Kobara checkout.',
+    description: 'Initialize a payment transaction. Use provider "moncash", "natcash", "card", "paypal", "apple_pay", "google_pay", or "crypto" to preselect a method. Crypto returns a customizable Kobara checkout and credits the merchant USD balance from Kobara’s reference rate after final blockchain confirmation. Use "kobara" (default) for the unified checkout page where the customer chooses.',
     tags: ['Payments'],
     security: [{ BearerAuth: [] }],
     request: {

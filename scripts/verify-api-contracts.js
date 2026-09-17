@@ -34,7 +34,7 @@ if (!payment || !withdrawal) {
   const expectedProviders = [
     "kobara", "moncash", "moncash_web", "moncash_ussd",
     "natcash", "natcash_web", "natcash_ussd", "card", "carte",
-    "paypal", "apple_pay", "google_pay",
+    "paypal", "apple_pay", "google_pay", "crypto",
   ];
   const actualProviders = payment.properties?.provider?.enum || [];
   for (const provider of expectedProviders) {

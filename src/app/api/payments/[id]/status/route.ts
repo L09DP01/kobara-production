@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getRecordedPaymentProcessor } from "@/lib/payment-routing";
 import { confirmPaymPayment } from '@/lib/server/payments/confirm-paym-payment';
+import { CRYPTO_PAYMENT_WINDOW_MS } from '@/lib/nowpayments';
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +20,7 @@ export async function GET(
     
     const { data: payment, error } = await supabase
       .from('payments')
-      .select('id, amount, status, created_at, expires_at, provider, payment_method, kobara_reference, environment, success_url, error_url, metadata')
+      .select('id, amount, status, created_at, expires_at, provider, payment_method, kobara_reference, environment, success_url, error_url, metadata, nowpayments_payment_id')
       .eq('id', paymentId)
       .single();
 
@@ -28,8 +29,26 @@ export async function GET(
     }
 
     let currentStatus = payment.status;
+    const createdAt = new Date(payment.created_at).getTime();
+    const storedExpiration = payment.expires_at ? new Date(payment.expires_at).getTime() : Number.NaN;
+    const deadlineTimestamp = payment.provider === 'crypto'
+      ? (Number.isFinite(storedExpiration) ? storedExpiration : createdAt + CRYPTO_PAYMENT_WINDOW_MS)
+      : createdAt + 10 * 60 * 1000;
     
     const isPaymProvider = getRecordedPaymentProcessor(payment) === 'paym';
+
+    if ((currentStatus === 'pending' || currentStatus === 'expired')
+        && payment.provider === 'crypto'
+        && payment.nowpayments_payment_id) {
+      try {
+        const { getNowPaymentsPayment, applyNowPaymentsStatus } = await import('@/lib/server/payments/nowpayments');
+        const providerPayment = await getNowPaymentsPayment(payment.nowpayments_payment_id);
+        const applied = await applyNowPaymentsStatus(providerPayment);
+        currentStatus = applied.payment?.status || currentStatus;
+      } catch (cryptoError) {
+        console.warn('[NOWPayments] Status refresh failed:', cryptoError);
+      }
+    }
 
     // Pay'm is checked before local expiration because the customer may have
     // completed a genuine provider payment just before returning to Kobara.
@@ -102,7 +121,7 @@ export async function GET(
         : ['failed', 'expired', 'canceled'].includes(currentStatus)
           ? failureRedirect
           : null,
-      deadline: new Date(new Date(payment.created_at).getTime() + 10 * 60 * 1000).toISOString(),
+      deadline: new Date(deadlineTimestamp).toISOString(),
     });
   } catch (error) {
     console.error("Error fetching payment status:", error);

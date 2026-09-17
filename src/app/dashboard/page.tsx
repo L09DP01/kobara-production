@@ -8,6 +8,7 @@ import {
 import Link from "next/link";
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import UsdAccountSection from "@/components/dashboard/UsdAccountSection";
 import DashboardChartWrapper from "./analytics/DashboardChartWrapper";
 import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
@@ -107,6 +108,8 @@ export default async function DashboardPage() {
   };
   const environment = "live";
   const availableBalanceUsd = Number(usdMerchant.available_balance_usd || 0);
+  const usdBalanceActive = Boolean(usdMerchant.has_usd_account)
+    && (usdAccount.isActive || isNowPaymentsConfigured());
 
   const { data: recentPayments } = await supabase
     .from("payments")
@@ -175,10 +178,10 @@ export default async function DashboardPage() {
           <h2 id="financial-overview" className="text-sm font-bold text-white">Vue financière</h2>
           <span className="text-xs text-slate-500">Montants nets</span>
         </div>
-        <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${usdAccount.status !== "hidden" ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
+        <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${usdAccount.status !== "hidden" || isNowPaymentsConfigured() ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
           <MetricCard icon={CreditCard} label="Total encaissé" value={stats.totalEncaisse.toLocaleString("fr-FR")} currency="HTG" caption="Cumul des paiements validés" />
           <MetricCard icon={WalletCards} label="Solde total" value={htgFunds.totalBalance.toLocaleString("fr-FR")} currency="HTG" caption={`${htgFunds.withdrawableBalance.toLocaleString("fr-FR")} HTG disponibles au retrait`} tone="orange" />
-          <UsdAccountSection isEligible={usdAccount.isEnabled} hasUsdAccount={usdAccount.hasAccount} availableBalanceUsd={usdAccount.isActive ? availableBalanceUsd : 0} />
+          <UsdAccountSection isEligible={usdAccount.isEnabled || isNowPaymentsConfigured()} hasUsdAccount={usdAccount.hasAccount} availableBalanceUsd={usdBalanceActive ? availableBalanceUsd : 0} cryptoEnabled={isNowPaymentsConfigured()} />
         </div>
       </section>
 

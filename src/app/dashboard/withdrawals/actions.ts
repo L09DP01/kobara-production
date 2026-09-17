@@ -13,6 +13,32 @@ import { normalizeSixDigitCode } from '@/lib/two-factor';
 import { getClientIp, withdrawalsLimiter } from '@/lib/server/security/rate-limit';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PayPalService } from '@/lib/server/payments/paypal';
+import {
+  isNowPaymentsConfigured,
+  quoteNowPaymentsPayout,
+} from '@/lib/server/payments/nowpayments';
+
+export async function quoteCryptoWithdrawalAction(
+  amountUsd: number,
+  currency: string,
+  address: string,
+  extraId?: string,
+) {
+  const { merchant, userRole } = await getCurrentUserAndMerchant();
+  if (!merchant || userRole !== 'owner') return { error: 'Accès refusé.' };
+  if (Number(amountUsd) > Number(merchant.available_balance_usd || 0)) {
+    return { error: 'Votre solde USD est insuffisant.' };
+  }
+  try {
+    const quote = await quoteNowPaymentsPayout({ payoutUsd: Number(amountUsd), currency, address, extraId });
+    if (quote.totalDebitUsd > Number(merchant.available_balance_usd || 0)) {
+      return { error: 'Votre solde USD ne couvre pas le montant et les frais.' };
+    }
+    return { success: true, quote };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Estimation crypto indisponible.' };
+  }
+}
 
 export async function sendWithdrawalOtpAction(amount?: number, method?: string) {
   const { user, merchant, userRole } = await getCurrentUserAndMerchant();
@@ -47,7 +73,9 @@ export async function requestWithdrawal(
   receiver?: string,
   code2fa?: string,
   sourceCurrency: 'HTG' | 'USD' = 'HTG',
-  saveNumber?: boolean
+  saveNumber?: boolean,
+  cryptoCurrency?: string,
+  cryptoExtraId?: string,
 ) {
   const { user, merchant, userRole, supabase } = await getCurrentUserAndMerchant();
 
@@ -63,7 +91,7 @@ export async function requestWithdrawal(
   const normalizedSourceCurrency = sourceCurrency === 'USD' ? 'USD' : 'HTG';
   if (normalizedSourceCurrency === 'USD' || normalizedMethod === 'zelle' || normalizedMethod === 'paypal') {
     const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
-    if (!usdAccount.isActive) {
+    if (!merchant.has_usd_account || (!usdAccount.isActive && !isNowPaymentsConfigured())) {
       return { error: 'Le compte USD est indisponible ou suspendu. Contactez le support Kobara.', code: 'USD_ACCOUNT_INACTIVE' };
     }
   }
@@ -155,6 +183,8 @@ export async function requestWithdrawal(
     receiver,
     environment: 'live',
     description: 'Retrait Kobara',
+    cryptoCurrency,
+    cryptoExtraId,
   });
 
   if (!result.success && !result.requiresManualApproval) {

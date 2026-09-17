@@ -5,6 +5,7 @@ import { canCreateWithdrawal } from "@/lib/server/access";
 import { WithdrawalService } from "@/lib/server/withdrawals/withdrawal.service";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { PayPalService } from "@/lib/server/payments/paypal";
+import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     const normalizedMethod = String(method || '').trim().toLowerCase();
     if (sourceCurrency === 'USD' || normalizedMethod === 'zelle' || normalizedMethod === 'paypal') {
       const usdAccount = await PayPalService.getMerchantUsdAccountState(merchant);
-      if (!usdAccount.isActive) {
+      if (!merchant.has_usd_account || (!usdAccount.isActive && !isNowPaymentsConfigured())) {
         return NextResponse.json({
           error: 'Le compte USD est indisponible ou suspendu.',
           code: 'USD_ACCOUNT_INACTIVE',

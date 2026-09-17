@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react';
-import { requestWithdrawal, sendWithdrawalOtpAction } from './actions';
+import { quoteCryptoWithdrawalAction, requestWithdrawal, sendWithdrawalOtpAction } from './actions';
 import { executeB2BTransfer } from './b2b-actions';
 import { QRCodeSVG } from 'qrcode.react';
 import { calculateWithdrawalQuote } from '@/lib/withdrawal-currency';
+import { KOBARA_CRYPTO_CURRENCIES, getCryptoWithdrawalMinimumUsd } from '@/lib/nowpayments';
 
 function getWithdrawalMethodDisplay(methodOrProvider?: string | null): string {
   if (!methodOrProvider) return 'MonCash';
@@ -13,6 +14,7 @@ function getWithdrawalMethodDisplay(methodOrProvider?: string | null): string {
   if (val.includes('moncash') || val.includes('mon_cash')) return 'MonCash';
   if (val.includes('zelle')) return 'Zelle';
   if (val.includes('paypal')) return 'PayPal';
+  if (val.includes('crypto')) return 'Crypto';
   if (val.includes('b2b')) return 'Transfert B2B';
   if (val.includes('system_subscription')) return 'Abonnement Kobara';
   return 'MonCash';
@@ -33,6 +35,7 @@ export function WithdrawalsClient({
   savedMoncashNumber = '',
   exchangeRate = 130,
   usdAccountActive = false,
+  cryptoPayoutEnabled = false,
 }: {
   withdrawals: any[],
   merchant: any,
@@ -40,7 +43,8 @@ export function WithdrawalsClient({
   userEmail?: string,
   savedMoncashNumber?: string,
   exchangeRate?: number,
-  usdAccountActive?: boolean
+  usdAccountActive?: boolean;
+  cryptoPayoutEnabled?: boolean;
 }) {
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,6 +56,9 @@ export function WithdrawalsClient({
   const [accountCurrency, setAccountCurrency] = useState<'HTG' | 'USD'>('HTG');
   const [receiver, setReceiver] = useState(savedMoncashNumber);
   const [saveNumber, setSaveNumber] = useState(false);
+  const [cryptoCurrency, setCryptoCurrency] = useState('usdttrc20');
+  const [cryptoExtraId, setCryptoExtraId] = useState('');
+  const [cryptoQuote, setCryptoQuote] = useState<any>(null);
   const [code2fa, setCode2fa] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -60,6 +67,7 @@ export function WithdrawalsClient({
   const activeHtgBalance = Number(merchant.withdrawable_balance ?? totalHtgBalance);
   const activeUsdBalance = Number(merchant.available_balance_usd || 0);
   const isUsdMethod = method === 'Zelle' || method === 'PayPal';
+  const isCryptoMethod = method === 'Crypto';
   const selectedCurrency = accountCurrency;
   const activeBalance = accountCurrency === 'USD' ? activeUsdBalance : activeHtgBalance;
   const quote = calculateWithdrawalQuote({ amount: Number(amount || 0), method, sourceCurrency: accountCurrency, exchangeRate });
@@ -76,8 +84,16 @@ export function WithdrawalsClient({
       setErrorMsg('Les transferts B2B utilisent actuellement le compte HTG.');
       return;
     }
-    if (method !== 'B2B' && ((payoutCurrency === 'USD' && estimatedPayout < 10) || (payoutCurrency === 'HTG' && estimatedPayout < 150))) {
-      setErrorMsg(payoutCurrency === 'USD' ? 'Le montant net reçu doit être d’au moins 10 USD.' : 'Le montant net reçu doit être d’au moins 150 HTG.');
+    const isLocalWalletMethod = method === 'MonCash' || method === 'NatCash';
+    const grossLocalAmountHtg = accountCurrency === 'HTG'
+      ? Number(amount)
+      : Number(amount) * exchangeRate;
+    if (method !== 'B2B' && !isCryptoMethod && payoutCurrency === 'USD' && estimatedPayout < 10) {
+      setErrorMsg('Le montant net reçu doit être d’au moins 10 USD.');
+      return;
+    }
+    if (isLocalWalletMethod && grossLocalAmountHtg < 150) {
+      setErrorMsg('Le montant du retrait doit être d’au moins 150 HTG.');
       return;
     }
     if (method === 'B2B' && !receiver) {
@@ -92,6 +108,10 @@ export function WithdrawalsClient({
       setErrorMsg(`L'email ou l'identifiant ${method} est requis.`);
       return;
     }
+    if (isCryptoMethod && !receiver.trim()) {
+      setErrorMsg("L'adresse du portefeuille crypto est requise.");
+      return;
+    }
     if (Number(amount) > activeBalance) {
       setErrorMsg("Votre solde est insuffisant.");
       return;
@@ -99,6 +119,11 @@ export function WithdrawalsClient({
 
     try {
       setLoading(true);
+      if (isCryptoMethod) {
+        const quoteResult = await quoteCryptoWithdrawalAction(Number(amount), cryptoCurrency, receiver, cryptoExtraId || undefined);
+        if (quoteResult?.error || !quoteResult?.quote) throw new Error(quoteResult?.error || 'Estimation crypto indisponible.');
+        setCryptoQuote(quoteResult.quote);
+      }
       if (twoFactorMethod === 'email' || twoFactorMethod === 'none') {
         const otpRes = await sendWithdrawalOtpAction(Number(amount), method);
         if (otpRes?.error) {
@@ -128,7 +153,7 @@ export function WithdrawalsClient({
       if (method === 'B2B') {
         res = await executeB2BTransfer(Number(amount), receiver, code2fa);
       } else {
-        res = await requestWithdrawal(Number(amount), method, receiver, code2fa, accountCurrency, saveNumber);
+        res = await requestWithdrawal(Number(amount), method, receiver, code2fa, accountCurrency, saveNumber, isCryptoMethod ? cryptoCurrency : undefined, isCryptoMethod ? cryptoExtraId : undefined);
       }
 
       if (res?.error) {
@@ -147,6 +172,7 @@ export function WithdrawalsClient({
 
       setAmount('');
       setReceiver('');
+      setCryptoQuote(null);
 
       const successMessage = (res as any)?.status === 'completed'
         ? "Votre retrait a été effectué avec succès."
@@ -167,6 +193,7 @@ export function WithdrawalsClient({
     setStep('details');
     setCode2fa('');
     setErrorMsg('');
+    setCryptoQuote(null);
   };
 
   const completedWithdrawals = withdrawals.filter(w => w.status === 'completed' || w.status === 'paid');
@@ -252,12 +279,12 @@ export function WithdrawalsClient({
               <h2 className="mt-3 text-3xl font-bold text-white">
                 ${activeUsdBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-sm text-slate-500">USD</span>
               </h2>
-              <p className="mt-2 text-xs text-slate-500">Carte, PayPal, Apple Pay et Google Pay</p>
+              <p className="mt-2 text-xs text-slate-500">Carte, PayPal, Apple Pay, Google Pay{cryptoPayoutEnabled ? ' et crypto' : ''}</p>
             </div>
             <span className="material-symbols-outlined rounded-lg bg-blue-500/10 p-2.5 text-blue-400">payments</span>
           </div>
           <div className="mt-6">
-            <button onClick={() => { setAccountCurrency('USD'); setMethod('PayPal'); setReceiver(''); setIsModalOpen(true); }} disabled={activeUsdBalance <= 0} className="min-h-10 rounded-lg bg-blue-500 px-4 text-sm font-bold text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40">Utiliser ce compte</button>
+            <button onClick={() => { setAccountCurrency('USD'); setMethod(cryptoPayoutEnabled ? 'Crypto' : 'PayPal'); setReceiver(''); setIsModalOpen(true); }} disabled={activeUsdBalance <= 0} className="min-h-10 rounded-lg bg-blue-500 px-4 text-sm font-bold text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-40">Utiliser ce compte</button>
           </div>
           <p className="mt-3 text-xs text-slate-500">Traitement manuel après vérification, généralement sous 1 à 3 jours ouvrables.</p>
         </article>}
@@ -354,7 +381,7 @@ export function WithdrawalsClient({
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-lg font-bold focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                       required
                     />
-                    {amount && Number(amount) > 0 && method !== 'B2B' && (
+                    {amount && Number(amount) > 0 && method !== 'B2B' && !isCryptoMethod && (
                       <div className="mt-3 p-4 bg-white/5 rounded-xl border border-white/10 space-y-2">
                         <div className="flex justify-between text-sm text-slate-400">
                           <span>Compte débité</span>
@@ -374,6 +401,13 @@ export function WithdrawalsClient({
                           <span>Montant net à recevoir</span>
                           <span className="text-green-400">{formatWithdrawalAmount(estimatedPayout, payoutCurrency)}</span>
                         </div>
+                      </div>
+                    )}
+                    {amount && Number(amount) > 0 && isCryptoMethod && (
+                      <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-white/5 p-4">
+                        <div className="flex justify-between text-sm text-slate-400"><span>Montant du retrait</span><span>{formatWithdrawalAmount(Number(amount), 'USD')}</span></div>
+                        <div className="flex justify-between text-sm text-orange-400"><span>Frais réseau + Kobara</span><span>{cryptoQuote ? formatWithdrawalAmount(cryptoQuote.combinedFeeUsd, 'USD') : 'Calculés avant confirmation'}</span></div>
+                        <div className="flex justify-between border-t border-white/10 pt-2 font-bold text-white"><span>Total débité</span><span>{cryptoQuote ? formatWithdrawalAmount(cryptoQuote.totalDebitUsd, 'USD') : '—'}</span></div>
                       </div>
                     )}
                     {amount && Number(amount) > 0 && method === 'B2B' && (
@@ -397,6 +431,8 @@ export function WithdrawalsClient({
                         const nextMethod = e.target.value;
                         setMethod(nextMethod);
                         if (nextMethod === 'B2B') setAccountCurrency('HTG');
+                        if (nextMethod === 'Crypto') setAccountCurrency('USD');
+                        setCryptoQuote(null);
                       }}
                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all [&>option]:bg-[#131B2C]"
                     >
@@ -404,6 +440,7 @@ export function WithdrawalsClient({
                       <option value="NatCash">NatCash</option>
                       {usdAccountActive && <option value="Zelle">Zelle (USD, traitement manuel)</option>}
                       {usdAccountActive && <option value="PayPal">PayPal (USD, traitement manuel)</option>}
+                      {usdAccountActive && cryptoPayoutEnabled && <option value="Crypto">Crypto</option>}
                       <option value="B2B">Transfert B2B (Gratuit)</option>
                       <option value="Sogebank" disabled>Sogebank (Bientôt)</option>
                       <option value="Unibank" disabled>Unibank (Bientôt)</option>
@@ -436,6 +473,26 @@ export function WithdrawalsClient({
                         required
                       />
                       <p className="text-xs leading-relaxed text-slate-500">Le montant est réservé sur votre compte {accountCurrency} dès la demande, puis envoyé en USD après validation administrative sous 1 à 3 jours ouvrables.</p>
+                    </div>
+                  )}
+
+                  {isCryptoMethod && (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Crypto et réseau</label>
+                        <select value={cryptoCurrency} onChange={(event) => { setCryptoCurrency(event.target.value); setCryptoQuote(null); }} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500 [&>option]:bg-[#131B2C]">
+                          {KOBARA_CRYPTO_CURRENCIES.map((currency) => <option key={currency.id} value={currency.id}>{currency.symbol} · {currency.network} · min. {getCryptoWithdrawalMinimumUsd(currency.id)} USD</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Adresse du portefeuille</label>
+                        <input value={receiver} onChange={(event) => { setReceiver(event.target.value); setCryptoQuote(null); }} autoComplete="off" spellCheck={false} placeholder="Adresse de réception" className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500" required />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Memo / Tag (si requis)</label>
+                        <input value={cryptoExtraId} onChange={(event) => { setCryptoExtraId(event.target.value); setCryptoQuote(null); }} autoComplete="off" placeholder="Optionnel" className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500" />
+                      </div>
+                      <p className="text-xs leading-relaxed text-slate-500">Le réseau et l’adresse sont validés avant la confirmation. Un seul montant de frais est affiché.</p>
                     </div>
                   )}
 

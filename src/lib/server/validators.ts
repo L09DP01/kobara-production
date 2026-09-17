@@ -1,5 +1,6 @@
 import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
+import { KOBARA_CRYPTO_CURRENCIES } from '../nowpayments.ts';
 
 extendZodWithOpenApi(z);
 
@@ -9,13 +10,29 @@ export const CustomerSchema = z.object({
   phone: z.string().optional().openapi({ description: "Phone number", example: "37000000" }),
 }).openapi("Customer");
 
+const cryptoCurrencyIds = KOBARA_CRYPTO_CURRENCIES.map((currency) => currency.id) as [string, ...string[]];
+
+export const PaymentWhiteLabelSchema = z.object({
+  label: z.string().trim().min(2).max(80).optional().openapi({ example: 'Acme Store' }),
+  logo_url: z.string().url().refine((value) => value.startsWith('https://'), 'logo_url must use HTTPS').optional(),
+  accent_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().openapi({ example: '#F95005' }),
+}).strict().optional().openapi('PaymentWhiteLabel');
+
 export const PaymentCreatePayloadSchema = z.object({
   amount: z.number().positive().openapi({ description: "Amount to charge", example: 2500 }),
-  currency: z.string().default("HTG").openapi({ description: "Currency of the payment", example: "HTG" }),
+  currency: z.preprocess(
+    (value) => typeof value === "string" ? value.trim().toUpperCase() : value,
+    z.enum(["HTG", "USD"]),
+  ).default("HTG").openapi({ description: "Currency of the payment", example: "HTG" }),
   provider: z.preprocess(
     (value) => typeof value === "string" ? value.trim().toLowerCase() : value,
-    z.enum(["moncash", "moncash_ussd", "moncash_web", "natcash", "natcash_web", "natcash_ussd", "carte", "card", "paypal", "apple_pay", "google_pay", "kobara"]),
-  ).optional().default("kobara").openapi({ description: "Payment provider (case-insensitive): moncash, natcash, card, paypal, apple_pay, google_pay, or kobara. Defaults to kobara (unified checkout page).", example: "card" }),
+    z.enum(["moncash", "moncash_ussd", "moncash_web", "natcash", "natcash_web", "natcash_ussd", "carte", "card", "paypal", "apple_pay", "google_pay", "crypto", "kobara"]),
+  ).optional().default("kobara").openapi({ description: "Payment provider (case-insensitive): moncash, natcash, card, paypal, apple_pay, google_pay, crypto, or kobara. Defaults to kobara (unified checkout page).", example: "crypto" }),
+  crypto_currency: z.preprocess(
+    (value) => typeof value === "string" ? value.trim().toLowerCase() : value,
+    z.enum(cryptoCurrencyIds),
+  ).optional().openapi({ description: "Optional supported crypto/network ticker. Omit it to let the customer choose on the Kobara checkout.", example: "usdttrc20" }),
+  white_label: PaymentWhiteLabelSchema,
   description: z.string().optional().openapi({ description: "Description of the payment", example: "Order #12345" }),
   customer: CustomerSchema.optional(),
   success_url: z.string().url().optional().openapi({ description: "URL to redirect after successful payment", example: "https://your-site.com/success" }),
@@ -34,6 +51,8 @@ export const PaymentResponseSchema = z.object({
     status: z.enum(["pending", "succeeded", "failed", "expired", "refunded"]).openapi({ example: "pending" }),
     environment: z.literal("live"),
     paid_at: z.string().nullable(),
+    provider: z.string().optional(),
+    invoice_id: z.string().nullable().optional(),
     checkout_url: z.string().url().openapi({ example: "https://pay.kobara.app/checkout/pay_123456" }),
     url: z.string().url().openapi({ description: "Backward-compatible alias of checkout_url", example: "https://pay.kobara.app/checkout/pay_123456" }),
     payment_url: z.string().url().openapi({ description: "Backward-compatible alias of checkout_url", example: "https://pay.kobara.app/checkout/pay_123456" }),

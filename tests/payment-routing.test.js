@@ -40,6 +40,7 @@ test('API payment providers are case-insensitive', () => {
   assert.equal(PaymentCreatePayloadSchema.parse({ ...basePayload, provider: 'NATCASH' }).provider, 'natcash');
   assert.equal(PaymentCreatePayloadSchema.parse({ ...basePayload, provider: 'MonCash' }).provider, 'moncash');
   assert.equal(PaymentCreatePayloadSchema.parse({ ...basePayload, provider: 'KOBARA' }).provider, 'kobara');
+  assert.equal(PaymentCreatePayloadSchema.parse({ ...basePayload, provider: 'CRYPTO' }).provider, 'crypto');
 });
 
 test('API payment responses expose current and legacy checkout URL fields', () => {
@@ -50,9 +51,15 @@ test('API payment responses expose current and legacy checkout URL fields', () =
       id: 'payment-id',
       reference: 'KOB123456789',
       amount: 1000,
+      net_amount: 960,
+      fee_amount: 40,
       status: 'pending',
+      environment: 'live',
+      paid_at: null,
       checkout_url: checkoutUrl,
       url: checkoutUrl,
+      payment_url: checkoutUrl,
+      paymentUrl: checkoutUrl,
     },
   });
 

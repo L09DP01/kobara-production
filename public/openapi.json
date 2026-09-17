@@ -72,6 +72,13 @@
                 "type": "string",
                 "nullable": true
               },
+              "provider": {
+                "type": "string"
+              },
+              "invoice_id": {
+                "type": "string",
+                "nullable": true
+              },
               "checkout_url": {
                 "type": "string",
                 "format": "uri",
@@ -129,6 +136,10 @@
           },
           "currency": {
             "type": "string",
+            "enum": [
+              "HTG",
+              "USD"
+            ],
             "default": "HTG",
             "description": "Currency of the payment",
             "example": "HTG"
@@ -147,11 +158,18 @@
               "paypal",
               "apple_pay",
               "google_pay",
+              "crypto",
               "kobara"
             ],
             "default": "kobara",
-            "description": "Payment provider (case-insensitive): moncash, natcash, card, paypal, apple_pay, google_pay, or kobara. Defaults to kobara (unified checkout page).",
-            "example": "card"
+            "description": "Payment provider (case-insensitive): moncash, natcash, card, paypal, apple_pay, google_pay, crypto, or kobara. Defaults to kobara (unified checkout page).",
+            "example": "crypto"
+          },
+          "crypto_currency": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{2,20}$",
+            "description": "Optional NOWPayments currency ticker. Omit it to let the customer choose on the hosted crypto checkout.",
+            "example": "usdttrc20"
           },
           "description": {
             "type": "string",
@@ -370,7 +388,7 @@
     "/v1/payments": {
       "post": {
         "summary": "Create a new payment",
-        "description": "Initialize a payment transaction. Use provider \"moncash\", \"natcash\", \"card\", \"paypal\", \"apple_pay\", or \"google_pay\" to preselect a method. Use \"kobara\" (default) for the unified checkout page where the customer chooses. International payment data is collected only on the hosted Kobara checkout.",
+        "description": "Initialize a payment transaction. Use provider \"moncash\", \"natcash\", \"card\", \"paypal\", \"apple_pay\", \"google_pay\", or \"crypto\" to preselect a method. Crypto returns a NOWPayments hosted checkout and settles the merchant balance in USD. Use \"kobara\" (default) for the unified checkout page where the customer chooses.",
         "tags": [
           "Payments"
         ],

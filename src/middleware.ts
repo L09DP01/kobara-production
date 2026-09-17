@@ -141,7 +141,9 @@ export async function middleware(request: NextRequest) {
 
   const isApiRequest = url.pathname.startsWith('/api') || hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local";
   const isV1Api = url.pathname.startsWith('/api/v1');
-  const isVerifiedProviderWebhook = url.pathname === '/api/webhooks/resend-inbound';
+  const isVerifiedProviderWebhook = url.pathname === '/api/webhooks/resend-inbound'
+    || url.pathname === '/api/webhooks/nowpayments'
+    || url.pathname === '/api/webhooks/nowpayments/payouts';
   const corsHeaders = isV1Api
     ? getPublicApiCorsHeaders(requestOrigin)
     : requestOrigin === MOBILE_APP_ORIGIN

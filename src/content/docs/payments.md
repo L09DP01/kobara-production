@@ -1,12 +1,12 @@
-# API Paiements Kobara (MonCash, NatCash, Carte Bancaire, Apple Pay & PayPal)
+# API Paiements Kobara (MonCash, NatCash, Carte, PayPal et Crypto)
 
 L'objet **Payment** représente une transaction de paiement initiée via Kobara.
 
-Kobara sert de couche d'intégration unifiée pour **MonCash**, **NatCash**, **Carte Bancaire (Débit/Crédit)**, **Apple Pay**, **Google Pay** et **PayPal**. Une seule API permet de créer un paiement, choisir le moyen ou laisser le client choisir sur le checkout unifié, suivre le statut et recevoir les confirmations webhook.
+Kobara sert de couche d'intégration unifiée pour **MonCash**, **NatCash**, **Carte Bancaire**, **Apple Pay**, **Google Pay**, **PayPal** et les **cryptomonnaies** via NOWPayments. Une seule API permet de créer un paiement, choisir le moyen, suivre le statut et recevoir les confirmations webhook.
 
 Cette API permet de :
 
-* créer une session de paiement (MonCash, NatCash, Carte/PayPal ou Kobara Checkout) ;
+* créer une session de paiement (MonCash, NatCash, Carte/PayPal, Crypto ou Kobara Checkout) ;
 * générer une URL checkout sécurisée ;
 * suivre le statut d'un paiement en temps réel ;
 * recevoir les confirmations webhook signées HMAC ;
@@ -100,8 +100,27 @@ Spécifie l'expérience de paiement que vous souhaitez offrir à votre client :
 * `"google_pay"` : présélectionne Google Pay lorsque le navigateur et l’appareil sont éligibles.
 * `"moncash"` : Redirige **directement** vers la page de paiement MonCash.
 * `"natcash"` : Redirige **directement** vers le paiement NatCash.
+* `"crypto"` : ouvre le checkout crypto Kobara. Le client choisit une crypto et un réseau autorisés, puis Kobara affiche le montant exact, l’adresse et le QR code. Le solde marchand est crédité en USD après confirmation finale.
 
 Les paiements internationaux sont convertis en USD selon le taux configuré par Kobara au moment où l’ordre est créé. Si la méthode demandée n’est pas disponible sur l’appareil, le checkout propose automatiquement une méthode compatible. Les données de carte ne transitent jamais par votre serveur ni par l’API de votre marchand.
+
+### `crypto_currency` *(string, optionnel)*
+Utilisé uniquement avec `provider: "crypto"`. Valeurs autorisées : `btc`, `eth`, `trx`, `ton`, `bnbbsc`, `usdttrc20`, `usdterc20`, `usdc`, `usdtbsc`, `pyusd` et `usdcbsc`. Si ce champ est omis, le client choisit sur le checkout Kobara.
+
+Kobara demande à NOWPayments de conserver la crypto sélectionnée sans échange vers une autre crypto. Le montant USD de référence est figé lors de la création, les frais Kobara sont de 3 %, et le solde USD reçoit le montant net uniquement après le statut final `finished`. La simple ouverture du checkout ne confirme jamais la transaction.
+
+### `white_label` *(object, optionnel)*
+Personnalise uniquement le checkout crypto créé par l’API. Les champs acceptés sont `label` (80 caractères maximum), `logo_url` (HTTPS obligatoire) et `accent_color` au format hexadécimal `#RRGGBB`. Aucun HTML ou CSS arbitraire n’est accepté.
+
+```json
+{
+  "white_label": {
+    "label": "Acme Store",
+    "logo_url": "https://cdn.example.com/acme-logo.png",
+    "accent_color": "#F95005"
+  }
+}
+```
 
 ### `description` *(string, optionnel)*
 Description visible dans le dashboard et sur la page de paiement.
@@ -173,6 +192,24 @@ const response = await fetch("https://api.kobara.app/v1/payments", {
 
 const data = await response.json();
 console.log("URL de redirection paiement :", data.data.checkout_url);
+```
+
+### Exemple crypto
+
+```bash
+curl https://api.kobara.app/v1/payments \
+  -X POST \
+  -H "Authorization: Bearer kbr_sk_live_VOTRE_CLE_API" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: crypto-order-8844" \
+  -d '{
+    "amount": 25,
+    "currency": "USD",
+    "provider": "crypto",
+    "description": "Commande ORDER-8844",
+    "success_url": "https://monsite.com/success",
+    "cancel_url": "https://monsite.com/cancel"
+  }'
 ```
 
 ---

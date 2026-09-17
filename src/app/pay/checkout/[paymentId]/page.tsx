@@ -2,6 +2,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { CheckoutFormClient } from "./CheckoutFormClient";
+import { CryptoCheckout } from './CryptoCheckout';
 import { PaymentProcessingLoader } from "@/components/payments/PaymentProcessingLoader";
 import { Lock, ShieldCheck } from "lucide-react";
 
@@ -90,6 +91,35 @@ export default async function UnifiedCheckoutPage({
           </p>
         </div>
       </div>
+    );
+  }
+
+  if (payment.provider === 'crypto') {
+    const whiteLabel = payment.metadata?.crypto_white_label || {};
+    const merchantName = whiteLabel.label || payment.merchants?.business_name || 'Marchand Kobara';
+    const merchantLogo = whiteLabel.logo_url || payment.merchants?.logo_url || null;
+    const accentColor = whiteLabel.accent_color || '#F95005';
+
+    return (
+      <CryptoCheckout
+        paymentId={payment.id}
+        reference={payment.kobara_reference || payment.id.slice(0, 8)}
+        amountUsd={Number(payment.amount_usd)}
+        merchantName={merchantName}
+        merchantLogo={merchantLogo}
+        accentColor={accentColor}
+        initialCurrency={payment.crypto_pay_currency || payment.metadata?.crypto_currency || null}
+        existingCheckout={payment.nowpayments_payment_id && payment.crypto_pay_currency && payment.crypto_pay_amount && payment.crypto_pay_address ? {
+          providerPaymentId: payment.nowpayments_payment_id,
+          payCurrency: payment.crypto_pay_currency,
+          payAmount: Number(payment.crypto_pay_amount),
+          payAddress: payment.crypto_pay_address,
+          extraId: payment.crypto_pay_extra_id || null,
+          network: payment.nowpayments_payment_payload?.network || null,
+          validUntil: payment.expires_at || payment.nowpayments_payment_payload?.valid_until || null,
+          status: payment.metadata?.nowpayments_status || 'waiting',
+        } : null}
+      />
     );
   }
 

@@ -10,12 +10,14 @@ interface UsdAccountSectionProps {
   isEligible: boolean;
   hasUsdAccount: boolean;
   availableBalanceUsd: number;
+  cryptoEnabled?: boolean;
 }
 
 export default function UsdAccountSection({
   isEligible,
   hasUsdAccount: initialHasUsd,
   availableBalanceUsd: initialBalanceUsd,
+  cryptoEnabled = false,
 }: UsdAccountSectionProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +68,7 @@ export default function UsdAccountSection({
 
         <div>
           <p className="text-xs text-slate-400 leading-relaxed">
-            Acceptez les paiements internationaux par <strong>Carte Bancaire</strong>, <strong>Apple Pay</strong>, <strong>Google Pay</strong> et <strong>PayPal</strong>.
+            Acceptez les paiements internationaux par <strong>Carte Bancaire</strong>, <strong>Apple Pay</strong>, <strong>Google Pay</strong>, <strong>PayPal</strong>{cryptoEnabled ? <> et <strong>Crypto</strong></> : null}.
           </p>
         </div>
 
@@ -155,7 +157,7 @@ export default function UsdAccountSection({
         </h3>
         <div className="flex items-center gap-2 mt-1">
           <span className="text-[11px] text-slate-500 font-medium">
-            Frais : 3.5% + $0.70 • Retrait : 2%
+            Solde des paiements internationaux confirmés
           </span>
         </div>
 

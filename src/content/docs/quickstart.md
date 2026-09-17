@@ -61,6 +61,7 @@ curl -X POST https://api.kobara.app/v1/payments \
 > - `"moncash"` : Redirige directement vers MonCash.
 > - `"natcash"` : Redirige directement vers NatCash.
 > - `"card"`, `"paypal"`, `"apple_pay"`, `"google_pay"` : Présélectionne un moyen international si le compte USD et le moyen sont actifs.
+> - `"crypto"` : Ouvre le checkout crypto Kobara avec choix du réseau, adresse et QR code; le règlement confirmé crédite le solde USD du marchand.
 >
 > Si vous ne spécifiez pas de `provider`, le défaut est `"kobara"`.
 

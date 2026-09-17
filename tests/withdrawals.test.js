@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeHaitianPhoneNumber } from '../src/lib/payment-routing.ts';
+import { getHaitianMobileWallet, normalizeHaitianPhoneNumber } from '../src/lib/payment-routing.ts';
 import { calculateWithdrawalQuote } from '../src/lib/withdrawal-currency.ts';
 
 test('Withdrawal System: Phone Number Validation', async (t) => {
@@ -34,6 +34,20 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
     assert.equal(totalBalance, 1000, 'The complete merchant balance remains visible');
     assert.equal(withdrawableBalance, 750, 'Only matured funds can be withdrawn');
     assert.equal(recentLocalCredits, 250, 'Recent local proceeds remain pending release');
+  });
+
+  await t.test('detects MonCash and NatCash blocks before provider submission', () => {
+    assert.equal(getHaitianMobileWallet('34567890'), 'moncash');
+    assert.equal(getHaitianMobileWallet('50939912345'), 'moncash');
+    assert.equal(getHaitianMobileWallet('48123456'), 'moncash');
+    assert.equal(getHaitianMobileWallet('32123456'), 'natcash');
+    assert.equal(getHaitianMobileWallet('33123456'), 'natcash');
+    assert.equal(getHaitianMobileWallet('35123456'), 'natcash');
+    assert.equal(getHaitianMobileWallet('41234567'), 'natcash');
+    assert.equal(getHaitianMobileWallet('50943123456'), 'natcash');
+    assert.equal(getHaitianMobileWallet('22567890'), 'natcash');
+    assert.equal(getHaitianMobileWallet('55123456'), 'natcash');
+    assert.equal(getHaitianMobileWallet('52123456'), null);
   });
 
   await t.test('releases local proceeds after 12 hours or at 08:00 the next Haiti day', () => {
@@ -82,6 +96,14 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
       Math.round((quote.netSourceAmount + quote.fees) * 100),
       Math.round(quote.grossAmount * 100),
     );
+  });
+
+  await t.test('accepts a gross 150 HTG local withdrawal and sends the net amount', () => {
+    const quote = calculateWithdrawalQuote({ amount: 150, method: 'moncash', sourceCurrency: 'HTG', exchangeRate: 130 });
+    assert.equal(quote.grossAmount, 150);
+    assert.equal(quote.fees, 7.5);
+    assert.equal(quote.payoutAmount, 142.5);
+    assert.equal(quote.grossAmount >= 150, true);
   });
 
   await t.test('calculates 2% fee for manual USD withdrawals', () => {
