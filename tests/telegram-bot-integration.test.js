@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import { readFileSync } from 'node:fs';
+
+const telegramService = readFileSync(
+  new URL('../src/lib/server/telegram/telegram-bot.service.ts', import.meta.url),
+  'utf8',
+);
 
 test('Telegram Bot Integration: Live-Only & Security Invariants', async (t) => {
   await t.test('Test payments are strictly ignored and NEVER sent to Telegram', () => {
@@ -85,6 +91,19 @@ test('Telegram Bot Integration: Live-Only & Security Invariants', async (t) => {
     assert.equal(validateWithdrawalInput(100, 5000).error, 'Montant minimum 150 HTG');
     assert.equal(validateWithdrawalInput(6000, 5000).error, 'Solde insuffisant');
     assert.equal(validateWithdrawalInput(2500, 5000).success, true);
+  });
+
+  await t.test('Bot crypto withdrawals use the USD account and the unified payout service', () => {
+    assert.match(telegramService, /callback_data: `withdraw_crypto:\$\{currency\.id\}`/);
+    assert.match(telegramService, /sourceCurrency: state\.sourceCurrency === 'USD' \? 'USD' : 'HTG'/);
+    assert.match(telegramService, /cryptoCurrency: state\.method === 'Crypto' \? state\.cryptoCurrency : undefined/);
+    assert.match(telegramService, /quoteNowPaymentsPayout\(\{ payoutUsd: amount, currency: state\.cryptoCurrency \}\)/);
+  });
+
+  await t.test('Bot withdrawal confirmation supports email OTP and Authenticator codes', () => {
+    assert.match(telegramService, /security\.two_factor_method === 'totp'/);
+    assert.match(telegramService, /speakeasy\.totp\.verify/);
+    assert.match(telegramService, /WithdrawalOtpService\.verifyWithdrawalOtp/);
   });
 
   await t.test('Telegram live push notification format contains required details', () => {

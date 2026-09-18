@@ -7,6 +7,17 @@ import { WithdrawalService } from '@/lib/server/withdrawals/withdrawal.service';
 import { canCreateWithdrawal } from '@/lib/server/access';
 import { getMerchantFundsAvailability } from '@/lib/server/withdrawals/funds-availability';
 import { B2BTransferService } from '@/lib/server/transfers/b2b-transfer.service';
+import speakeasy from 'speakeasy';
+import { normalizeSixDigitCode } from '@/lib/two-factor';
+import {
+  isNowPaymentsPayoutConfigured,
+  quoteNowPaymentsPayout,
+} from '@/lib/server/payments/nowpayments';
+import {
+  KOBARA_CRYPTO_CURRENCIES,
+  getCryptoWithdrawalMinimumUsd,
+  getKobaraCryptoCurrency,
+} from '@/lib/nowpayments';
 
 export class TelegramBotService {
   /**
@@ -357,20 +368,30 @@ L'équipe de sécurité Kobara — https://kobara.app
     const totalBalance = Number(merchant.available_balance || 0);
     const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', totalBalance);
     const liveAvailable = htgFunds.withdrawableBalance;
+    const usdFunds = await getMerchantFundsAvailability(
+      merchant.id,
+      'live',
+      'USD',
+      Number(merchant.available_balance_usd || 0),
+    );
+    const liveAvailableUsd = usdFunds.withdrawableBalance;
+    const cryptoAvailable = Boolean(merchant.has_usd_account)
+      && isNowPaymentsPayoutConfigured()
+      && liveAvailableUsd >= 10;
 
-    if (liveAvailable < 150) {
+    if (liveAvailable < 150 && !cryptoAvailable) {
       if (messageId) {
         await TelegramClient.deleteMessage(chatId, messageId);
       }
       await TelegramClient.sendMessage(
         chatId,
-        `⚠️ <b>Solde insuffisant</b>\n\nVotre solde disponible au retrait est de <b>${liveAvailable.toLocaleString('fr-HT')} HTG</b>.\nLe montant minimum de retrait est de <b>150 HTG</b>.`,
+        `⚠️ <b>Solde insuffisant</b>\n\nSolde retirable : <b>${liveAvailable.toLocaleString('fr-HT')} HTG</b>${merchant.has_usd_account ? ` et <b>${liveAvailableUsd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</b>` : ''}.`,
         { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() }
       );
       return { success: true };
     }
 
-    const accessCheck = await canCreateWithdrawal(merchant.id, 150);
+    const accessCheck = await canCreateWithdrawal(merchant.id, liveAvailable >= 150 ? 150 : 1);
     if (!accessCheck.allowed) {
       const reason = accessCheck.reason === 'kyc_required'
         ? 'Vous devez vérifier votre compte (KYC) pour effectuer des retraits réels.'
@@ -404,16 +425,22 @@ L'équipe de sécurité Kobara — https://kobara.app
       savedMoncash,
       savedNatcash,
       maxAvailable: liveAvailable,
+      maxAvailableUsd: liveAvailableUsd,
     });
 
     const buttons: any[] = [];
-    buttons.push([{ text: '📱 MonCash', callback_data: 'withdraw_method:moncash' }]);
-    buttons.push([{ text: '📲 NatCash', callback_data: 'withdraw_method:natcash' }]);
+    if (liveAvailable >= 150) {
+      buttons.push([{ text: '📱 MonCash', callback_data: 'withdraw_method:moncash' }]);
+      buttons.push([{ text: '📲 NatCash', callback_data: 'withdraw_method:natcash' }]);
+    }
+    if (cryptoAvailable) {
+      buttons.push([{ text: 'Crypto (compte USD)', callback_data: 'withdraw_method:crypto' }]);
+    }
     buttons.push([{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }]);
 
     await this.sendOrEditMessage(
       chatId,
-      `💸 <b>Demande de Retrait (Mode Réel)</b>\n\nSolde disponible : <b>${liveAvailable.toLocaleString('fr-HT')} HTG</b>\n\nChoisissez la méthode de réception :`,
+      `💸 <b>Demande de Retrait (Mode Réel)</b>\n\nCompte HTG : <b>${liveAvailable.toLocaleString('fr-HT')} HTG</b>${merchant.has_usd_account ? `\nCompte USD : <b>${liveAvailableUsd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}</b>` : ''}\n\nChoisissez le compte et la méthode de réception :`,
       {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: buttons },
@@ -422,6 +449,50 @@ L'équipe de sécurité Kobara — https://kobara.app
     );
 
     return { success: true };
+  }
+
+  private static async beginWithdrawalSecurity(
+    chatId: string | number,
+    merchant: any,
+    state: any,
+    summary: string,
+  ) {
+    const supabase = createAdminClient();
+    const { data: settings } = await supabase
+      .from('settings')
+      .select('security_json')
+      .eq('merchant_id', merchant.id)
+      .maybeSingle();
+    const security = settings?.security_json || {};
+    const securityMethod = security.two_factor_method === 'totp' && security.totp_secret
+      ? 'totp'
+      : 'email';
+
+    if (securityMethod === 'email') {
+      const issued = await WithdrawalOtpService.sendWithdrawalOtp({
+        merchantId: merchant.id,
+        userEmail: merchant.email,
+        amount: Number(state.amount),
+        method: state.method,
+      });
+      if (!issued.success) {
+        throw new Error(issued.error || "Impossible d'envoyer le code de sécurité.");
+      }
+    }
+
+    await this.updateSessionState(chatId, {
+      ...state,
+      step: 'withdraw_otp',
+      securityMethod,
+    });
+    const instruction = securityMethod === 'totp'
+      ? 'Saisissez le code à 6 chiffres affiché dans votre application Authenticator.'
+      : `Un code à 6 chiffres a été envoyé à <b>${this.escapeHtml(merchant.email)}</b>.`;
+    await TelegramClient.sendMessage(
+      chatId,
+      `🔐 <b>Confirmation requise</b>\n\n${summary}\n\n${instruction}`,
+      { parse_mode: 'HTML' },
+    );
   }
 
   private static async startB2BTransferFlow(chatId: string | number, merchant: any, messageId?: number) {
@@ -704,6 +775,63 @@ L'équipe de sécurité Kobara — https://kobara.app
     }
 
     // --- DEMANDE DE RETRAIT ---
+    if (state.step === 'withdraw_crypto_amount') {
+      const amount = Number(text.trim().replace(',', '.'));
+      const minimumUsd = getCryptoWithdrawalMinimumUsd(state.cryptoCurrency);
+      if (!Number.isFinite(amount) || amount < minimumUsd || Math.round(amount * 100) / 100 !== amount) {
+        await TelegramClient.sendMessage(chatId, `⚠️ Le montant minimum pour ce réseau est de <b>${minimumUsd} USD</b>. Saisissez un montant avec deux décimales maximum.`, { parse_mode: 'HTML' });
+        return { success: true };
+      }
+
+      try {
+        const quote = await quoteNowPaymentsPayout({ payoutUsd: amount, currency: state.cryptoCurrency });
+        if (quote.totalDebitUsd > Number(state.maxAvailableUsd || 0)) {
+          await TelegramClient.sendMessage(
+            chatId,
+            `⚠️ Le total avec les frais est de <b>${quote.totalDebitUsd.toFixed(2)} USD</b>, mais votre solde retirable est de <b>${Number(state.maxAvailableUsd || 0).toFixed(2)} USD</b>.`,
+            { parse_mode: 'HTML' },
+          );
+          return { success: true };
+        }
+        await this.updateSessionState(chatId, {
+          ...state,
+          step: 'withdraw_crypto_address',
+          amount,
+          cryptoQuote: quote,
+        });
+        const currency = getKobaraCryptoCurrency(state.cryptoCurrency);
+        await TelegramClient.sendMessage(
+          chatId,
+          `💰 <b>Montant :</b> ${amount.toFixed(2)} USD\n🌐 <b>Token et réseau :</b> ${currency?.symbol || state.cryptoCurrency} · ${currency?.network || ''}\n💳 <b>Frais réseau :</b> ${quote.combinedFeeUsd.toFixed(2)} USD\n<b>Total débité :</b> ${quote.totalDebitUsd.toFixed(2)} USD\n\nSaisissez maintenant l'<b>adresse du portefeuille destinataire</b> :`,
+          { parse_mode: 'HTML' },
+        );
+      } catch (error) {
+        await TelegramClient.sendMessage(chatId, `❌ ${this.escapeHtml(error instanceof Error ? error.message : 'Estimation crypto indisponible.')}`, { parse_mode: 'HTML' });
+      }
+      return { success: true };
+    }
+
+    if (state.step === 'withdraw_crypto_address') {
+      const address = text.trim();
+      if (address.length < 8 || /\s/.test(address)) {
+        await TelegramClient.sendMessage(chatId, '⚠️ Adresse invalide. Vérifiez-la puis réessayez.');
+        return { success: true };
+      }
+      const currency = getKobaraCryptoCurrency(state.cryptoCurrency);
+      const nextState = { ...state, receiver: address, method: 'Crypto', sourceCurrency: 'USD' };
+      try {
+        await this.beginWithdrawalSecurity(
+          chatId,
+          merchant,
+          nextState,
+          `Retrait : <b>${Number(state.amount).toFixed(2)} USD</b>\nRéseau : <b>${currency?.symbol || state.cryptoCurrency} · ${currency?.network || ''}</b>\nAdresse : <code>${this.escapeHtml(address)}</code>`,
+        );
+      } catch (error) {
+        await TelegramClient.sendMessage(chatId, `❌ ${this.escapeHtml(error instanceof Error ? error.message : "Impossible d'envoyer le code de sécurité.")}`, { parse_mode: 'HTML' });
+      }
+      return { success: true };
+    }
+
     if (state.step === 'withdraw_phone') {
       const phone = text.replace(/[^0-9]/g, '');
       if (phone.length < 8) {
@@ -737,51 +865,45 @@ L'équipe de sécurité Kobara — https://kobara.app
         return { success: true };
       }
 
-      // Envoyer le code OTP par email via le service de sécurité
       try {
-        await WithdrawalOtpService.sendWithdrawalOtp({
-          merchantId: merchant.id,
-          userEmail: merchant.email,
-          amount,
-          method: state.method,
-        });
-
-        await this.updateSessionState(chatId, {
-          ...state,
-          step: 'withdraw_otp',
-          amount,
-        });
-
-        await TelegramClient.sendMessage(
+        await this.beginWithdrawalSecurity(
           chatId,
-          `🔐 <b>Code de Sécurité Requis</b>\n\nUn code de confirmation à 6 chiffres a été envoyé à votre adresse e-mail (<b>${merchant.email}</b>).\n\nVeuillez saisir le code à 6 chiffres ici pour valider le retrait de <b>${amount.toLocaleString('fr-HT')} HTG</b> vers le <b>${state.receiver}</b> :`,
-          { parse_mode: 'HTML' }
+          merchant,
+          { ...state, amount, sourceCurrency: 'HTG' },
+          `Retrait : <b>${amount.toLocaleString('fr-HT')} HTG</b>\nDestinataire : <b>${this.escapeHtml(state.receiver)}</b> (${this.escapeHtml(state.method)})`,
         );
-      } catch (err: any) {
-        await TelegramClient.sendMessage(chatId, `❌ Impossible d'envoyer le code de sécurité : ${err.message}`, { reply_markup: this.getMainKeyboard() });
-        await this.updateSessionState(chatId, {});
+      } catch (error) {
+        await TelegramClient.sendMessage(chatId, `❌ ${this.escapeHtml(error instanceof Error ? error.message : "Impossible d'envoyer le code de sécurité.")}`, { parse_mode: 'HTML' });
       }
 
       return { success: true };
     }
 
     if (state.step === 'withdraw_otp') {
-      const otpCode = text.replace(/[^0-9]/g, '').trim();
-      if (otpCode.length !== 6) {
+      const otpCode = normalizeSixDigitCode(text);
+      if (!otpCode) {
         await TelegramClient.sendMessage(chatId, "⚠️ Le code doit comporter exactement 6 chiffres. Veuillez réessayer :", { parse_mode: 'HTML' });
         return { success: true };
       }
 
-      // Valider le code OTP
-      const otpValidation = await WithdrawalOtpService.verifyWithdrawalOtp({
-        merchantId: merchant.id,
-        code: otpCode,
-      });
-
-      if (!otpValidation.success) {
-        await TelegramClient.sendMessage(chatId, `❌ <b>Code incorrect ou expiré</b>\n\n${otpValidation.error || "Veuillez recommencer."}`, { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() });
-        await this.updateSessionState(chatId, {});
-        return { success: true };
+      if (state.securityMethod === 'totp') {
+        const { data: settings } = await supabase
+          .from('settings')
+          .select('security_json')
+          .eq('merchant_id', merchant.id)
+          .maybeSingle();
+        const secret = settings?.security_json?.totp_secret;
+        const valid = secret && speakeasy.totp.verify({ secret, encoding: 'base32', token: otpCode, window: 1 });
+        if (!valid) {
+          await TelegramClient.sendMessage(chatId, '❌ <b>Code Authenticator invalide</b>\n\nVérifiez le code actuel puis réessayez.', { parse_mode: 'HTML' });
+          return { success: true };
+        }
+      } else {
+        const otpValidation = await WithdrawalOtpService.verifyWithdrawalOtp({ merchantId: merchant.id, code: otpCode });
+        if (!otpValidation.success) {
+          await TelegramClient.sendMessage(chatId, `❌ <b>Code incorrect ou expiré</b>\n\n${this.escapeHtml(otpValidation.error || 'Veuillez réessayer.')}`, { parse_mode: 'HTML' });
+          return { success: true };
+        }
       }
 
       // Exécuter le retrait réel
@@ -792,9 +914,12 @@ L'équipe de sécurité Kobara — https://kobara.app
         merchantEmail: merchant.email,
         amount: state.amount,
         method: state.method,
+        sourceCurrency: state.sourceCurrency === 'USD' ? 'USD' : 'HTG',
         receiver: state.receiver,
         environment: 'live', // STRICTEMENT LIVE
         description: 'Retrait initié via Telegram Bot',
+        cryptoCurrency: state.method === 'Crypto' ? state.cryptoCurrency : undefined,
+        cryptoExtraId: state.method === 'Crypto' ? state.cryptoExtraId : undefined,
       });
 
       await this.updateSessionState(chatId, {});
@@ -807,9 +932,11 @@ L'équipe de sécurité Kobara — https://kobara.app
         );
       } else {
         const isInstant = withdrawalResult.status === 'completed';
+        const isCrypto = state.method === 'Crypto';
+        const currency = isCrypto ? getKobaraCryptoCurrency(state.cryptoCurrency) : null;
         await TelegramClient.sendMessage(
           chatId,
-          `✅ <b>${isInstant ? 'Retrait Effectué avec Succès !' : 'Demande de Retrait Enregistrée'}</b>\n\n💰 <b>Montant :</b> ${state.amount.toLocaleString('fr-HT')} HTG\n📱 <b>Destinataire :</b> ${state.receiver} (${state.method})\n🆔 <b>Statut :</b> ${isInstant ? 'Complété (Instantané)' : 'En cours de validation'}\n\nVotre solde a été mis à jour.`,
+          `✅ <b>${isInstant ? 'Retrait effectué avec succès' : 'Demande de retrait enregistrée'}</b>\n\n💰 <b>Montant :</b> ${isCrypto ? `${Number(state.amount).toFixed(2)} USD` : `${Number(state.amount).toLocaleString('fr-HT')} HTG`}\n${isCrypto ? `🌐 <b>Réseau :</b> ${currency?.symbol || state.cryptoCurrency} · ${currency?.network || ''}` : `📱 <b>Destinataire :</b> ${this.escapeHtml(state.receiver)} (${this.escapeHtml(state.method)})`}\n🆔 <b>Statut :</b> ${isInstant ? 'Complété' : 'En traitement'}\n\nVotre solde a été mis à jour.`,
           { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() }
         );
       }
@@ -1041,6 +1168,21 @@ L'équipe de sécurité Kobara — https://kobara.app
         await TelegramClient.deleteMessage(chatId, messageId);
       }
 
+      if (method === 'crypto') {
+        const rows = KOBARA_CRYPTO_CURRENCIES.map((currency) => [{
+          text: `${currency.symbol} · ${currency.network} · min. ${getCryptoWithdrawalMinimumUsd(currency.id)} USD`,
+          callback_data: `withdraw_crypto:${currency.id}`,
+        }]);
+        rows.push([{ text: '🔙 Retour', callback_data: 'action:withdraw' }]);
+        await this.updateSessionState(chatId, { ...session, method: 'Crypto', sourceCurrency: 'USD' });
+        await TelegramClient.sendMessage(
+          chatId,
+          `Choisissez le <b>token et le réseau</b>.\n\nSolde USD retirable : <b>${Number(session.maxAvailableUsd || 0).toFixed(2)} USD</b>`,
+          { parse_mode: 'HTML', reply_markup: { inline_keyboard: rows } },
+        );
+        return { success: true };
+      }
+
       const savedNumber = method === 'moncash' ? session.savedMoncash : session.savedNatcash;
 
       if (savedNumber) {
@@ -1076,6 +1218,32 @@ L'équipe de sécurité Kobara — https://kobara.app
           { parse_mode: 'HTML' }
         );
       }
+    }
+
+    if (data.startsWith('withdraw_crypto:')) {
+      const currencyId = data.split(':')[1];
+      const currency = getKobaraCryptoCurrency(currencyId);
+      const session = (account.link.session_state || {}) as any;
+      if (!currency) {
+        await TelegramClient.sendMessage(chatId, '⚠️ Ce token ou ce réseau n’est pas disponible.');
+        return { success: true };
+      }
+      if (messageId) {
+        await TelegramClient.deleteMessage(chatId, messageId);
+      }
+      await this.updateSessionState(chatId, {
+        ...session,
+        step: 'withdraw_crypto_amount',
+        method: 'Crypto',
+        sourceCurrency: 'USD',
+        cryptoCurrency: currency.id,
+      });
+      await TelegramClient.sendMessage(
+        chatId,
+        `🌐 Réseau choisi : <b>${currency.symbol} · ${currency.network}</b>\nSolde maximum : <b>${Number(session.maxAvailableUsd || 0).toFixed(2)} USD</b>\nMinimum : <b>${getCryptoWithdrawalMinimumUsd(currency.id)} USD</b>\n\nSaisissez le montant du retrait en USD :`,
+        { parse_mode: 'HTML' },
+      );
+      return { success: true };
     }
 
     return { success: true };

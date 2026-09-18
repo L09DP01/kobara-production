@@ -45,9 +45,10 @@ export default async function WithdrawalsPage() {
   const usdBalanceActive = Boolean(merchant.has_usd_account)
     && (usdAccount.isActive || isNowPaymentsConfigured());
   const htgFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'HTG', Number(merchant.available_balance || 0));
+  const usdFunds = await getMerchantFundsAvailability(merchant.id, 'live', 'USD', Number(merchant.available_balance_usd || 0));
   const safeMerchant = {
     available_balance: merchant.available_balance,
-    available_balance_usd: usdBalanceActive ? merchant.available_balance_usd : 0,
+    available_balance_usd: usdBalanceActive ? usdFunds.withdrawableBalance : 0,
     pending_balance: merchant.pending_balance,
     withdrawable_balance: htgFunds.withdrawableBalance,
   };

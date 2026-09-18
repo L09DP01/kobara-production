@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { quoteCryptoWithdrawalAction, requestWithdrawal, sendWithdrawalOtpAction } from './actions';
 import { executeB2BTransfer } from './b2b-actions';
 import { QRCodeSVG } from 'qrcode.react';
@@ -50,7 +50,7 @@ export function WithdrawalsClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<any>(null);
-  const [step, setStep] = useState<'details' | 'otp'>('details');
+  const [step, setStep] = useState<'details' | 'confirmation'>('details');
   const [amount, setAmount] = useState<number | ''>('');
   const [method, setMethod] = useState('MonCash');
   const [accountCurrency, setAccountCurrency] = useState<'HTG' | 'USD'>('HTG');
@@ -59,6 +59,8 @@ export function WithdrawalsClient({
   const [cryptoCurrency, setCryptoCurrency] = useState('usdttrc20');
   const [cryptoExtraId, setCryptoExtraId] = useState('');
   const [cryptoQuote, setCryptoQuote] = useState<any>(null);
+  const [cryptoQuoteLoading, setCryptoQuoteLoading] = useState(false);
+  const [cryptoQuoteError, setCryptoQuoteError] = useState('');
   const [code2fa, setCode2fa] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -70,8 +72,39 @@ export function WithdrawalsClient({
   const isCryptoMethod = method === 'Crypto';
   const selectedCurrency = accountCurrency;
   const activeBalance = accountCurrency === 'USD' ? activeUsdBalance : activeHtgBalance;
+  const selectedCryptoMinimum = getCryptoWithdrawalMinimumUsd(cryptoCurrency as Parameters<typeof getCryptoWithdrawalMinimumUsd>[0]);
   const quote = calculateWithdrawalQuote({ amount: Number(amount || 0), method, sourceCurrency: accountCurrency, exchangeRate });
   const { payoutCurrency, feeRate, payoutAmount: estimatedPayout } = quote;
+
+  useEffect(() => {
+    if (!isModalOpen || step !== 'details' || !isCryptoMethod || !amount) {
+      return;
+    }
+    const withdrawalAmount = Number(amount);
+    if (!Number.isFinite(withdrawalAmount) || withdrawalAmount < selectedCryptoMinimum) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setCryptoQuoteLoading(true);
+      setCryptoQuoteError('');
+      const result = await quoteCryptoWithdrawalAction(withdrawalAmount, cryptoCurrency);
+      if (cancelled) return;
+      if (result?.error || !result?.quote) {
+        setCryptoQuote(null);
+        setCryptoQuoteError(result?.error || 'Estimation crypto indisponible.');
+      } else {
+        setCryptoQuote(result.quote);
+      }
+      setCryptoQuoteLoading(false);
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [amount, cryptoCurrency, isCryptoMethod, isModalOpen, selectedCryptoMinimum, step]);
 
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,10 +141,6 @@ export function WithdrawalsClient({
       setErrorMsg(`L'email ou l'identifiant ${method} est requis.`);
       return;
     }
-    if (isCryptoMethod && !receiver.trim()) {
-      setErrorMsg("L'adresse du portefeuille crypto est requise.");
-      return;
-    }
     if (Number(amount) > activeBalance) {
       setErrorMsg("Votre solde est insuffisant.");
       return;
@@ -120,7 +149,7 @@ export function WithdrawalsClient({
     try {
       setLoading(true);
       if (isCryptoMethod) {
-        const quoteResult = await quoteCryptoWithdrawalAction(Number(amount), cryptoCurrency, receiver, cryptoExtraId || undefined);
+        const quoteResult = await quoteCryptoWithdrawalAction(Number(amount), cryptoCurrency);
         if (quoteResult?.error || !quoteResult?.quote) throw new Error(quoteResult?.error || 'Estimation crypto indisponible.');
         setCryptoQuote(quoteResult.quote);
       }
@@ -130,7 +159,7 @@ export function WithdrawalsClient({
           throw new Error(otpRes.error);
         }
       }
-      setStep('otp');
+      setStep('confirmation');
     } catch (err: any) {
       setErrorMsg(err.message || "Impossible d'envoyer le code de vérification.");
     } finally {
@@ -144,6 +173,10 @@ export function WithdrawalsClient({
 
     if (!code2fa) {
       setErrorMsg("Veuillez saisir le code de sécurité.");
+      return;
+    }
+    if (isCryptoMethod && !receiver.trim()) {
+      setErrorMsg("L'adresse du portefeuille crypto est requise.");
       return;
     }
 
@@ -194,6 +227,8 @@ export function WithdrawalsClient({
     setCode2fa('');
     setErrorMsg('');
     setCryptoQuote(null);
+    setCryptoQuoteLoading(false);
+    setCryptoQuoteError('');
   };
 
   const completedWithdrawals = withdrawals.filter(w => w.status === 'completed' || w.status === 'paid');
@@ -327,12 +362,12 @@ export function WithdrawalsClient({
           <div className="bg-[#131B2C] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#1a1a2e] to-[#16213e] p-5">
               <h2 className="text-lg font-bold text-white">
-                {step === 'details' ? 'Initier un Retrait' : 'Vérification de sécurité'}
+                {step === 'details' ? 'Initier un Retrait' : isCryptoMethod ? 'Destination et sécurité' : 'Vérification de sécurité'}
               </h2>
               <p className="text-white/50 text-xs mt-1">
                 {step === 'details'
                   ? 'Choisissez le compte à débiter, puis votre moyen de réception.'
-                  : 'Veuillez confirmer votre identité pour valider ce retrait'}
+                  : isCryptoMethod ? 'Vérifiez le réseau, l’adresse et votre code avant l’envoi.' : 'Veuillez confirmer votre identité pour valider ce retrait'}
               </p>
             </div>
 
@@ -351,7 +386,10 @@ export function WithdrawalsClient({
                     <div className={`grid gap-2 rounded-lg bg-white/5 p-1 ${usdAccountActive ? 'grid-cols-2' : 'grid-cols-1'}`}>
                       <button
                         type="button"
-                        onClick={() => setAccountCurrency('HTG')}
+                        onClick={() => {
+                          setAccountCurrency('HTG');
+                          if (method === 'Crypto') setMethod('MonCash');
+                        }}
                         className={`min-h-12 rounded-md px-3 text-left transition-colors ${accountCurrency === 'HTG' ? 'bg-orange-500 text-white' : 'text-slate-300 hover:bg-white/5'}`}
                       >
                         <span className="block text-xs font-bold">Compte HTG</span>
@@ -373,7 +411,12 @@ export function WithdrawalsClient({
                     <input
                       type="number"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      onChange={(e) => {
+                        setAmount(e.target.value === '' ? '' : Number(e.target.value));
+                        setCryptoQuote(null);
+                        setCryptoQuoteLoading(false);
+                        setCryptoQuoteError('');
+                      }}
                       placeholder="1000.00"
                       max={activeBalance}
                       min="0.01"
@@ -406,8 +449,11 @@ export function WithdrawalsClient({
                     {amount && Number(amount) > 0 && isCryptoMethod && (
                       <div className="mt-3 space-y-2 rounded-lg border border-white/10 bg-white/5 p-4">
                         <div className="flex justify-between text-sm text-slate-400"><span>Montant du retrait</span><span>{formatWithdrawalAmount(Number(amount), 'USD')}</span></div>
-                        <div className="flex justify-between text-sm text-orange-400"><span>Frais réseau + Kobara</span><span>{cryptoQuote ? formatWithdrawalAmount(cryptoQuote.combinedFeeUsd, 'USD') : 'Calculés avant confirmation'}</span></div>
+                        <div className="flex justify-between text-sm text-orange-400"><span>Frais réseau</span><span>{cryptoQuote ? formatWithdrawalAmount(cryptoQuote.combinedFeeUsd, 'USD') : cryptoQuoteLoading ? 'Calcul en cours…' : '—'}</span></div>
                         <div className="flex justify-between border-t border-white/10 pt-2 font-bold text-white"><span>Total débité</span><span>{cryptoQuote ? formatWithdrawalAmount(cryptoQuote.totalDebitUsd, 'USD') : '—'}</span></div>
+                        {(cryptoQuoteError || (!cryptoQuoteLoading && Number(amount) > 0 && Number(amount) < selectedCryptoMinimum)) && (
+                          <p className="pt-1 text-xs text-red-400">{cryptoQuoteError || `Minimum : ${selectedCryptoMinimum} USD sur ce réseau.`}</p>
+                        )}
                       </div>
                     )}
                     {amount && Number(amount) > 0 && method === 'B2B' && (
@@ -477,22 +523,13 @@ export function WithdrawalsClient({
                   )}
 
                   {isCryptoMethod && (
-                    <div className="space-y-4">
+                    <div>
                       <div>
                         <label className="mb-1.5 block text-xs font-bold text-slate-400">Crypto et réseau</label>
-                        <select value={cryptoCurrency} onChange={(event) => { setCryptoCurrency(event.target.value); setCryptoQuote(null); }} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500 [&>option]:bg-[#131B2C]">
+                        <select value={cryptoCurrency} onChange={(event) => { setCryptoCurrency(event.target.value); setCryptoQuote(null); setCryptoQuoteLoading(false); setCryptoQuoteError(''); }} className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500 [&>option]:bg-[#131B2C]">
                           {KOBARA_CRYPTO_CURRENCIES.map((currency) => <option key={currency.id} value={currency.id}>{currency.symbol} · {currency.network} · min. {getCryptoWithdrawalMinimumUsd(currency.id)} USD</option>)}
                         </select>
                       </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Adresse du portefeuille</label>
-                        <input value={receiver} onChange={(event) => { setReceiver(event.target.value); setCryptoQuote(null); }} autoComplete="off" spellCheck={false} placeholder="Adresse de réception" className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500" required />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Memo / Tag (si requis)</label>
-                        <input value={cryptoExtraId} onChange={(event) => { setCryptoExtraId(event.target.value); setCryptoQuote(null); }} autoComplete="off" placeholder="Optionnel" className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500" />
-                      </div>
-                      <p className="text-xs leading-relaxed text-slate-500">Le réseau et l’adresse sont validés avant la confirmation. Un seul montant de frais est affiché.</p>
                     </div>
                   )}
 
@@ -528,7 +565,7 @@ export function WithdrawalsClient({
                     </button>
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || (isCryptoMethod && cryptoQuoteLoading)}
                       className="px-6 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-all text-sm font-bold shadow-sm"
                     >
                       {loading ? 'Traitement...' : 'Continuer'}
@@ -537,6 +574,26 @@ export function WithdrawalsClient({
                 </form>
               ) : (
                 <form onSubmit={handleFinalSubmit} className="space-y-4">
+                  {isCryptoMethod && (
+                    <div className="space-y-4 rounded-lg border border-white/10 bg-white/[0.03] p-4">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-400">Réseau sélectionné</span>
+                        <span className="font-bold text-white">{KOBARA_CRYPTO_CURRENCIES.find((currency) => currency.id === cryptoCurrency)?.symbol} · {KOBARA_CRYPTO_CURRENCIES.find((currency) => currency.id === cryptoCurrency)?.network}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-slate-400">Total débité</span>
+                        <span className="font-bold text-white">{cryptoQuote ? formatWithdrawalAmount(cryptoQuote.totalDebitUsd, 'USD') : '—'}</span>
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Adresse du portefeuille</label>
+                        <input value={receiver} onChange={(event) => setReceiver(event.target.value)} autoComplete="off" spellCheck={false} placeholder="Adresse de réception" className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500" required />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-400">Memo / Tag (si requis)</label>
+                        <input value={cryptoExtraId} onChange={(event) => setCryptoExtraId(event.target.value)} autoComplete="off" placeholder="Optionnel" className="w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-white outline-none focus:border-orange-500" />
+                      </div>
+                    </div>
+                  )}
                   <div className="pt-2">
                     <label className="block text-xs text-slate-400 font-bold mb-1.5">
                       Code de sécurité ({(twoFactorMethod === 'totp') ? 'App Authenticator' : 'E-mail'})

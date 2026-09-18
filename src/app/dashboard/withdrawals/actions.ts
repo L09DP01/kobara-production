@@ -21,8 +21,6 @@ import {
 export async function quoteCryptoWithdrawalAction(
   amountUsd: number,
   currency: string,
-  address: string,
-  extraId?: string,
 ) {
   const { merchant, userRole } = await getCurrentUserAndMerchant();
   if (!merchant || userRole !== 'owner') return { error: 'Accès refusé.' };
@@ -30,7 +28,7 @@ export async function quoteCryptoWithdrawalAction(
     return { error: 'Votre solde USD est insuffisant.' };
   }
   try {
-    const quote = await quoteNowPaymentsPayout({ payoutUsd: Number(amountUsd), currency, address, extraId });
+    const quote = await quoteNowPaymentsPayout({ payoutUsd: Number(amountUsd), currency });
     if (quote.totalDebitUsd > Number(merchant.available_balance_usd || 0)) {
       return { error: 'Votre solde USD ne couvre pas le montant et les frais.' };
     }

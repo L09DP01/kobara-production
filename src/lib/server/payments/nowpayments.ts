@@ -184,7 +184,7 @@ export interface NowPaymentsPayoutQuote {
 export async function quoteNowPaymentsPayout(input: {
   payoutUsd: number;
   currency: string;
-  address: string;
+  address?: string;
   extraId?: string | null;
 }): Promise<NowPaymentsPayoutQuote> {
   const currency = input.currency.trim().toLowerCase();
@@ -195,7 +195,10 @@ export async function quoteNowPaymentsPayout(input: {
   }
 
   const sdk = getNowPaymentsPayoutSdk();
-  await sdk.validatePayoutAddress({ address: input.address.trim(), currency, extraId: input.extraId || null });
+  const address = input.address?.trim();
+  if (address) {
+    await sdk.validatePayoutAddress({ address, currency, extraId: input.extraId || null });
+  }
   const estimate = await sdk.estimatePrice({ amount: input.payoutUsd, fromCurrency: 'usd', toCurrency: currency });
   const payoutCrypto = Number(estimate.estimated_amount);
   if (!Number.isFinite(payoutCrypto) || payoutCrypto <= 0) throw new Error('Le taux crypto est indisponible.');
