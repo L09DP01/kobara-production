@@ -248,15 +248,15 @@ Kobara applique un rate limit pour :
 
 ## Erreurs du checkout crypto
 
-Le checkout hébergé Kobara vérifie les minimums du réseau avant de demander une adresse à NOWPayments. Les cryptos incompatibles avec le montant du paiement sont désactivées dans la liste et affichent leur minimum en USD.
+Le checkout hébergé Kobara vérifie les minimums du réseau avant de créer une adresse. Les cryptomonnaies incompatibles avec le montant du paiement sont désactivées et leur minimum est affiché en USD.
 
 | Code | HTTP | Signification | Action recommandée |
 | --- | --- | --- | --- |
 | `BELOW_MINIMUM_PAYMENT_AMOUNT` | `422` | Le montant est inférieur au minimum dynamique ou opérationnel du réseau sélectionné. | Augmenter le montant du paiement ou choisir une crypto disponible. |
 | `CRYPTO_CURRENCY_UNAVAILABLE` | `422` | La crypto ou le réseau est temporairement indisponible chez le fournisseur. | Choisir une autre option et ne pas réessayer en boucle. |
-| `CRYPTO_PROVIDER_REJECTED` | `422` ou `502` | NOWPayments a refusé l’initialisation pour une raison non récupérable côté checkout. | Choisir une autre crypto; réessayer plus tard uniquement pour une erreur `502`. |
-| `CRYPTO_NOT_CONFIGURED` | `503` | La configuration NOWPayments de Kobara est incomplète ou non autorisée. | Contacter le support Kobara. |
-| `CRYPTO_PROVIDER_UNAVAILABLE` | `503` | NOWPayments ne répond pas ou a dépassé le délai. | Réessayer avec un backoff exponentiel. |
+| `CRYPTO_PROVIDER_REJECTED` | `422` ou `502` | Le paiement crypto n’a pas pu être initialisé. | Choisir une autre crypto; réessayer plus tard uniquement pour une erreur `502`. |
+| `CRYPTO_NOT_CONFIGURED` | `503` | Le paiement crypto est temporairement indisponible. | Contacter le support Kobara. |
+| `CRYPTO_PROVIDER_UNAVAILABLE` | `503` | Le service crypto est temporairement indisponible. | Réessayer avec un backoff exponentiel. |
 | `CRYPTO_INITIALIZATION_FAILED` | `502` | L’adresse de paiement n’a pas pu être créée. | Conserver la référence Kobara et contacter le support si l’erreur persiste. |
 
 Exemple d’erreur de minimum :

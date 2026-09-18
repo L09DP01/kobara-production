@@ -2,7 +2,7 @@
 
 L'objet **Payment** représente une transaction de paiement initiée via Kobara.
 
-Kobara sert de couche d'intégration unifiée pour **MonCash**, **NatCash**, **Carte Bancaire**, **Apple Pay**, **Google Pay**, **PayPal** et les **cryptomonnaies** via NOWPayments. Une seule API permet de créer un paiement, choisir le moyen, suivre le statut et recevoir les confirmations webhook.
+Kobara sert de couche d'intégration unifiée pour **MonCash**, **NatCash**, **Carte Bancaire**, **Apple Pay**, **Google Pay**, **PayPal** et les **cryptomonnaies**. Une seule API permet de créer un paiement, choisir le moyen, suivre le statut et recevoir les confirmations webhook.
 
 Cette API permet de :
 
@@ -109,9 +109,9 @@ Après confirmation, la transaction est enregistrée dans la devise du compte r�
 ### `crypto_currency` *(string, optionnel)*
 Utilisé uniquement avec `provider: "crypto"`. Valeurs autorisées : `btc`, `eth`, `trx`, `ton`, `bnbbsc`, `usdttrc20`, `usdterc20`, `usdc`, `usdtbsc`, `pyusd` et `usdcbsc`. Si ce champ est omis, le client choisit sur le checkout Kobara.
 
-Kobara demande à NOWPayments de conserver la crypto sélectionnée sans échange vers une autre crypto. Le montant USD de référence est figé lors de la création, les frais Kobara sont de 3 %, et le solde USD reçoit le montant net uniquement après le statut final `finished`. La simple ouverture du checkout ne confirme jamais la transaction.
+Le montant USD de référence est figé lors de la création. Les frais Kobara sont de 3 % et le montant net est crédité sur le solde USD uniquement après confirmation du paiement.
 
-Le checkout récupère le minimum dynamique de NOWPayments et applique aussi un seuil opérationnel couvrant les frais réseau observés. Une crypto dont le minimum dépasse le montant du lien est grisée et ne peut pas être sélectionnée. Consultez la section [Erreurs API](/docs/errors) pour les codes `BELOW_MINIMUM_PAYMENT_AMOUNT`, `CRYPTO_CURRENCY_UNAVAILABLE` et les erreurs temporaires du fournisseur.
+Le checkout affiche uniquement les cryptomonnaies compatibles avec le montant demandé. Lorsqu’un minimum réseau est supérieur au montant du paiement, l’option concernée est désactivée et son minimum est affiché. Consultez la section [Erreurs API](/docs/errors) pour les codes utiles à votre intégration.
 
 ### `white_label` *(object, optionnel)*
 Personnalise uniquement le checkout crypto créé par l’API. Les champs acceptés sont `label` (80 caractères maximum), `logo_url` (HTTPS obligatoire) et `accent_color` au format hexadécimal `#RRGGBB`. Aucun HTML ou CSS arbitraire n’est accepté.
