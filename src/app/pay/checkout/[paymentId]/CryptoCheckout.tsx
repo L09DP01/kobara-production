@@ -264,7 +264,7 @@ export function CryptoCheckout({
                 </p>
               )}
               <button type="button" onClick={initialize} disabled={busy || minimumBusy || amountBelowMinimum} className="flex h-12 w-full items-center justify-center gap-2 rounded-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: accentColor }}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />} Générer l’adresse de paiement
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />} Payer avec {currency?.symbol || 'la crypto'}
               </button>
             </div>
           ) : (
