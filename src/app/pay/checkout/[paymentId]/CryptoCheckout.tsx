@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Image from 'next/image';
-import { Check, Clock3, Copy, Loader2, Lock, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, Check, Clock3, Copy, Loader2, Lock, ShieldCheck } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   getCryptoPaymentOperationalMinimumUsd,
@@ -296,6 +296,12 @@ export function CryptoCheckout({
                     <code className="min-w-0 break-all text-xs text-slate-200 sm:hidden">{shortAddress(checkout.payAddress)}</code>
                     <code className="hidden min-w-0 break-all text-xs text-slate-200 sm:block">{checkout.payAddress}</code>
                     <button type="button" onClick={() => copy(checkout.payAddress, 'address')} aria-label="Copier l’adresse" className="shrink-0 rounded-md p-1.5 text-slate-300 hover:bg-white/10">{copied === 'address' ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}</button>
+                  </div>
+                  <div role="alert" className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-xs leading-5 text-amber-100">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <p>
+                      Envoyez uniquement <strong>{currency?.symbol || checkout.payCurrency.toUpperCase()}</strong> sur le réseau <strong>{currency?.network || checkout.network}</strong>. Tout autre actif ou réseau envoyé à cette adresse peut être définitivement perdu.
+                    </p>
                   </div>
                 </div>
                 {checkout.extraId && (
