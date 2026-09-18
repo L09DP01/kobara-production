@@ -21,14 +21,14 @@ export default async function ApiNatCashWaitingPage({ params }: { params: Promis
     notFound();
   }
 
-  const successUrl = payment.success_url || `/`; // API payments can have a success_url to redirect to
+  const internalSuccessUrl = `/pay/success?reference=${encodeURIComponent(payment.kobara_reference || '')}&amount=${encodeURIComponent(String(payment.amount))}&currency=${encodeURIComponent(payment.currency || 'HTG')}&method=${encodeURIComponent(payment.payment_method || 'natcash')}`;
+  const successUrl = payment.success_url || internalSuccessUrl;
 
   if (payment.status === 'succeeded') {
     if (payment.success_url) {
        redirect(payment.success_url);
     }
-    // If no success url provided by dev, just show a success UI or redirect home
-    redirect('/?status=success');
+    redirect(internalSuccessUrl);
   }
 
   // Le numéro NatCash central unique de Kobara

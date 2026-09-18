@@ -3,6 +3,7 @@ import 'server-only';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getPaymentProviderConfig } from './gateway';
 import { PayPalService, type PayPalCaptureResult } from './paypal';
+import { withSettlementAuditMetadata } from '@/lib/payment-settlement';
 
 export type PayPalPaymentMethod = 'card' | 'paypal' | 'apple_pay' | 'google_pay';
 
@@ -66,7 +67,7 @@ export async function finalizePayPalCapture(params: {
   );
 
   const metadata = {
-    ...(payment.metadata || {}),
+    ...withSettlementAuditMetadata(payment, 'USD'),
     paypal_order_id: params.orderId,
     paypal_capture_id: params.capture.captureId,
     payer_email: params.capture.payerEmail || null,
@@ -83,6 +84,10 @@ export async function finalizePayPalCapture(params: {
     .update({
       status: 'succeeded',
       paid_at: new Date().toISOString(),
+      amount: fee.grossUsd,
+      fee_amount: fee.feeUsd,
+      net_amount: fee.netUsd,
+      currency: 'USD',
       provider: 'paypal',
       payment_method: paymentMethod,
       payment_source: paymentMethod,

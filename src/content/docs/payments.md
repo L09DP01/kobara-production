@@ -104,6 +104,8 @@ Spécifie l'expérience de paiement que vous souhaitez offrir à votre client :
 
 Les paiements internationaux sont convertis en USD selon le taux configuré par Kobara au moment où l’ordre est créé. Si la méthode demandée n’est pas disponible sur l’appareil, le checkout propose automatiquement une méthode compatible. Les données de carte ne transitent jamais par votre serveur ni par l’API de votre marchand.
 
+Après confirmation, la transaction est enregistrée dans la devise du compte réellement crédité. Par exemple, un lien créé en HTG mais réglé par carte, PayPal ou crypto est enregistré en USD; un règlement MonCash ou NatCash reste enregistré en HTG. Les champs `amount`, `fee_amount`, `net_amount` et `currency` du paiement confirmé suivent cette devise de règlement. Le devis initial reste disponible dans `metadata.original_quote` pour l’audit.
+
 ### `crypto_currency` *(string, optionnel)*
 Utilisé uniquement avec `provider: "crypto"`. Valeurs autorisées : `btc`, `eth`, `trx`, `ton`, `bnbbsc`, `usdttrc20`, `usdterc20`, `usdc`, `usdtbsc`, `pyusd` et `usdcbsc`. Si ce champ est omis, le client choisit sur le checkout Kobara.
 

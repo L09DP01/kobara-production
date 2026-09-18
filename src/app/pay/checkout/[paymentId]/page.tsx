@@ -5,6 +5,7 @@ import { CheckoutFormClient } from "./CheckoutFormClient";
 import { CryptoCheckout } from './CryptoCheckout';
 import { PaymentProcessingLoader } from "@/components/payments/PaymentProcessingLoader";
 import { Lock, ShieldCheck } from "lucide-react";
+import { getPaymentMethodLabel } from '@/lib/payment-settlement';
 
 export default async function UnifiedCheckoutPage({ 
   params,
@@ -50,7 +51,6 @@ export default async function UnifiedCheckoutPage({
           method={ussdMethod}
           merchantName={payment.merchants?.business_name || 'Marchand Kobara'}
           successUrl={payment.success_url || undefined}
-          cancelUrl={payment.cancel_url || undefined}
           expiresAt={payment.expires_at || undefined}
         />
       </div>
@@ -72,7 +72,7 @@ export default async function UnifiedCheckoutPage({
               </div>
               <h1 className="text-headline-md font-headline-md text-white mb-2">Paiement réussi</h1>
               <p className="text-slate-400 font-body-base">
-                Merci pour votre paiement. La transaction a été complétée avec succès. Vous pouvez fermer cette page.
+                Merci. Votre paiement de <strong className="text-white">{Number(payment.amount).toLocaleString(payment.currency === 'USD' ? 'en-US' : 'fr-HT')} {payment.currency || 'HTG'}</strong> via <strong className="text-white">{getPaymentMethodLabel(payment)}</strong> a été complété avec succès.
               </p>
             </div>
           </div>

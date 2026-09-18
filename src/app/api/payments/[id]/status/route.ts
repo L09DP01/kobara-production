@@ -20,7 +20,7 @@ export async function GET(
     
     const { data: payment, error } = await supabase
       .from('payments')
-      .select('id, amount, status, created_at, expires_at, provider, payment_method, kobara_reference, environment, success_url, error_url, metadata, nowpayments_payment_id')
+      .select('id, amount, net_amount, currency, status, created_at, expires_at, provider, payment_method, payment_source, kobara_reference, environment, success_url, error_url, metadata, nowpayments_payment_id')
       .eq('id', paymentId)
       .single();
 
@@ -79,6 +79,16 @@ export async function GET(
       }
     }
 
+    let responsePayment = payment;
+    if (currentStatus === 'succeeded') {
+      const { data: refreshedPayment } = await supabase
+        .from('payments')
+        .select('id, amount, net_amount, currency, status, created_at, expires_at, provider, payment_method, payment_source, kobara_reference, environment, success_url, error_url, metadata, nowpayments_payment_id')
+        .eq('id', paymentId)
+        .maybeSingle();
+      if (refreshedPayment) responsePayment = refreshedPayment;
+    }
+
     let subscription = null;
     if (payment.metadata?.is_subscription_upgrade) {
       const planSlug = String(payment.metadata.plan_slug || '');
@@ -106,15 +116,21 @@ export async function GET(
       };
     }
 
-    const reference = payment.kobara_reference || '';
+    const reference = responsePayment.kobara_reference || '';
     const successRedirect = payment.metadata?.is_subscription_upgrade
       ? `/pay/plan-success?payment_id=${encodeURIComponent(paymentId)}`
-      : payment.success_url || `/pay/success?reference=${encodeURIComponent(reference)}&amount=${encodeURIComponent(String(payment.amount))}`;
+      : responsePayment.success_url || `/pay/success?reference=${encodeURIComponent(reference)}&amount=${encodeURIComponent(String(responsePayment.amount))}&currency=${encodeURIComponent(responsePayment.currency || 'HTG')}&method=${encodeURIComponent(responsePayment.payment_method || responsePayment.provider || '')}`;
     const failureRedirect = payment.error_url
       || `/pay/error?reference=${encodeURIComponent(reference)}&reason=${currentStatus === 'expired' ? 'expired' : 'failed'}`;
 
     return NextResponse.json({
       status: currentStatus,
+      payment: currentStatus === 'succeeded' ? {
+        amount: Number(responsePayment.amount),
+        netAmount: Number(responsePayment.net_amount || responsePayment.amount),
+        currency: responsePayment.currency || 'HTG',
+        method: responsePayment.payment_method || responsePayment.provider || null,
+      } : null,
       subscription,
       redirectUrl: currentStatus === 'succeeded'
         ? successRedirect

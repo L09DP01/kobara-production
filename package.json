@@ -14,6 +14,7 @@
     "test:subscriptions": "node --experimental-strip-types --test tests/subscription-entitlement.test.js",
     "test:payment-routing": "node --experimental-strip-types --test tests/payment-routing.test.js",
     "test:nowpayments": "node --experimental-strip-types --test tests/nowpayments.test.js",
+    "test:payment-settlement": "node --experimental-strip-types --test tests/payment-settlement.test.js",
     "test:withdrawals": "node --experimental-strip-types --test tests/withdrawals.test.js",
     "test:business-name": "node --experimental-strip-types --test tests/business-name.test.js",
     "test:webhooks": "node --experimental-strip-types --test tests/webhook-environment-isolation.test.js",

@@ -1,4 +1,9 @@
 import { createAdminClient } from "@/utils/supabase/admin";
+import {
+  getPaymentMethodLabel,
+  getSettlementAmounts,
+  withSettlementAuditMetadata,
+} from '@/lib/payment-settlement';
 
 /**
  * Centralized handler for when a payment succeeds.
@@ -36,9 +41,8 @@ export async function onPaymentSucceeded(paymentId: string) {
     return;
   }
 
-  const merchantId = payment.merchant_id;
-
   // --- 1. Check if it's a subscription upgrade ---
+  const merchantId = payment.merchant_id;
   const metadata = payment.metadata as {
     is_subscription_upgrade?: boolean;
     plan_slug?: string;
@@ -79,6 +83,38 @@ export async function onPaymentSucceeded(paymentId: string) {
     return;
   }
 
+  const settlement = getSettlementAmounts(payment);
+  let settledPayment = payment;
+  if (
+    String(payment.currency || '').toUpperCase() !== settlement.currency
+    || Number(payment.amount) !== settlement.gross
+    || Number(payment.fee_amount) !== settlement.fee
+    || Number(payment.net_amount) !== settlement.net
+  ) {
+    const { data: normalizedPayment, error: normalizationError } = await supabase
+      .from('payments')
+      .update({
+        amount: settlement.gross,
+        fee_amount: settlement.fee,
+        net_amount: settlement.net,
+        currency: settlement.currency,
+        metadata: withSettlementAuditMetadata(payment, settlement.currency),
+      })
+      .eq('id', payment.id)
+      .eq('status', 'succeeded')
+      .select('*')
+      .maybeSingle();
+
+    if (normalizationError) {
+      console.error(`onPaymentSucceeded: settlement normalization failed for ${paymentId}`, normalizationError);
+    } else if (normalizedPayment) {
+      settledPayment = normalizedPayment;
+    }
+  }
+
+  const settledAmounts = getSettlementAmounts(settledPayment);
+  const paymentMethodLabel = getPaymentMethodLabel(settledPayment);
+
   // --- 2. Send Notification ---
   try {
     const { data: merchantData } = await supabase
@@ -89,7 +125,15 @@ export async function onPaymentSucceeded(paymentId: string) {
 
     if (merchantData?.email) {
       const { notifyPaymentSucceeded } = await import("@/lib/server/notifications");
-      await notifyPaymentSucceeded(merchantId, merchantData.email, Number(payment.amount), payment.currency || 'HTG', payment.id);
+      await notifyPaymentSucceeded({
+        merchantId,
+        email: merchantData.email,
+        amount: settledAmounts.gross,
+        netAmount: settledAmounts.net,
+        currency: settledAmounts.currency,
+        paymentMethod: paymentMethodLabel,
+        paymentId: settledPayment.id,
+      });
     }
   } catch (e) {
     console.error("Notification failed:", e);
@@ -103,21 +147,22 @@ export async function onPaymentSucceeded(paymentId: string) {
       environment: payment.environment === 'live' ? 'live' : 'test',
       eventType: 'payment.succeeded',
       data: {
-        id: payment.id,
-        reference: payment.kobara_reference,
-        amount: payment.amount,
-        net_amount: payment.net_amount,
-        fee_amount: payment.fee_amount,
-        amount_usd: payment.amount_usd,
-        net_amount_usd: payment.net_amount_usd,
-        fee_amount_usd: payment.fee_amount_usd,
-        currency: payment.currency,
+        id: settledPayment.id,
+        reference: settledPayment.kobara_reference,
+        amount: settledPayment.amount,
+        net_amount: settledPayment.net_amount,
+        fee_amount: settledPayment.fee_amount,
+        amount_usd: settledPayment.amount_usd,
+        net_amount_usd: settledPayment.net_amount_usd,
+        fee_amount_usd: settledPayment.fee_amount_usd,
+        currency: settledPayment.currency,
         status: 'succeeded',
-        provider: payment.provider,
-        payment_method: payment.payment_method,
-        paid_at: payment.paid_at,
-        metadata: payment.metadata,
-        customer_id: payment.customer_id,
+        provider: settledPayment.provider,
+        payment_method: settledPayment.payment_method,
+        payment_method_label: paymentMethodLabel,
+        paid_at: settledPayment.paid_at,
+        metadata: settledPayment.metadata,
+        customer_id: settledPayment.customer_id,
       },
     });
   } catch (e) {
@@ -127,7 +172,7 @@ export async function onPaymentSucceeded(paymentId: string) {
   // --- 4. Send Instant Telegram Push Notification (Strictly LIVE only) ---
   try {
     const { TelegramNotifierService } = await import("@/lib/server/telegram/telegram-notifier.service");
-    await TelegramNotifierService.notifyPaymentReceived(payment.id);
+    await TelegramNotifierService.notifyPaymentReceived(settledPayment.id);
   } catch (telegramErr) {
     console.error("Telegram notification failed:", telegramErr);
   }

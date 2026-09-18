@@ -149,6 +149,8 @@ La vérification doit utiliser le **corps brut reçu**, avant tout `JSON.parse`.
 
 > **Note :** Le champ `provider` et la méthode de paiement indiquent le moyen réellement utilisé par le client (`"moncash"`, `"natcash"`, `"card"`, `"paypal"`, `"apple_pay"`, `"google_pay"` ou `"crypto"`), même si vous aviez spécifié `"kobara"` lors de la création du paiement.
 
+> **Devise de règlement :** pour `payment.succeeded`, `amount`, `fee_amount`, `net_amount` et `currency` correspondent au compte marchand réellement crédité. Un paiement carte, PayPal ou crypto qui crédite le compte USD est donc envoyé en USD, même si le lien original était libellé en HTG. Le devis initial est conservé dans `metadata.original_quote`.
+
 ---
 
 

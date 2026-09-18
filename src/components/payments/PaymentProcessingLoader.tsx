@@ -8,8 +8,7 @@ import {
   XCircle, 
   Clock, 
   ShieldCheck, 
-  RefreshCw,
-  ArrowRight
+  RefreshCw
 } from 'lucide-react';
 
 interface PaymentProcessingLoaderProps {
@@ -20,7 +19,6 @@ interface PaymentProcessingLoaderProps {
   method: 'moncash_ussd' | 'natcash_ussd' | 'moncash' | 'natcash';
   merchantName?: string;
   successUrl?: string;
-  cancelUrl?: string;
   expiresAt?: string;
 }
 
@@ -32,13 +30,14 @@ export function PaymentProcessingLoader({
   method,
   merchantName = 'Marchand Kobara',
   successUrl,
-  cancelUrl,
   expiresAt,
 }: PaymentProcessingLoaderProps) {
   const router = useRouter();
   const [status, setStatus] = useState<'pending' | 'succeeded' | 'failed' | 'expired'>('pending');
-  const [timeLeft, setTimeLeft] = useState<number>(600); // 10 minutes in seconds
-  const [pollCount, setPollCount] = useState(0);
+  const [timeLeft, setTimeLeft] = useState<number>(() => expiresAt
+    ? Math.max(0, Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000))
+    : 600);
+  const [settledPayment, setSettledPayment] = useState<{ amount: number; currency: string; method?: string | null } | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isNatcash = method.toLowerCase().includes('natcash');
@@ -48,13 +47,6 @@ export function PaymentProcessingLoader({
 
   // Format expiration countdown
   useEffect(() => {
-    if (expiresAt) {
-      const expDate = new Date(expiresAt).getTime();
-      const now = Date.now();
-      const diffSec = Math.max(0, Math.floor((expDate - now) / 1000));
-      setTimeLeft(diffSec);
-    }
-
     timerRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
@@ -83,6 +75,7 @@ export function PaymentProcessingLoader({
         if (res.ok && isMounted) {
           const data = await res.json();
           if (data.status === 'succeeded') {
+            if (data.payment) setSettledPayment(data.payment);
             setStatus('succeeded');
             if (timerRef.current) clearInterval(timerRef.current);
             setTimeout(() => {
@@ -102,8 +95,6 @@ export function PaymentProcessingLoader({
         }
       } catch (err) {
         console.warn("Polling status error:", err);
-      } finally {
-        if (isMounted) setPollCount((c) => c + 1);
       }
     };
 
@@ -132,7 +123,8 @@ export function PaymentProcessingLoader({
           <div className="space-y-1">
             <h2 className="text-xl font-bold text-slate-100">Paiement Confirmé !</h2>
             <p className="text-xs text-slate-400">
-              Votre transaction de <strong className="text-white">{amount} {currency}</strong> a été validée avec succès.
+              Votre transaction de <strong className="text-white">{settledPayment?.amount ?? amount} {settledPayment?.currency ?? currency}</strong> a été validée avec succès
+              {settledPayment?.method ? <> via <strong className="text-white">{settledPayment.method.replaceAll('_', ' ').toUpperCase()}</strong></> : null}.
             </p>
           </div>
 

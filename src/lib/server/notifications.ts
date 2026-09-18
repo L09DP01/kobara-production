@@ -209,14 +209,32 @@ Le système automatisé Kobara
 }
 
 // 1. Nouvelle Paiement (succeeded)
-export async function notifyPaymentSucceeded(merchantId: string, email: string, amount: number, currency: string, paymentId?: string) {
+export async function notifyPaymentSucceeded(params: {
+  merchantId: string;
+  email: string;
+  amount: number;
+  netAmount: number;
+  currency: 'HTG' | 'USD';
+  paymentMethod: string;
+  paymentId?: string;
+}) {
+  const formatter = params.currency === 'USD'
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+    : new Intl.NumberFormat('fr-HT', { style: 'currency', currency: 'HTG', currencyDisplay: 'code' });
+  const message = [
+    'Votre paiement a été confirmé avec succès.',
+    `Montant payé : ${formatter.format(params.amount)}`,
+    `Net crédité : ${formatter.format(params.netAmount)}`,
+    `Moyen de paiement : ${params.paymentMethod}`,
+  ].join('\n');
+
   await createNotification(
-    merchantId,
+    params.merchantId,
     'payment_succeeded',
     'Paiement reçu',
-    `Vous avez reçu un paiement de ${amount} ${currency}.`,
-    email,
-    paymentId
+    message,
+    params.email,
+    params.paymentId
   );
 }
 

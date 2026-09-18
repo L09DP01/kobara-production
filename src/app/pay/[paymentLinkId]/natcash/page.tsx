@@ -2,16 +2,9 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { notFound, redirect } from "next/navigation";
 import { NatCashWaitingClient } from "./NatCashWaitingClient";
 
-import { headers } from "next/headers";
-
 export default async function NatCashWaitingPage({ params, searchParams }: { params: Promise<{ paymentLinkId: string }>, searchParams: Promise<{ payment_id?: string }> }) {
   const resolvedParams = await params;
   const resolvedSearchParams = await searchParams;
-  
-  const headersList = await headers();
-  const host = headersList.get('host') || '';
-  const isPaySubdomain = host.startsWith('pay.');
-  const basePath = isPaySubdomain ? '' : '/pay';
 
   if (!resolvedSearchParams.payment_id) {
     redirect(`/pay/${resolvedParams.paymentLinkId}`);
@@ -30,7 +23,7 @@ export default async function NatCashWaitingPage({ params, searchParams }: { par
   }
 
   if (payment.status === 'succeeded') {
-    redirect(`/pay/${resolvedParams.paymentLinkId}?status=success`);
+    redirect(`/pay/${resolvedParams.paymentLinkId}?status=success&payment_id=${encodeURIComponent(payment.id)}`);
   }
 
   // Le numéro NatCash central unique de Kobara
@@ -44,7 +37,7 @@ export default async function NatCashWaitingPage({ params, searchParams }: { par
         referenceCode={payment.reference_code || ''}
         merchantName={payment.merchants?.business_name || 'Kobara Merchant'}
         merchantPhone={natcashPhone}
-        successUrl={`/pay/${resolvedParams.paymentLinkId}?status=success`}
+        successUrl={`/pay/${resolvedParams.paymentLinkId}?status=success&payment_id=${encodeURIComponent(payment.id)}`}
         expiresAt={payment.expires_at}
       />
     </div>

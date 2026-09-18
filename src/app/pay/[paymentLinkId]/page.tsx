@@ -8,13 +8,14 @@ import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 import { PayPalService } from "@/lib/server/payments/paypal";
 import { canCreatePayment } from "@/lib/server/access";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
+import { getPaymentMethodLabel } from '@/lib/payment-settlement';
 
 export default async function PublicPaymentPage({ 
   params, 
   searchParams 
 }: { 
   params: Promise<{ paymentLinkId: string }>, 
-  searchParams: Promise<{ status?: string, error?: string }> 
+  searchParams: Promise<{ status?: string, error?: string, payment_id?: string }>
 }) {
   const supabaseAdmin = createAdminClient();
   
@@ -92,6 +93,17 @@ export default async function PublicPaymentPage({
   }
 
   if (resolvedSearchParams.status === 'success') {
+    const { data: succeededPayment } = resolvedSearchParams.payment_id
+      ? await supabaseAdmin
+          .from('payments')
+          .select('id, amount, currency, provider, payment_method, payment_source')
+          .eq('id', resolvedSearchParams.payment_id)
+          .eq('payment_link_id', link.id)
+          .eq('merchant_id', link.merchant_id)
+          .eq('status', 'succeeded')
+          .maybeSingle()
+      : { data: null };
+
     return (
       <div className="min-h-[100dvh] bg-[#0F1626] flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white/5 border border-white/10 rounded-lg p-8 text-center shadow-lg ambient-shadow">
@@ -100,7 +112,9 @@ export default async function PublicPaymentPage({
           </div>
           <h1 className="text-headline-md font-headline-md text-white mb-2">Paiement réussi</h1>
           <p className="text-slate-400 font-body-base">
-            Merci pour votre paiement. La transaction a été complétée avec succès.
+            {succeededPayment
+              ? <>Merci. Votre paiement de <strong className="text-white">{Number(succeededPayment.amount).toLocaleString(succeededPayment.currency === 'USD' ? 'en-US' : 'fr-HT')} {succeededPayment.currency || 'HTG'}</strong> via <strong className="text-white">{getPaymentMethodLabel(succeededPayment)}</strong> a été complété avec succès.</>
+              : 'Merci pour votre paiement. La transaction a été complétée avec succès.'}
           </p>
         </div>
       </div>

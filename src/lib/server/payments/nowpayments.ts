@@ -441,8 +441,9 @@ export async function applyNowPaymentsStatus(payment: NowPaymentsPayment) {
   }
 
   const providerPayload = safeProviderPayload(payment);
+  const { withSettlementAuditMetadata } = await import('@/lib/payment-settlement');
   const metadata = {
-    ...(kobaraPayment.metadata || {}),
+    ...withSettlementAuditMetadata(kobaraPayment, 'USD'),
     payment_processor: 'nowpayments',
     nowpayments_payment_id: providerPaymentId,
     crypto_currency: payment.pay_currency || null,
@@ -462,6 +463,10 @@ export async function applyNowPaymentsStatus(payment: NowPaymentsPayment) {
       .update({
         status: 'succeeded',
         paid_at: new Date().toISOString(),
+        amount: Number(kobaraPayment.amount_usd),
+        fee_amount: Number(kobaraPayment.fee_amount_usd),
+        net_amount: Number(kobaraPayment.net_amount_usd),
+        currency: 'USD',
         provider: 'crypto',
         payment_method: payment.pay_currency || 'crypto',
         payment_source: 'crypto',

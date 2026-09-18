@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { CheckCircle2, Home, ArrowRight } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { CheckCircle2, Home } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,9 +12,10 @@ import { processSuccessfulPayment } from "./actions";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const reference = searchParams.get("reference");
   const amount = searchParams.get("amount");
+  const currency = searchParams.get("currency")?.toUpperCase() === 'USD' ? 'USD' : 'HTG';
+  const method = searchParams.get("method");
   const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
@@ -53,8 +54,14 @@ function SuccessContent() {
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
               <div className="flex justify-between items-center mb-3">
                 <span className="text-sm text-slate-500">Montant</span>
-                <span className="text-lg font-bold text-slate-900">{amount ? `${amount} HTG` : "---"}</span>
+                <span className="text-lg font-bold text-slate-900">{amount ? `${amount} ${currency}` : "---"}</span>
               </div>
+              {method && (
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm text-slate-500">Moyen</span>
+                  <span className="text-sm font-semibold text-slate-900">{method.replaceAll('_', ' ').toUpperCase()}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-500">Référence</span>
                 <span className="text-sm font-mono text-slate-700">{reference || "---"}</span>
@@ -62,7 +69,7 @@ function SuccessContent() {
             </div>
             
             <p className="text-center text-sm text-slate-500">
-              Un reçu a été envoyé au marchand. Merci d'avoir utilisé Kobara.
+              Un reçu a été envoyé au marchand. Merci d&apos;avoir utilisé Kobara.
             </p>
           </CardContent>
           <CardFooter className="flex flex-col gap-3 pb-8">
@@ -73,7 +80,7 @@ function SuccessContent() {
                 "w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-12 text-base font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-emerald-200"
               )}
             >
-              Retour à l'accueil
+              Retour à l&apos;accueil
               <Home className="ml-2 w-4 h-4" />
             </Link>
             <p className="text-[10px] text-slate-400 text-center uppercase tracking-widest font-bold">
