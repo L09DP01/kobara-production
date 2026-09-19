@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { getHaitianMobileWallet, normalizeHaitianPhoneNumber } from '../src/lib/payment-routing.ts';
 import { calculateWithdrawalQuote } from '../src/lib/withdrawal-currency.ts';
+
+const immediateUsdMigration = readFileSync(
+  new URL('../supabase/migrations/20260919115735_make_usd_funds_immediately_withdrawable.sql', import.meta.url),
+  'utf8',
+);
 
 test('Withdrawal System: Phone Number Validation', async (t) => {
   await t.test('accepts 8-digit Haitian numbers and normalizes with 509', () => {
@@ -34,6 +40,13 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
     assert.equal(totalBalance, 1000, 'The complete merchant balance remains visible');
     assert.equal(withdrawableBalance, 750, 'Only matured funds can be withdrawn');
     assert.equal(recentLocalCredits, 250, 'Recent local proceeds remain pending release');
+  });
+
+  await t.test('makes every USD credit immediately available for withdrawal', () => {
+    assert.match(immediateUsdMigration, /WHERE currency = 'USD'/);
+    assert.match(immediateUsdMigration, /NEW\.withdrawable_at := NEW\.credited_at/);
+    assert.match(immediateUsdMigration, /IF v_currency = 'USD' THEN[\s\S]*'withdrawable_balance', v_total/);
+    assert.match(immediateUsdMigration, /'pending_release_balance', 0/);
   });
 
   await t.test('detects MonCash and NatCash blocks before provider submission', () => {
