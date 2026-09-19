@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { handleRequestProxy } from '@/lib/server/request-proxy';
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
   return handleRequestProxy(request);
 }
 
