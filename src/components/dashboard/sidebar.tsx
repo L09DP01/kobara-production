@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
-  BadgeCheck, BarChart3, BookOpen, CreditCard, Headphones, KeyRound,
-  LayoutDashboard, LogOut, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
+  BarChart3, BookOpen, CreditCard, Headphones, KeyRound,
+  LayoutDashboard, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
@@ -17,6 +17,7 @@ interface SidebarLink {
   label: string;
   exact?: boolean;
   ownerOnly?: boolean;
+  external?: boolean;
 }
 
 const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
@@ -37,15 +38,7 @@ const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
       { href: "/developers", icon: Blocks, label: "Intégration" },
       { href: "/api-keys", icon: KeyRound, label: "Clés API" },
       { href: "/webhooks", icon: Webhook, label: "Webhooks" },
-      { href: "/developers", icon: BookOpen, label: "Documentation" },
-    ],
-  },
-  {
-    title: "Entreprise",
-    links: [
-      { href: "/analytics", icon: BarChart3, label: "Analyses" },
-      { href: "/kyc", icon: BadgeCheck, label: "Vérification KYC", ownerOnly: true },
-      { href: "/settings", icon: Settings, label: "Paramètres" },
+      { href: "https://docs.kobara.app/docs/quickstart", icon: BookOpen, label: "Documentation", external: true },
     ],
   },
 ];
@@ -139,10 +132,17 @@ function SidebarContent({ pathname, onClose, userRole }: { pathname: string | nu
               <h2 className="mb-2 px-3 text-[10px] font-bold uppercase text-slate-600">{section.title}</h2>
               <div className="space-y-1">
                 {visibleLinks.map((link) => {
-                  const active = isLinkActive(pathname, link);
+                  const active = !link.external && isLinkActive(pathname, link);
                   const Icon = link.icon;
                   return (
-                    <Link key={link.href} href={link.href} onClick={onClose} className={clsx("group flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors duration-150", active ? "bg-orange-500/12 text-white" : "text-slate-400 hover:bg-white/5 hover:text-slate-100")}>
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={onClose}
+                      target={link.external ? "_blank" : undefined}
+                      rel={link.external ? "noreferrer" : undefined}
+                      className={clsx("group flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors duration-150", active ? "bg-orange-500/12 text-white" : "text-slate-400 hover:bg-white/5 hover:text-slate-100")}
+                    >
                       <Icon className={clsx("h-[18px] w-[18px] shrink-0", active ? "text-orange-400" : "text-slate-500 group-hover:text-slate-300")} />
                       <span>{link.label}</span>
                       {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-orange-400" aria-hidden="true" />}

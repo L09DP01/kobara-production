@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/utils/supabase/admin';
+import { isNowPaymentsConfigured } from '@/lib/server/payments/nowpayments';
 
 export const MERCHANT_PAYMENT_METHODS = [
   'moncash',
@@ -73,7 +74,7 @@ export async function getMerchantPaymentMethodState(merchantId: string): Promise
     paypal: internationalEligible,
     apple_pay: internationalEligible,
     google_pay: internationalEligible,
-    crypto: false,
+    crypto: merchant?.has_usd_account === true && isNowPaymentsConfigured(),
   };
   const enabled = MERCHANT_PAYMENT_METHODS.reduce((result, method) => {
     result[method] = configured[method] && eligible[method];

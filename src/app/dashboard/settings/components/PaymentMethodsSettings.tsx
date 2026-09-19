@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import * as Switch from '@radix-ui/react-switch';
 import { CreditCard, Landmark, Smartphone, WalletCards } from 'lucide-react';
 import { updatePaymentMethodSetting } from '../actions';
 import { confirmPaymentMethodsAction } from '../../setup-guide/actions';
@@ -26,22 +27,28 @@ export function PaymentMethodsSettings({ initialState }: { initialState: Merchan
   const [pendingMethod, setPendingMethod] = useState<MerchantPaymentMethod | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function toggle(method: MerchantPaymentMethod) {
+  async function toggle(method: MerchantPaymentMethod) {
     const nextValue = !state.configured[method];
     setPendingMethod(method);
     setError(null);
-    startTransition(async () => {
-      try {
-        const nextState = await updatePaymentMethodSetting(method, nextValue);
-        setState(nextState);
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : 'Impossible de modifier ce moyen de paiement.');
-      } finally {
-        setPendingMethod(null);
+    setIsUpdating(true);
+    try {
+      const result = await updatePaymentMethodSetting(method, nextValue);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
-    });
+      setState(result.state);
+      setConfirmed(false);
+    } catch {
+      setError('Impossible de modifier ce moyen de paiement. Réessayez dans quelques instants.');
+    } finally {
+      setPendingMethod(null);
+      setIsUpdating(false);
+    }
   }
 
   return (
@@ -58,7 +65,7 @@ export function PaymentMethodsSettings({ initialState }: { initialState: Merchan
           const Icon = method.icon;
           const eligible = state.eligible[method.id];
           const checked = state.enabled[method.id];
-          const updating = isPending && pendingMethod === method.id;
+          const updating = isUpdating && pendingMethod === method.id;
           return (
             <div key={method.id} className="flex min-h-20 items-center gap-3 px-5 py-4 sm:px-6">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-[#0F1626] text-slate-300">
@@ -71,24 +78,22 @@ export function PaymentMethodsSettings({ initialState }: { initialState: Merchan
                 </div>
                 <p className="mt-0.5 text-xs text-slate-400">{method.description}</p>
               </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={checked}
+              <Switch.Root
+                checked={checked}
                 aria-label={`${checked ? 'Désactiver' : 'Activer'} ${method.name}`}
                 disabled={!eligible || updating}
-                onClick={() => toggle(method.id)}
-                className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors ${checked ? 'border-emerald-400/40 bg-emerald-500' : 'border-white/10 bg-slate-700'} disabled:cursor-not-allowed disabled:opacity-40`}
+                onCheckedChange={() => void toggle(method.id)}
+                className="group relative h-6 w-11 shrink-0 rounded-full border border-white/10 bg-slate-700 p-0.5 outline-none transition-colors duration-150 data-[state=checked]:border-emerald-400/40 data-[state=checked]:bg-emerald-500 focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111C2C] disabled:cursor-not-allowed disabled:opacity-40"
               >
-                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
+                <Switch.Thumb className="block h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-transform duration-150 will-change-transform data-[state=checked]:translate-x-5" />
+              </Switch.Root>
             </div>
           );
         })}
       </div>
       <div className="flex flex-col gap-3 border-t border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="text-xs text-slate-400">MonCash et NatCash sont activés par défaut. Les autres moyens restent optionnels.</p>
-        <button type="button" disabled={isPending || confirmed} onClick={() => startTransition(async () => { try { await confirmPaymentMethodsAction(); setConfirmed(true); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Validation impossible.'); } })} className="rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">{confirmed ? 'Sélection validée' : 'Valider cette sélection'}</button>
+        <button type="button" disabled={isPending || isUpdating || confirmed} onClick={() => startTransition(async () => { try { await confirmPaymentMethodsAction(); setConfirmed(true); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Validation impossible.'); } })} className="rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">{confirmed ? 'Sélection validée' : 'Valider cette sélection'}</button>
       </div>
     </section>
   );

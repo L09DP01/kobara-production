@@ -26,47 +26,47 @@ import {
 } from '@/lib/server/payments/merchant-payment-methods';
 
 export async function updatePaymentMethodSetting(method: MerchantPaymentMethod, enabled: boolean) {
-  const { merchant, userRole } = await getAuthUserAndMerchant();
-  if (userRole !== 'owner') {
-    throw new Error("Seul le propriétaire peut modifier les moyens de paiement.");
+  try {
+    const { merchant, userRole } = await getAuthUserAndMerchant();
+    if (userRole !== 'owner') {
+      return { ok: false as const, error: "Seul le propriétaire peut modifier les moyens de paiement." };
+    }
+    if (!MERCHANT_PAYMENT_METHODS.includes(method)) {
+      return { ok: false as const, error: 'Moyen de paiement invalide.' };
+    }
+
+    const currentState = await getMerchantPaymentMethodState(merchant.id);
+    if (enabled && !currentState.eligible[method]) {
+      return { ok: false as const, error: 'Ce moyen de paiement nécessite une configuration supplémentaire avant son activation.' };
+    }
+
+    const admin = createAdminClient();
+    const { data: currentSettings, error: readError } = await admin
+      .from('settings')
+      .select('settings_json')
+      .eq('merchant_id', merchant.id)
+      .maybeSingle();
+    if (readError) throw readError;
+
+    const root = currentSettings?.settings_json && typeof currentSettings.settings_json === 'object'
+      ? { ...currentSettings.settings_json }
+      : {};
+    const paymentMethods = normalizeMerchantPaymentMethods(root);
+    paymentMethods[method] = enabled;
+    const settingsJson = { ...root, payment_methods: paymentMethods };
+
+    const { error } = currentSettings
+      ? await admin.from('settings').update({ settings_json: settingsJson }).eq('merchant_id', merchant.id)
+      : await admin.from('settings').insert({ merchant_id: merchant.id, settings_json: settingsJson });
+    if (error) throw error;
+
+    revalidatePath('/dashboard/settings');
+    revalidatePath('/dashboard/payment-links');
+    return { ok: true as const, state: await getMerchantPaymentMethodState(merchant.id) };
+  } catch (error) {
+    console.error('[PaymentMethods] Unable to update merchant setting:', error);
+    return { ok: false as const, error: 'Impossible d’enregistrer ce moyen de paiement. Réessayez dans quelques instants.' };
   }
-  if (!MERCHANT_PAYMENT_METHODS.includes(method)) {
-    throw new Error('Moyen de paiement invalide.');
-  }
-
-  const currentState = await getMerchantPaymentMethodState(merchant.id);
-  if (enabled && !currentState.eligible[method]) {
-    throw new Error('Ce moyen de paiement nécessite une configuration supplémentaire avant son activation.');
-  }
-
-  const admin = createAdminClient();
-  const { data: currentSettings } = await admin
-    .from('settings')
-    .select('settings_json')
-    .eq('merchant_id', merchant.id)
-    .maybeSingle();
-  const root = currentSettings?.settings_json && typeof currentSettings.settings_json === 'object'
-    ? { ...currentSettings.settings_json }
-    : {};
-  const paymentMethods = normalizeMerchantPaymentMethods(root);
-  paymentMethods[method] = enabled;
-  const settingsJson = { ...root, payment_methods: paymentMethods };
-
-  const { error } = currentSettings
-    ? await admin.from('settings').update({ settings_json: settingsJson }).eq('merchant_id', merchant.id)
-    : await admin.from('settings').insert({ merchant_id: merchant.id, settings_json: settingsJson });
-  if (error) throw new Error('Impossible d’enregistrer les moyens de paiement.');
-
-  const { error: progressError } = await admin.from('merchant_setup_progress').upsert({
-    merchant_id: merchant.id,
-    payment_methods_confirmed_at: new Date().toISOString(),
-  }, { onConflict: 'merchant_id' });
-  if (progressError) throw new Error('Les moyens sont enregistrés, mais leur validation n’a pas pu être confirmée.');
-
-  revalidatePath('/dashboard');
-  revalidatePath('/dashboard/settings');
-  revalidatePath('/dashboard/payment-links');
-  return getMerchantPaymentMethodState(merchant.id);
 }
 
 export async function updatePayoutSettings(savedMoncashNumber: string) {
