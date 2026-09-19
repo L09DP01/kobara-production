@@ -140,7 +140,8 @@ Causes fréquentes :
 * utilisation d’une clé publique côté serveur ;
 * tentative de retrait avec clé publique ;
 * permissions insuffisantes ;
-* environnement incorrect.
+* environnement incorrect ;
+* moyen de paiement non activé dans le dashboard du marchand.
 
 ---
 
@@ -153,6 +154,21 @@ Causes fréquentes :
     "code": "forbidden",
     "message": "Cette action nécessite une Secret Key."
   }
+}
+```
+
+---
+
+### PAYMENT_METHOD_NOT_ENABLED
+
+Le moyen demandé n’est pas activé pour ce compte marchand. Activez-le dans **Paramètres > Moyens de paiement**, puis renvoyez la requête avec une nouvelle clé d’idempotence.
+
+```json id="payment-method-not-enabled"
+{
+  "status": "error",
+  "error": "payment_method_not_enabled",
+  "code": "PAYMENT_METHOD_NOT_ENABLED",
+  "message": "Ce moyen de paiement n'est pas activé pour ce compte."
 }
 ```
 

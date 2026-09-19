@@ -52,7 +52,10 @@ export default async function PublicPaymentPage({
   const providerConfig = await getPaymentProviderConfig();
   const { plan } = await getMerchantCurrentPlan(link.merchant_id);
   const transactionFeePercent = plan ? plan.transaction_fee_percent / 100 : 0.04;
-  const usdAccount = await PayPalService.getMerchantUsdAccountState(link.merchants || { id: link.merchant_id });
+  const [usdAccount, paymentMethods] = await Promise.all([
+    PayPalService.getMerchantUsdAccountState(link.merchants || { id: link.merchant_id }),
+    getMerchantPaymentMethodState(link.merchant_id),
+  ]);
   const allowCardPayment = usdAccount.isActive;
   let paymentsBlocked = false;
   let quotaError: string | undefined;

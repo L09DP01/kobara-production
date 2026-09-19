@@ -132,7 +132,10 @@ export default async function UnifiedCheckoutPage({
     .eq('id', payment.merchant_id)
     .maybeSingle();
 
-  const usdAccount = await PayPalService.getMerchantUsdAccountState(merchantData);
+  const [usdAccount, paymentMethods] = await Promise.all([
+    PayPalService.getMerchantUsdAccountState(merchantData),
+    getMerchantPaymentMethodState(payment.merchant_id),
+  ]);
   const allowCardPayment = usdAccount.isActive;
 
   return (

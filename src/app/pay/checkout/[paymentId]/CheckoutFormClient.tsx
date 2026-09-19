@@ -6,6 +6,7 @@ import type { PaymentProviderConfig } from '@/types/payment-provider';
 import { PaymentBrandMarks } from '@/components/payments/PaymentBrandMarks';
 import { PayPalExpandedCheckout, type PayPalCheckoutMethod } from './PayPalExpandedCheckout';
 import { processUnifiedCheckout } from './actions';
+import type { MerchantPaymentMethodMap } from '@/lib/server/payments/merchant-payment-methods';
 
 interface Props {
   paymentId: string;
@@ -16,6 +17,7 @@ interface Props {
   allowCardPayment?: boolean;
   amountHtg?: number;
   initialMethod?: string;
+  enabledPaymentMethods: MerchantPaymentMethodMap;
 }
 
 type LocalMethod = 'moncash' | 'natcash';
@@ -42,9 +44,17 @@ export function CheckoutFormClient({
   defaultPhone,
   allowCardPayment = false,
   initialMethod,
+  enabledPaymentMethods,
 }: Props) {
   const isPaym = config.active_provider === 'paym';
-  const [selectedMethod, setSelectedMethod] = useState<CheckoutMethod>(() => initialSelection(initialMethod, allowCardPayment));
+  const [selectedMethod, setSelectedMethod] = useState<CheckoutMethod>(() => {
+    const requested = initialSelection(initialMethod, allowCardPayment);
+    if (enabledPaymentMethods[requested]) return requested;
+    if (enabledPaymentMethods.moncash) return 'moncash';
+    if (enabledPaymentMethods.natcash) return 'natcash';
+    if (enabledPaymentMethods.card) return 'card';
+    return 'paypal';
+  });
   const [eligibility, setEligibility] = useState<Eligibility>(initialEligibility);
   const [phone, setPhone] = useState(defaultPhone || '');
   const [busy, setBusy] = useState(false);
@@ -60,14 +70,14 @@ export function CheckoutFormClient({
 
   const localMethods = useMemo(() => {
     const methods: Array<{ id: LocalMethod; title: string; subtitle: string; image: string }> = [];
-    if (isPaym ? config.paym_moncash_web || config.paym_moncash_ussd : true) {
+    if (enabledPaymentMethods.moncash && (isPaym ? config.paym_moncash_web || config.paym_moncash_ussd : true)) {
       methods.push({ id: 'moncash', title: 'MonCash', subtitle: 'Paiement mobile Digicel', image: '/moncash.png' });
     }
-    if (isPaym ? config.paym_natcash_web : config.sms_gateway_enabled) {
+    if (enabledPaymentMethods.natcash && (isPaym ? config.paym_natcash_web : config.sms_gateway_enabled)) {
       methods.push({ id: 'natcash', title: 'NatCash', subtitle: 'Paiement mobile Natcom', image: '/natcash.png' });
     }
     return methods;
-  }, [config, isPaym]);
+  }, [config, enabledPaymentMethods.moncash, enabledPaymentMethods.natcash, isPaym]);
 
   const isUssd = selectedMethod === 'moncash' && isPaym && config.paym_moncash_ussd && !config.paym_moncash_web;
 
@@ -101,13 +111,14 @@ export function CheckoutFormClient({
     { id: 'apple_pay', title: 'Apple Pay', subtitle: 'Disponible sur cet appareil' },
     { id: 'google_pay', title: 'Google Pay', subtitle: 'Disponible sur cet appareil' },
   ];
+  const hasAvailableMethod = localMethods.length > 0 || (allowCardPayment && paypalOptions.some((option) => enabledPaymentMethods[option.id] && eligibility[option.id]));
 
   return (
     <form action={submitLocalPayment} className="space-y-5">
       {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 p-3.5 text-xs text-red-300">{error}</div>}
       <fieldset className="space-y-2.5">
         <legend className="mb-3 text-xs font-bold uppercase text-slate-400">Moyen de paiement</legend>
-        {allowCardPayment && paypalOptions.map((option) => eligibility[option.id] && (
+        {allowCardPayment && paypalOptions.map((option) => enabledPaymentMethods[option.id] && eligibility[option.id] && (
           <div key={option.id} className={`overflow-hidden rounded-lg border transition-colors ${selectedMethod === option.id ? 'border-orange-500 bg-orange-500/[0.07]' : 'border-white/10 bg-white/[0.02]'}`}>
             <label className="flex min-h-16 cursor-pointer items-center justify-between p-4 hover:bg-white/[0.04]">
               <span className="flex items-center gap-3">
@@ -139,6 +150,7 @@ export function CheckoutFormClient({
             <span className="flex h-8 w-11 items-center justify-center overflow-hidden rounded bg-white p-1"><img src={option.image} alt="" className="max-h-full max-w-full object-contain" /></span>
           </label>
         ))}
+        {!hasAvailableMethod && <div role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-200">Aucun moyen de paiement n'est actuellement disponible pour ce marchand.</div>}
       </fieldset>
 
       {isUssd && (

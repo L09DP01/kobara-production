@@ -9,7 +9,6 @@ import {
   BadgeCheck, BarChart3, BookOpen, CreditCard, Headphones, KeyRound,
   LayoutDashboard, LogOut, Menu, Settings, Users, WalletCards, Webhook, X,
 } from "lucide-react";
-import { performFullLogout } from "@/lib/utils/logout-client";
 import { siteConfig } from "@/config/site";
 
 interface SidebarLink {
@@ -26,13 +25,16 @@ const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
     title: "Opérations",
     links: [
       { href: "/payments", icon: CreditCard, label: "Paiements" },
+      { href: "/payment-links", icon: Link2, label: "Liens de paiement" },
       { href: "/customers", icon: Users, label: "Clients" },
       { href: "/withdrawals", icon: WalletCards, label: "Retraits", ownerOnly: true },
     ],
   },
+  { title: "Performance", links: [{ href: "/analytics", icon: BarChart3, label: "Analyses" }] },
   {
     title: "Développeurs",
     links: [
+      { href: "/developers", icon: Blocks, label: "Intégration" },
       { href: "/api-keys", icon: KeyRound, label: "Clés API" },
       { href: "/webhooks", icon: Webhook, label: "Webhooks" },
       { href: "/developers", icon: BookOpen, label: "Documentation" },
@@ -91,7 +93,7 @@ export function MobileBottomNav({ onOpenMore, userRole = "owner" }: { onOpenMore
   const items: SidebarLink[] = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Accueil", exact: true },
     { href: "/payments", icon: CreditCard, label: "Paiements" },
-    { href: "/customers", icon: Users, label: "Clients" },
+    { href: "/payment-links", icon: Link2, label: "Liens" },
     userRole === "owner" ? { href: "/withdrawals", icon: WalletCards, label: "Retraits" } : { href: "/api-keys", icon: KeyRound, label: "API" },
   ];
 
@@ -154,12 +156,12 @@ function SidebarContent({ pathname, onClose, userRole }: { pathname: string | nu
       </nav>
 
       <div className="shrink-0 border-t border-[#223047] p-3">
+        <Link href="/settings" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white">
+          <Settings className="h-[18px] w-[18px]" /><span>Paramètres</span>
+        </Link>
         <Link href="/support" onClick={onClose} className="flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white">
           <Headphones className="h-[18px] w-[18px]" /><span>Support client</span>
         </Link>
-        <button type="button" onClick={() => performFullLogout()} className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-sm font-semibold text-red-400 transition-colors duration-150 hover:bg-red-500/10">
-          <LogOut className="h-[18px] w-[18px]" /><span>Déconnexion</span>
-        </button>
       </div>
     </>
   );

@@ -18,6 +18,49 @@ import {
   normalizeBusinessName,
 } from "@/lib/business-name";
 import { normalizeSixDigitCode } from '@/lib/two-factor';
+import {
+  getMerchantPaymentMethodState,
+  MERCHANT_PAYMENT_METHODS,
+  normalizeMerchantPaymentMethods,
+  type MerchantPaymentMethod,
+} from '@/lib/server/payments/merchant-payment-methods';
+
+export async function updatePaymentMethodSetting(method: MerchantPaymentMethod, enabled: boolean) {
+  const { merchant, userRole } = await getAuthUserAndMerchant();
+  if (userRole !== 'owner') {
+    throw new Error("Seul le propriétaire peut modifier les moyens de paiement.");
+  }
+  if (!MERCHANT_PAYMENT_METHODS.includes(method)) {
+    throw new Error('Moyen de paiement invalide.');
+  }
+
+  const currentState = await getMerchantPaymentMethodState(merchant.id);
+  if (enabled && !currentState.eligible[method]) {
+    throw new Error('Ce moyen de paiement nécessite une configuration supplémentaire avant son activation.');
+  }
+
+  const admin = createAdminClient();
+  const { data: currentSettings } = await admin
+    .from('settings')
+    .select('settings_json')
+    .eq('merchant_id', merchant.id)
+    .maybeSingle();
+  const root = currentSettings?.settings_json && typeof currentSettings.settings_json === 'object'
+    ? { ...currentSettings.settings_json }
+    : {};
+  const paymentMethods = normalizeMerchantPaymentMethods(root);
+  paymentMethods[method] = enabled;
+  const settingsJson = { ...root, payment_methods: paymentMethods };
+
+  const { error } = currentSettings
+    ? await admin.from('settings').update({ settings_json: settingsJson }).eq('merchant_id', merchant.id)
+    : await admin.from('settings').insert({ merchant_id: merchant.id, settings_json: settingsJson });
+  if (error) throw new Error('Impossible d’enregistrer les moyens de paiement.');
+
+  revalidatePath('/dashboard/settings');
+  revalidatePath('/dashboard/payment-links');
+  return getMerchantPaymentMethodState(merchant.id);
+}
 
 export async function updatePayoutSettings(savedMoncashNumber: string) {
   const { merchant } = await getAuthUserAndMerchant();

@@ -7,17 +7,20 @@ import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
 export default async function PaymentsPage({
   searchParams
 }: {
-  searchParams: { q?: string, status?: string }
+  searchParams: Promise<{ q?: string, status?: string, page?: string }>
 }) {
   const { merchant, supabase } = await getCurrentUserAndMerchant();
 
   const queryParams = await searchParams;
   const searchQ = queryParams?.q || '';
   const filterStatus = queryParams?.status || 'all';
+  const pageSize = 50;
+  const requestedPage = Number.parseInt(queryParams?.page || '1', 10);
+  const currentPage = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
   let query = supabase
     .from('payments')
-    .select('*, customers(name, email)')
+    .select('*, customers(name, email)', { count: 'exact' })
     .eq('merchant_id', merchant.id)
     .eq('environment', 'live');
 
@@ -25,9 +28,14 @@ export default async function PaymentsPage({
     query = query.eq('status', filterStatus);
   }
 
-  const { data: payments } = await query.order('created_at', { ascending: false });
+  let orderedQuery = query.order('created_at', { ascending: false });
+  if (!searchQ) {
+    const from = (currentPage - 1) * pageSize;
+    orderedQuery = orderedQuery.range(from, from + pageSize - 1);
+  }
+  const { data: payments, count: paymentCount } = await orderedQuery;
 
-  const filteredPayments = payments ? payments.filter(p => {
+  const matchingPayments = payments ? payments.filter(p => {
     if (!searchQ) return true;
     const lowerQ = searchQ.toLowerCase();
     const customerName = p.customers?.name?.toLowerCase() || '';
@@ -36,6 +44,18 @@ export default async function PaymentsPage({
     const amt = p.amount?.toString() || '';
     return customerName.includes(lowerQ) || customerEmail.includes(lowerQ) || ref.includes(lowerQ) || amt.includes(lowerQ);
   }) : [];
+  const filteredPayments = searchQ
+    ? matchingPayments.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : matchingPayments;
+  const totalResults = searchQ ? matchingPayments.length : (paymentCount || 0);
+  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (searchQ) params.set('q', searchQ);
+    if (filterStatus !== 'all') params.set('status', filterStatus);
+    params.set('page', String(page));
+    return `/payments?${params.toString()}`;
+  };
 
   // Stats
   const { data: allPaymentsForStats } = await supabase
@@ -155,7 +175,7 @@ export default async function PaymentsPage({
             <span className="material-symbols-outlined text-orange-400 text-[18px] sm:text-[20px]">receipt_long</span>
             <h2 className="font-bold text-white text-sm sm:text-base">Historique des transactions</h2>
           </div>
-          <span className="text-slate-400 text-[11px] sm:text-xs font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded-md shadow-sm">{filteredPayments.length} résultat(s)</span>
+          <span className="text-slate-400 text-[11px] sm:text-xs font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded-md shadow-sm">{totalResults} résultat(s)</span>
         </div>
 
         <div className="overflow-x-auto">
@@ -252,6 +272,15 @@ export default async function PaymentsPage({
             </tbody>
           </table>
         </div>
+        {totalResults > pageSize && (
+          <div className="flex flex-col gap-3 border-t border-white/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <p className="text-xs text-slate-400">Page <span className="font-bold text-white">{currentPage}</span> sur <span className="font-bold text-white">{totalPages}</span></p>
+            <div className="flex gap-2">
+              {currentPage > 1 ? <Link href={pageHref(currentPage - 1)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/5">Précédent</Link> : <span className="rounded-lg border border-white/5 px-3 py-2 text-xs font-bold text-slate-600">Précédent</span>}
+              {currentPage < totalPages ? <Link href={pageHref(currentPage + 1)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/5">Suivant</Link> : <span className="rounded-lg border border-white/5 px-3 py-2 text-xs font-bold text-slate-600">Suivant</span>}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

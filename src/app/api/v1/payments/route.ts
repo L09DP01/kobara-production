@@ -123,6 +123,15 @@ export async function POST(request: NextRequest) {
           ? 'natcash'
         : 'kobara';
 
+    if (!await isMerchantPaymentMethodEnabled(merchantId, rawProvider)) {
+      return NextResponse.json({
+        status: 'error',
+        error: 'payment_method_not_enabled',
+        code: 'PAYMENT_METHOD_NOT_ENABLED',
+        message: "Ce moyen de paiement n'est pas activé pour ce compte.",
+      }, { status: 403 });
+    }
+
     if (isCard) {
       const usdAccount = await PayPalService.getMerchantUsdAccountState({ id: merchantId });
       if (!usdAccount.isActive) {

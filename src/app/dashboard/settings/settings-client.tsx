@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { ProfileSettings } from './components/ProfileSettings';
 import { SecuritySettings } from './components/SecuritySettings';
 import { NotificationSettings } from './components/NotificationSettings';
@@ -8,13 +9,14 @@ import { TeamSettings } from './components/TeamSettings';
 import { PayoutSettings } from './components/PayoutSettings';
 import { Store, CreditCard, Shield, Bell, Users, Settings as SettingsIcon } from 'lucide-react';
 
-type Tab = 'profile' | 'payouts' | 'security' | 'notifications' | 'team';
+type Tab = 'profile' | 'paymentMethods' | 'payouts' | 'security' | 'notifications' | 'team';
 
 export function SettingsClient({ user, merchant, settings, members, userRole = 'owner' }: { user: any, merchant: any, settings: any, members: any[], userRole?: string }) {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
 
   const tabs: { id: Tab, label: string, icon: any, desc: string, ownerOnly?: boolean }[] = [
     { id: 'profile', label: 'Profil Entreprise', icon: Store, desc: 'Logo, nom, adresse' },
+    { id: 'paymentMethods', label: 'Moyens de paiement', icon: WalletCards, desc: 'Options proposées aux clients', ownerOnly: true },
     { id: 'payouts', label: 'Comptes de Retrait', icon: CreditCard, desc: 'MonCash, banques', ownerOnly: true },
     { id: 'security', label: 'Sécurité & Sessions', icon: Shield, desc: 'Passkey, 2FA, Appareils', ownerOnly: true },
     { id: 'notifications', label: 'Notifications', icon: Bell, desc: 'Email, push, alertes' },
@@ -41,9 +43,21 @@ export function SettingsClient({ user, merchant, settings, members, userRole = '
         </div>
 
         {/* Quick status pill */}
-        <div className="flex items-center gap-2 px-3.5 py-1.5 bg-[#07111F] border border-[#1E2A38] rounded-full text-xs font-semibold text-slate-300 self-start sm:self-auto">
-          <span className="w-2 h-2 rounded-full bg-[#27C93F] animate-pulse" />
-          <span>{merchant?.business_name || 'Marchand Kobara'}</span>
+        <div className="flex flex-wrap items-center gap-2 self-start sm:justify-end">
+          {userRole === 'owner' && (
+            <>
+              <Link href="/billing" className="flex min-h-9 items-center gap-2 rounded-lg border border-[#1E2A38] bg-[#07111F] px-3 text-xs font-semibold text-slate-300 hover:border-slate-600 hover:text-white">
+                <ReceiptText className="h-4 w-4" /> Abonnement
+              </Link>
+              <Link href="/kyc" className="flex min-h-9 items-center gap-2 rounded-lg border border-[#1E2A38] bg-[#07111F] px-3 text-xs font-semibold text-slate-300 hover:border-slate-600 hover:text-white">
+                <BadgeCheck className="h-4 w-4" /> Vérification
+              </Link>
+            </>
+          )}
+          <div className="flex min-h-9 items-center gap-2 rounded-lg border border-[#1E2A38] bg-[#07111F] px-3 text-xs font-semibold text-slate-300">
+            <span className="h-2 w-2 rounded-full bg-[#27C93F]" />
+            <span>{merchant?.business_name || 'Marchand Kobara'}</span>
+          </div>
         </div>
       </div>
 
@@ -112,6 +126,7 @@ export function SettingsClient({ user, merchant, settings, members, userRole = '
         {/* Main Component Area */}
         <div className="lg:col-span-8 xl:col-span-9 space-y-6">
           {activeTab === 'profile' && <ProfileSettings user={user} merchant={merchant} />}
+          {activeTab === 'paymentMethods' && <PaymentMethodsSettings initialState={paymentMethods} />}
           {activeTab === 'payouts' && <PayoutSettings settings={settings} />}
           {activeTab === 'security' && <SecuritySettings user={user} settings={settings} />}
           {activeTab === 'notifications' && <NotificationSettings settings={settings} />}

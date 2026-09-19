@@ -64,7 +64,7 @@ const ratelimit = redis
     })
   : null;
 
-export async function middleware(request: NextRequest) {
+export async function handleRequestProxy(request: NextRequest) {
   const url = request.nextUrl;
   const hostHeader = request.headers.get("host") || request.nextUrl.hostname || "";
   const hostname = hostHeader.split(":")[0].trim();
@@ -230,16 +230,3 @@ export async function middleware(request: NextRequest) {
   const response = await updateSession(request);
   return corsHeaders ? applyCorsHeaders(response, corsHeaders) : response;
 }
-
-export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata files)
-     * Feel free to modify this pattern to include more paths.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-  ],
-};

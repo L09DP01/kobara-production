@@ -6,6 +6,7 @@ import { PaymentProviderConfig } from "@/types/payment-provider";
 import { normalizePaymAmount } from "@/lib/payment-routing";
 import { PayPalExpandedCheckout, type PayPalCheckoutMethod } from "@/app/pay/checkout/[paymentId]/PayPalExpandedCheckout";
 import { PaymentBrandMarks } from "@/components/payments/PaymentBrandMarks";
+import type { MerchantPaymentMethodMap } from '@/lib/server/payments/merchant-payment-methods';
 
 interface PaymentActionResult {
   redirectUrl?: string;
@@ -45,16 +46,18 @@ export default function PaymentFormClient({
   allowCryptoPayment?: boolean,
   paymentsBlocked?: boolean,
 }) {
-  const moncashAvailable = providerConfig.active_provider === 'bazik'
+  const moncashAvailable = enabledPaymentMethods.moncash && (providerConfig.active_provider === 'bazik'
     ? true
-    : providerConfig.paym_moncash_web || providerConfig.paym_moncash_ussd;
-  const natcashAvailable = providerConfig.active_provider === 'bazik'
+    : providerConfig.paym_moncash_web || providerConfig.paym_moncash_ussd);
+  const natcashAvailable = enabledPaymentMethods.natcash && (providerConfig.active_provider === 'bazik'
     ? providerConfig.sms_gateway_enabled
-    : providerConfig.paym_natcash_web;
+    : providerConfig.paym_natcash_web);
+  const cardAvailable = allowCardPayment && enabledPaymentMethods.card;
+  const paypalAvailable = allowCardPayment && enabledPaymentMethods.paypal;
 
   // Selected method in the list: card, PayPal, local wallets, crypto, or the device wallet.
   const [selectedMethod, setSelectedMethod] = useState<string>(
-    allowCardPayment ? 'card' : (moncashAvailable ? 'moncash' : 'natcash')
+    cardAvailable ? 'card' : paypalAvailable ? 'paypal' : moncashAvailable ? 'moncash' : 'natcash'
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
@@ -95,6 +98,8 @@ export default function PaymentFormClient({
   };
 
   const isAppleDevice = /iPhone|iPad|Macintosh/i.test(globalThis.navigator?.userAgent || '');
+  const walletAvailable = allowCardPayment && (isAppleDevice ? enabledPaymentMethods.apple_pay : enabledPaymentMethods.google_pay);
+  const hasAvailableMethod = moncashAvailable || natcashAvailable || cardAvailable || paypalAvailable || walletAvailable;
   const backendProvider = selectedMethod === 'apple_google_pay'
     ? (isAppleDevice ? 'apple_pay' : 'google_pay')
     : selectedMethod;
@@ -282,7 +287,7 @@ export default function PaymentFormClient({
 
         <div className="grid gap-3 lg:grid-cols-2">
           {/* 1. CARTE BANCAIRE (DÉBIT / CRÉDIT) */}
-          {allowCardPayment && (
+          {cardAvailable && (
             <>
             <label 
               onClick={() => setSelectedMethod('card')}
@@ -318,7 +323,7 @@ export default function PaymentFormClient({
           )}
 
           {/* 2. PAYPAL */}
-          {allowCardPayment && (
+          {paypalAvailable && (
             <>
             <label 
               onClick={() => setSelectedMethod('paypal')}
@@ -479,6 +484,11 @@ export default function PaymentFormClient({
             </>
           )}
         </div>
+        {!hasAvailableMethod && (
+          <div role="alert" className="rounded-lg border border-amber-500/25 bg-amber-500/10 p-4 text-sm text-amber-200">
+            Aucun moyen de paiement n'est actuellement disponible pour ce marchand.
+          </div>
+        )}
       </section>
 
       {(!internationalPaymentId || !isInternationalMethod) && (

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { headers } from "next/headers";
 import { createPaymentGateway } from "@/lib/server/payments/gateway";
 import { withPaymentRoutingMetadata, sanitizePaymentRedirectUrl } from "@/lib/payment-routing";
+import { isMerchantPaymentMethodEnabled } from '@/lib/server/payments/merchant-payment-methods';
 
 function isRedirectError(error: unknown) {
   if (!error || typeof error !== 'object' || !('digest' in error)) return false;

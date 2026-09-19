@@ -37,7 +37,7 @@ export function PayoutSettings({ settings }: { settings: any }) {
       <div className="p-6 md:p-8">
         <h2 className="text-xl font-bold text-white mb-1">Comptes de Retrait</h2>
         <p className="text-sm text-slate-400 mb-8">
-          Ajoutez un compte MonCash pour recevoir vos paiements plus rapidement. Pour l'instant, seul MonCash est supporté.
+          Enregistrez votre numéro MonCash par défaut. Vous pourrez choisir MonCash, NatCash ou une autre option disponible au moment du retrait.
         </p>
 
         {errorMsg && (

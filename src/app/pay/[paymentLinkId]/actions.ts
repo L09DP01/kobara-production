@@ -50,12 +50,19 @@ export async function processPayment(formData: FormData) {
   // 1. Fetch Payment Link to check settings
   const { data: linkInfo } = await supabaseAdmin
     .from('payment_links')
-    .select('amount, metadata, environment, slug')
+    .select('amount, metadata, environment, slug, merchant_id')
     .eq('id', paymentLinkId)
     .single();
 
   if (!linkInfo) {
     throw new Error("Lien de paiement invalide");
+  }
+  if (linkInfo.merchant_id !== merchantId) {
+    throw new Error("Lien de paiement invalide");
+  }
+
+  if (!await isMerchantPaymentMethodEnabled(merchantId, requestedProvider)) {
+    throw new Error("Ce moyen de paiement n'est pas activé pour ce marchand.");
   }
 
   if (linkInfo.environment !== 'live') {
