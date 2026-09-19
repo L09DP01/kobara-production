@@ -23,6 +23,17 @@ export default async function DashboardLayout({
     || pathname.startsWith('/kyc/')
     || pathname === '/dashboard/kyc'
     || pathname.startsWith('/dashboard/kyc/');
+  const isPreKycAllowedPath = pathname === '/dashboard'
+    || pathname === '/dashboard/'
+    || isKycPath
+    || pathname === '/settings'
+    || pathname.startsWith('/settings/')
+    || pathname === '/dashboard/settings'
+    || pathname.startsWith('/dashboard/settings/')
+    || pathname === '/support'
+    || pathname.startsWith('/support/')
+    || pathname === '/dashboard/support'
+    || pathname.startsWith('/dashboard/support/');
 
   let merchant = null;
   let dbUser = null;
@@ -267,31 +278,8 @@ export default async function DashboardLayout({
   }
 
   const isKycApproved = merchant?.kyc_status === 'approved';
-  if (merchant && !isKycApproved) {
-    if (!isKycPath) {
-      redirect('/kyc');
-    }
-
-    return (
-      <div className="min-h-[100dvh] bg-[#07101D] text-white antialiased">
-        <SessionInactivityGuard />
-        <header className="border-b border-[#1E2A38] bg-[#020B14]">
-          <div className="mx-auto flex h-16 w-full max-w-[960px] items-center justify-between px-5 sm:px-8">
-            <a href="https://kobara.app" className="flex items-center gap-3 font-bold">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/Icone.png" alt="Kobara" className="h-8 w-8 object-contain" />
-              <span>Kobara</span>
-            </a>
-            <a href="/logout" className="text-sm font-semibold text-slate-400 transition-colors hover:text-white">
-              Déconnexion
-            </a>
-          </div>
-        </header>
-        <main className="mx-auto w-full max-w-[960px] px-5 py-8 sm:px-8 sm:py-12">
-          {children}
-        </main>
-      </div>
-    );
+  if (merchant && !isKycApproved && !isPreKycAllowedPath) {
+    redirect('/dashboard');
   }
 
   return (
@@ -307,6 +295,7 @@ export default async function DashboardLayout({
         hasPasskey={hasPasskey}
         subscriptionEntitlement={subscriptionEntitlement}
         isTelegramLinked={isTelegramLinked}
+        kycApproved={isKycApproved}
       >
         {children}
       </DashboardLayoutClient>

@@ -11,6 +11,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [notifications, setNotifications] = useState<any[]>(initialNotifications);
   
   const profileRef = useRef<HTMLDivElement>(null);
@@ -31,6 +32,9 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
   }, []);
 
   const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+    setIsProfileOpen(false);
     await performFullLogout();
   };
 
@@ -247,10 +251,11 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                   <div className="h-px bg-border-subtle my-2 mx-1"></div>
                   <button 
                     onClick={handleLogout}
-                    className="w-full text-left px-3 py-2 text-body-sm text-status-error hover:bg-status-error/10 rounded-lg transition-colors flex items-center gap-2"
+                    disabled={isLoggingOut}
+                    className="w-full text-left px-3 py-2 text-body-sm text-status-error hover:bg-status-error/10 rounded-lg transition-colors flex items-center gap-2 disabled:cursor-wait disabled:opacity-60"
                   >
                     <span className="material-symbols-outlined text-[18px]">logout</span>
-                    Déconnexion
+                    {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
                   </button>
                 </div>
               </div>

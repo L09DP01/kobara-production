@@ -22,6 +22,7 @@ export default function DashboardLayoutClient({
   hasPasskey = false,
   subscriptionEntitlement = null,
   isTelegramLinked = false,
+  kycApproved,
 }: {
   children: React.ReactNode;
   merchant?: any;
@@ -33,8 +34,10 @@ export default function DashboardLayoutClient({
   hasPasskey?: boolean;
   subscriptionEntitlement?: SubscriptionEntitlement | null;
   isTelegramLinked?: boolean;
+  kycApproved?: boolean;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const hasKycAccess = kycApproved ?? merchant?.kyc_status === 'approved';
 
   // Apply dark theme to body to prevent white backgrounds from parent paddings
   useEffect(() => {
@@ -85,28 +88,28 @@ export default function DashboardLayoutClient({
 
   return (
     <div className="kobara-dashboard-shell relative flex min-h-[100dvh] flex-1 flex-col bg-[#07101D] font-body-base text-body-base text-white antialiased">
-      <DesktopSidebar userRole={userRole} />
-      <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={userRole} />
+      <DesktopSidebar userRole={userRole} kycApproved={hasKycAccess} />
+      <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={userRole} kycApproved={hasKycAccess} />
 
       <div className="flex min-h-full flex-1 flex-col transition-[padding] duration-200 lg:pl-60">
         <TopNav onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} merchant={merchant} user={user} initialNotifications={initialNotifications} accessibleMerchants={accessibleMerchants} userRole={userRole} />
         
         {/* Telegram Connect & Community Banner (disappears if connected, closable with X) */}
-        <TelegramConnectBanner merchantId={merchant?.id} isTelegramLinked={isTelegramLinked} />
+        {hasKycAccess && <TelegramConnectBanner merchantId={merchant?.id} isTelegramLinked={isTelegramLinked} />}
 
         {merchant && merchant.kyc_status !== 'approved' && (
           <KycRequiredBanner />
         )}
-        <SubscriptionStatusPopup entitlement={subscriptionEntitlement} />
+        {hasKycAccess && <SubscriptionStatusPopup entitlement={subscriptionEntitlement} />}
         <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>
 
-      <MobileBottomNav onOpenMore={() => setIsSidebarOpen(true)} userRole={userRole} />
+      <MobileBottomNav onOpenMore={() => setIsSidebarOpen(true)} userRole={userRole} kycApproved={hasKycAccess} />
 
       {/* Passkey Security Recommendation Popup (1x / day if user has no passkey) */}
-      <PasskeyPromptModal merchantId={merchant?.id} hasPasskey={hasPasskey} />
+      {hasKycAccess && <PasskeyPromptModal merchantId={merchant?.id} hasPasskey={hasPasskey} />}
     </div>
   );
 }

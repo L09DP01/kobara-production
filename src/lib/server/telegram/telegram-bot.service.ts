@@ -18,6 +18,7 @@ import {
   getCryptoWithdrawalMinimumUsd,
   getKobaraCryptoCurrency,
 } from '@/lib/nowpayments';
+import { getWithdrawalUserMessage } from '@/lib/withdrawal-error-message';
 
 export class TelegramBotService {
   /**
@@ -806,7 +807,14 @@ L'équipe de sécurité Kobara — https://kobara.app
           { parse_mode: 'HTML' },
         );
       } catch (error) {
-        await TelegramClient.sendMessage(chatId, `❌ ${this.escapeHtml(error instanceof Error ? error.message : 'Estimation crypto indisponible.')}`, { parse_mode: 'HTML' });
+        const message = getWithdrawalUserMessage(error, {
+          fallback: 'L’estimation du retrait est temporairement indisponible.',
+        });
+        await TelegramClient.sendMessage(
+          chatId,
+          `❌ <b>Estimation indisponible</b>\n\n${this.escapeHtml(message)}\n\nAucun montant n’a été débité.`,
+          { parse_mode: 'HTML' },
+        );
       }
       return { success: true };
     }
@@ -925,9 +933,12 @@ L'équipe de sécurité Kobara — https://kobara.app
       await this.updateSessionState(chatId, {});
 
       if (!withdrawalResult.success && !withdrawalResult.requiresManualApproval) {
+        const message = getWithdrawalUserMessage(withdrawalResult.error, {
+          refunded: withdrawalResult.refunded,
+        });
         await TelegramClient.sendMessage(
           chatId,
-          `❌ <b>Échec du retrait</b>\n\n${withdrawalResult.error || "Une erreur est survenue lors du décaissement."}`,
+          `❌ <b>Retrait non effectué</b>\n\n${this.escapeHtml(message)}`,
           { parse_mode: 'HTML', reply_markup: this.getMainKeyboard() }
         );
       } else {

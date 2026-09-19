@@ -1,9 +1,8 @@
 import { getKycStatus } from "./actions";
-import Link from "next/link";
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { redirect } from "next/navigation";
 import { DiditVerificationButton } from "@/components/kyc/DiditVerificationButton";
-import { ShieldCheck, CheckCircle2, Clock, ExternalLink, Sparkles } from "lucide-react";
+import { ShieldCheck, CheckCircle2, Clock, Sparkles } from "lucide-react";
 
 export default async function KycPage() {
   const { merchant, userRole } = await getCurrentUserAndMerchant();
@@ -22,7 +21,9 @@ export default async function KycPage() {
   }
 
   const profile = await getKycStatus();
-  const kycStatus = merchant.kyc_status || profile?.status || 'not_started';
+  const kycStatus = profile?.status === 'approved'
+    ? 'approved'
+    : merchant.kyc_status || profile?.status || 'not_started';
 
   const isApproved = kycStatus === 'approved';
   const isInReview = kycStatus === 'in_review' || kycStatus === 'pending';
@@ -125,24 +126,6 @@ export default async function KycPage() {
           </div>
         )}
       </div>
-
-      {!isApproved && (
-        <div className="flex flex-col gap-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-bold text-white">Vous souhaitez tester l'intégration maintenant ?</h2>
-            <p className="mt-1 text-sm leading-relaxed text-slate-300">
-              Le Sandbox Kobara reste accessible sans validation KYC et n'utilise aucun paiement réel.
-            </p>
-          </div>
-          <Link
-            href="https://test.kobara.app/register"
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-sky-400/30 bg-sky-400/10 px-5 text-sm font-bold text-sky-200 transition-colors hover:bg-sky-400/20"
-          >
-            Ouvrir le Sandbox
-            <ExternalLink className="h-4 w-4" />
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

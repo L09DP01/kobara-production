@@ -7,7 +7,7 @@ import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3, BookOpen, CreditCard, Headphones, KeyRound,
-  LayoutDashboard, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
+  LayoutDashboard, LockKeyhole, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
@@ -18,6 +18,7 @@ interface SidebarLink {
   exact?: boolean;
   ownerOnly?: boolean;
   external?: boolean;
+  requiresKyc?: boolean;
 }
 
 const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
@@ -25,19 +26,19 @@ const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
   {
     title: "Opérations",
     links: [
-      { href: "/payments", icon: CreditCard, label: "Paiements" },
-      { href: "/payment-links", icon: Link2, label: "Liens de paiement" },
-      { href: "/customers", icon: Users, label: "Clients" },
-      { href: "/withdrawals", icon: WalletCards, label: "Retraits", ownerOnly: true },
+      { href: "/payments", icon: CreditCard, label: "Paiements", requiresKyc: true },
+      { href: "/payment-links", icon: Link2, label: "Liens de paiement", requiresKyc: true },
+      { href: "/customers", icon: Users, label: "Clients", requiresKyc: true },
+      { href: "/withdrawals", icon: WalletCards, label: "Retraits", ownerOnly: true, requiresKyc: true },
     ],
   },
-  { title: "Performance", links: [{ href: "/analytics", icon: BarChart3, label: "Analyses" }] },
+  { title: "Performance", links: [{ href: "/analytics", icon: BarChart3, label: "Analyses", requiresKyc: true }] },
   {
     title: "Développeurs",
     links: [
-      { href: "/developers", icon: Blocks, label: "Intégration" },
-      { href: "/api-keys", icon: KeyRound, label: "Clés API" },
-      { href: "/webhooks", icon: Webhook, label: "Webhooks" },
+      { href: "/developers", icon: Blocks, label: "Intégration", requiresKyc: true },
+      { href: "/api-keys", icon: KeyRound, label: "Clés API", requiresKyc: true },
+      { href: "/webhooks", icon: Webhook, label: "Webhooks", requiresKyc: true },
       { href: "https://docs.kobara.app/docs/quickstart", icon: BookOpen, label: "Documentation", external: true },
     ],
   },
@@ -48,16 +49,16 @@ function isLinkActive(pathname: string | null, link: SidebarLink) {
   return pathname?.startsWith(link.href) ?? false;
 }
 
-export function DesktopSidebar({ userRole = "owner" }: { userRole?: string }) {
+export function DesktopSidebar({ userRole = "owner", kycApproved = false }: { userRole?: string; kycApproved?: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-[#223047] bg-[#091321] text-slate-300 lg:flex">
-      <SidebarContent pathname={pathname} onClose={() => {}} userRole={userRole} />
+      <SidebarContent pathname={pathname} onClose={() => {}} userRole={userRole} kycApproved={kycApproved} />
     </aside>
   );
 }
 
-export function MobileSidebar({ isOpen, onClose, userRole = "owner" }: { isOpen: boolean; onClose: () => void; userRole?: string }) {
+export function MobileSidebar({ isOpen, onClose, userRole = "owner", kycApproved = false }: { isOpen: boolean; onClose: () => void; userRole?: string; kycApproved?: boolean }) {
   const pathname = usePathname();
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "";
@@ -75,19 +76,19 @@ export function MobileSidebar({ isOpen, onClose, userRole = "owner" }: { isOpen:
         className={clsx("fixed inset-y-0 left-0 z-50 flex h-full w-72 max-w-[88vw] flex-col overflow-hidden border-r border-[#223047] bg-[#091321] text-slate-300 shadow-2xl transition-transform duration-200 ease-out", isOpen ? "translate-x-0" : "-translate-x-full")}
         aria-hidden={!isOpen}
       >
-        <SidebarContent pathname={pathname} onClose={onClose} userRole={userRole} />
+        <SidebarContent pathname={pathname} onClose={onClose} userRole={userRole} kycApproved={kycApproved} />
       </aside>
     </div>
   );
 }
 
-export function MobileBottomNav({ onOpenMore, userRole = "owner" }: { onOpenMore: () => void; userRole?: string }) {
+export function MobileBottomNav({ onOpenMore, userRole = "owner", kycApproved = false }: { onOpenMore: () => void; userRole?: string; kycApproved?: boolean }) {
   const pathname = usePathname();
   const items: SidebarLink[] = [
     { href: "/dashboard", icon: LayoutDashboard, label: "Accueil", exact: true },
-    { href: "/payments", icon: CreditCard, label: "Paiements" },
-    { href: "/payment-links", icon: Link2, label: "Liens" },
-    userRole === "owner" ? { href: "/withdrawals", icon: WalletCards, label: "Retraits" } : { href: "/api-keys", icon: KeyRound, label: "API" },
+    { href: "/payments", icon: CreditCard, label: "Paiements", requiresKyc: true },
+    { href: "/payment-links", icon: Link2, label: "Liens", requiresKyc: true },
+    userRole === "owner" ? { href: "/withdrawals", icon: WalletCards, label: "Retraits", requiresKyc: true } : { href: "/api-keys", icon: KeyRound, label: "API", requiresKyc: true },
   ];
 
   return (
@@ -95,6 +96,14 @@ export function MobileBottomNav({ onOpenMore, userRole = "owner" }: { onOpenMore
       {items.map((item) => {
         const active = isLinkActive(pathname, item);
         const Icon = item.icon;
+        if (item.requiresKyc && !kycApproved) {
+          return (
+            <span key={item.href} aria-disabled="true" className="flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-slate-700">
+              <LockKeyhole className="h-5 w-5" aria-hidden="true" />
+              <span className="max-w-full truncate">{item.label}</span>
+            </span>
+          );
+        }
         return (
           <Link key={item.href} href={item.href} className={clsx("flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors duration-150", active ? "text-orange-400" : "text-slate-500 hover:text-slate-200")}>
             <Icon className="h-5 w-5" aria-hidden="true" />
@@ -110,7 +119,7 @@ export function MobileBottomNav({ onOpenMore, userRole = "owner" }: { onOpenMore
   );
 }
 
-function SidebarContent({ pathname, onClose, userRole }: { pathname: string | null; onClose: () => void; userRole: string }) {
+function SidebarContent({ pathname, onClose, userRole, kycApproved }: { pathname: string | null; onClose: () => void; userRole: string; kycApproved: boolean }) {
   return (
     <>
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#223047] px-5">
@@ -134,6 +143,15 @@ function SidebarContent({ pathname, onClose, userRole }: { pathname: string | nu
                 {visibleLinks.map((link) => {
                   const active = !link.external && isLinkActive(pathname, link);
                   const Icon = link.icon;
+                  if (link.requiresKyc && !kycApproved) {
+                    return (
+                      <span key={link.href} aria-disabled="true" className="flex min-h-11 cursor-not-allowed items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-700">
+                        <Icon className="h-[18px] w-[18px] shrink-0" />
+                        <span>{link.label}</span>
+                        <LockKeyhole className="ml-auto h-4 w-4" aria-hidden="true" />
+                      </span>
+                    );
+                  }
                   return (
                     <Link
                       key={link.href}

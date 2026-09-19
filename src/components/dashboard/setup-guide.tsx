@@ -14,12 +14,12 @@ export function SetupGuide({ guide }: { guide: MerchantSetupGuide }) {
   const completed = steps.filter(Boolean).length;
   const locked = !guide.kycApproved;
   const rows = [
-    { key: 'profile', title: 'Compléter le profil de l’entreprise', done: guide.steps.profile, icon: Store, href: '/dashboard/settings?tab=profile', action: 'Compléter' },
-    { key: 'kyc', title: 'Effectuer la vérification KYC', done: guide.steps.kyc, icon: BadgeCheck, href: '/dashboard/kyc', action: 'Vérifier' },
-    { key: 'methods', title: 'Choisir les moyens de paiement', done: guide.steps.paymentMethods, icon: Settings2, locked, href: '/dashboard/settings?tab=paymentMethods', action: 'Configurer' },
+    { key: 'profile', title: 'Compléter le profil de l’entreprise', done: guide.steps.profile, icon: Store, href: '/settings?tab=profile', action: 'Compléter' },
+    { key: 'kyc', title: 'Effectuer la vérification KYC', done: guide.steps.kyc, icon: BadgeCheck, href: '/kyc', action: 'Vérifier' },
+    { key: 'methods', title: 'Choisir les moyens de paiement', done: guide.steps.paymentMethods, icon: Settings2, locked, href: '/settings?tab=paymentMethods', action: 'Configurer' },
     { key: 'integration', title: 'Créer un lien ou une clé API Live', done: guide.steps.integration, icon: Link2, locked },
-    { key: 'webhook', title: guide.integrationChoice === 'api' ? 'Configurer le webhook' : guide.integrationChoice === 'payment_link' ? 'Webhook non requis pour les liens' : 'Configurer le webhook si vous choisissez l’API', done: guide.steps.webhook, icon: Webhook, locked: locked || guide.integrationChoice !== 'api', href: '/dashboard/webhooks', action: 'Configurer' },
-    { key: 'payment', title: 'Recevoir le premier paiement réel', done: guide.steps.firstPayment, icon: Circle, locked, href: '/dashboard/payment-links', action: 'Encaisser' },
+    { key: 'webhook', title: guide.integrationChoice === 'api' ? 'Configurer le webhook' : guide.integrationChoice === 'payment_link' ? 'Webhook non requis pour les liens' : 'Configurer le webhook si vous choisissez l’API', done: guide.steps.webhook, icon: Webhook, locked: locked || guide.integrationChoice !== 'api', href: '/webhooks', action: 'Configurer' },
+    { key: 'payment', title: 'Recevoir le premier paiement réel', done: guide.steps.firstPayment, icon: Circle, locked, href: '/payment-links', action: 'Encaisser' },
   ];
 
   return (

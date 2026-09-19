@@ -98,11 +98,27 @@ function TechnicalCard({ title, icon: Icon, metrics }: { title: string; icon: Lu
 
 export default async function DashboardPage() {
   const { merchant, supabase, userRole } = await getCurrentUserAndMerchant();
+  const setupGuide = await getMerchantSetupGuide(merchant);
+
+  if (!setupGuide.kycApproved) {
+    return (
+      <>
+        <section>
+          <p className="text-xs font-bold uppercase text-orange-400">Configuration du compte</p>
+          <h1 className="mt-2 text-2xl font-bold text-white sm:text-[28px]">Bienvenue, {merchant.business_name}</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
+            Terminez les étapes accessibles ci-dessous. Les fonctions de paiement seront débloquées après la validation KYC.
+          </p>
+        </section>
+        {userRole === 'owner' && <SetupGuide guide={setupGuide} />}
+      </>
+    );
+  }
+
   const totalHtgBalance = Number(merchant.available_balance || 0);
-  const [usdAccount, htgFunds, setupGuide] = await Promise.all([
+  const [usdAccount, htgFunds] = await Promise.all([
     PayPalService.getMerchantUsdAccountState(merchant),
     getMerchantFundsAvailability(merchant.id, 'live', 'HTG', totalHtgBalance),
-    getMerchantSetupGuide(merchant),
   ]);
 
   const usdMerchant = merchant as typeof merchant & {

@@ -11,6 +11,7 @@ import {
   isNowPaymentsConfigured,
   quoteNowPaymentsPayout,
 } from '@/lib/server/payments/nowpayments';
+import { getWithdrawalUserMessage } from '@/lib/withdrawal-error-message';
 
 export interface ProcessWithdrawalParams {
   merchantId: string;
@@ -160,7 +161,10 @@ export const WithdrawalService = {
           extraId: cryptoExtraId,
         });
       } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Cotisation crypto indisponible.' };
+        return {
+          success: false,
+          error: getWithdrawalUserMessage(error, { fallback: 'L’estimation du retrait est temporairement indisponible.' }),
+        };
       }
     }
 
@@ -337,7 +341,12 @@ export const WithdrawalService = {
           p_reason: providerError.message || 'Échec du retrait crypto',
           p_provider_response: { error: providerError.message },
         });
-        return { success: false, status: 'failed', refunded: true, error: providerError.message || 'Échec du retrait crypto.' };
+        return {
+          success: false,
+          status: 'failed',
+          refunded: true,
+          error: getWithdrawalUserMessage(providerError, { refunded: true }),
+        };
       }
     }
 
@@ -445,16 +454,11 @@ export const WithdrawalService = {
           console.error('[WithdrawalService] Notification error:', e);
         }
 
-        let userFacingError = rawErrorMsg;
-        if (userFacingError.toLowerCase().includes("jeton") || userFacingError.toLowerCase().includes("token") || userFacingError.toLowerCase().includes("auth")) {
-          userFacingError = "Le service de retrait est temporairement indisponible auprès de l'opérateur. Votre solde a été immédiatement recrédité.";
-        }
-
         return {
           success: false,
           status: 'failed',
           refunded: true,
-          error: userFacingError,
+          error: getWithdrawalUserMessage(rawErrorMsg, { refunded: true }),
           errorCode: paymResponse.error_code || 'PROVIDER_TRANSFER_FAILED',
         };
       } catch (networkError: any) {

@@ -13,10 +13,10 @@ import type { MerchantPaymentMethodState } from '@/lib/server/payments/merchant-
 
 type Tab = 'profile' | 'paymentMethods' | 'payouts' | 'security' | 'notifications' | 'team';
 
-export function SettingsClient({ user, merchant, settings, members, paymentMethods, userRole = 'owner', initialTab }: { user: any, merchant: any, settings: any, members: any[], paymentMethods: MerchantPaymentMethodState, userRole?: string, initialTab?: string }) {
+export function SettingsClient({ user, merchant, settings, members, paymentMethods, userRole = 'owner', initialTab, kycApproved = false }: { user: any, merchant: any, settings: any, members: any[], paymentMethods: MerchantPaymentMethodState, userRole?: string, initialTab?: string, kycApproved?: boolean }) {
   const validTabs: Tab[] = ['profile', 'paymentMethods', 'payouts', 'security', 'notifications', 'team'];
   const requestedTab = validTabs.includes(initialTab as Tab) ? initialTab as Tab : 'profile';
-  const [activeTab, setActiveTab] = useState<Tab>(userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab) ? 'profile' : requestedTab);
+  const [activeTab, setActiveTab] = useState<Tab>(!kycApproved || (userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab)) ? 'profile' : requestedTab);
 
   const tabs: { id: Tab, label: string, icon: any, desc: string, ownerOnly?: boolean }[] = [
     { id: 'profile', label: 'Profil Entreprise', icon: Store, desc: 'Logo, nom, adresse' },
@@ -27,7 +27,7 @@ export function SettingsClient({ user, merchant, settings, members, paymentMetho
     { id: 'team', label: "Membres d'équipe", icon: Users, desc: 'Rôles et accès' },
   ];
 
-  const visibleTabs = tabs.filter(t => !t.ownerOnly || userRole === 'owner');
+  const visibleTabs = tabs.filter(t => t.id === 'profile' || (kycApproved && (!t.ownerOnly || userRole === 'owner')));
 
   return (
     <div className="max-w-7xl mx-auto w-full space-y-8 pb-16 animate-in fade-in duration-300">

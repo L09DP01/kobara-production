@@ -61,6 +61,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       userRole={userRole}
       paymentMethods={paymentMethods}
       initialTab={params.tab}
+      kycApproved={merchant.kyc_status === 'approved'}
     />
   );
 }

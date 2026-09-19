@@ -3,11 +3,29 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { getHaitianMobileWallet, normalizeHaitianPhoneNumber } from '../src/lib/payment-routing.ts';
 import { calculateWithdrawalQuote } from '../src/lib/withdrawal-currency.ts';
+import { getWithdrawalUserMessage } from '../src/lib/withdrawal-error-message.ts';
 
 const immediateUsdMigration = readFileSync(
   new URL('../supabase/migrations/20260919115735_make_usd_funds_immediately_withdrawable.sql', import.meta.url),
   'utf8',
 );
+
+test('Withdrawal errors never expose provider HTML or internal requests', () => {
+  const rateLimit = getWithdrawalUserMessage('<html><head><title>429 Too Many Requests</title></head><body><center>nginx</center></body></html>');
+  assert.match(rateLimit, /momentanément très sollicité/i);
+  assert.doesNotMatch(rateLimit, /html|nginx|429/i);
+
+  const forbidden = getWithdrawalUserMessage(
+    'Client error: POST https://provider.example/transfer resulted in a 403 Forbidden response',
+    { refunded: true },
+  );
+  assert.match(forbidden, /refusé la demande/i);
+  assert.match(forbidden, /recrédité/i);
+  assert.doesNotMatch(forbidden, /provider|https|403/i);
+
+  const invalidRecipient = getWithdrawalUserMessage('Invalid receiver in transaction. Recipient has to be registered.');
+  assert.match(invalidRecipient, /destinataire n’est pas enregistré/i);
+});
 
 test('Withdrawal System: Phone Number Validation', async (t) => {
   await t.test('accepts 8-digit Haitian numbers and normalizes with 509', () => {
