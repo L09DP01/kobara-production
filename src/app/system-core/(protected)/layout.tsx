@@ -37,6 +37,7 @@ export default function SystemCoreLayout({ children }: { children: React.ReactNo
     { name: "KYC REVIEW", href: "/system-core/kyc", icon: ShieldAlert },
     { name: "TRANSACTIONS", href: "/system-core/transactions", icon: CreditCard },
     { name: "SUBSCRIPTIONS", href: "/system-core/subscriptions", icon: ReceiptText },
+    { name: "BUSINESS REQUESTS", href: "/system-core/business-requests", icon: BriefcaseBusiness },
     { name: "WITHDRAWALS", href: "/system-core/withdrawals", icon: Banknote },
     { name: "SUPPORT", href: "/system-core/support", icon: LifeBuoy },
     { name: "AUDIT LOGS", href: "/system-core/audit", icon: SearchCode },

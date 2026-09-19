@@ -26,9 +26,10 @@ export async function GET(request: NextRequest) {
 
     await reconcilePendingSubscriptionPayments(merchant.id);
 
-    const [{ plan, subscription, merchant: merchantData, entitlement }, providerConfig] = await Promise.all([
+    const [{ plan, subscription, merchant: merchantData, entitlement }, providerConfig, businessRequestResult] = await Promise.all([
       getMerchantCurrentPlan(merchant.id),
       getPaymentProviderConfig(),
+      supabase.from('business_plan_requests').select('status, created_at, updated_at').eq('merchant_id', merchant.id).maybeSingle(),
     ]);
     
     // Get usage stats
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
         merchant: merchantData,
         entitlement,
         providerConfig,
+        businessRequest: businessRequestResult.data,
         usage: {
           monthly_payments: paymentsCount,
           daily_withdrawals: withdrawalsTotal,

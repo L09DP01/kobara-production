@@ -25,6 +25,9 @@ export async function POST(request: NextRequest) {
     const paymentMethod = String(body.paymentMethod || '');
     const promoCode = body.promoCode ? String(body.promoCode).trim().toUpperCase() : '';
     if (!planSlug) return NextResponse.json({ error: 'planSlug is required' }, { status: 400 });
+    if (planSlug === 'business') {
+      return NextResponse.json({ error: 'Le plan Business nécessite une demande et une validation KYB par l’équipe Kobara.' }, { status: 403 });
+    }
 
     const supabase = createAdminClient();
     const { data: merchant } = await supabase

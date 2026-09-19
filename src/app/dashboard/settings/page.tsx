@@ -4,7 +4,8 @@ import { createAdminClient } from "@/utils/supabase/admin";
 
 export const dynamic = 'force-dynamic';
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const params = await searchParams;
   const { user, merchant, userRole } = await getCurrentUserAndMerchant();
   const supabase = createAdminClient();
 

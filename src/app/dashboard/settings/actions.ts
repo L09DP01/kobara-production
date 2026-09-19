@@ -57,6 +57,13 @@ export async function updatePaymentMethodSetting(method: MerchantPaymentMethod, 
     : await admin.from('settings').insert({ merchant_id: merchant.id, settings_json: settingsJson });
   if (error) throw new Error('Impossible d’enregistrer les moyens de paiement.');
 
+  const { error: progressError } = await admin.from('merchant_setup_progress').upsert({
+    merchant_id: merchant.id,
+    payment_methods_confirmed_at: new Date().toISOString(),
+  }, { onConflict: 'merchant_id' });
+  if (progressError) throw new Error('Les moyens sont enregistrés, mais leur validation n’a pas pu être confirmée.');
+
+  revalidatePath('/dashboard');
   revalidatePath('/dashboard/settings');
   revalidatePath('/dashboard/payment-links');
   return getMerchantPaymentMethodState(merchant.id);

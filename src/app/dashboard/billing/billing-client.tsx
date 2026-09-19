@@ -53,6 +53,10 @@ export function BillingClient() {
   }, []);
 
   const handleUpgradeClick = (p: any) => {
+    if (p.slug === 'business') {
+      router.push('/dashboard/billing/business');
+      return;
+    }
     if (p.price_htg === 0) {
       handleUpgrade(p.slug, 'monthly', 'moncash');
     } else {
@@ -324,6 +328,8 @@ export function BillingClient() {
             let buttonLabel = 'Choisir ce plan';
             if (isExactCurrent) {
               buttonLabel = isPlanExpiredOrGrace ? 'Renouveler ce plan' : 'Plan Actuel';
+            } else if (p.slug === 'business') {
+              buttonLabel = businessRequestPending ? 'Voir la demande Business' : 'Demander le plan Business';
             }
             
             let displayPrice = p.price_htg;

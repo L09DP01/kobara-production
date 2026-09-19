@@ -158,7 +158,8 @@ export async function upgradeMerchantPlan(
 
   const isFree = plan.slug === 'free' || Number(plan.price_htg) === 0;
   const isCoveredByPromo = activation.source === 'promo' && activation.paymentStatus === 'not_required';
-  if (!isFree && activation.paymentStatus !== 'paid' && !isCoveredByPromo) {
+  const isAdminActivation = activation.source === 'admin' && activation.paymentStatus === 'not_required';
+  if (!isFree && activation.paymentStatus !== 'paid' && !isCoveredByPromo && !isAdminActivation) {
     throw new Error('Le paiement doit être confirmé avant l’activation du plan.');
   }
   if (!isFree && activation.source === 'free') {
