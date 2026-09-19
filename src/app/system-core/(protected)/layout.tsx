@@ -22,6 +22,7 @@ import {
   UserCog,
   HeartPulse,
   BellRing,
+  BriefcaseBusiness,
   Menu,
   X
 } from "lucide-react";

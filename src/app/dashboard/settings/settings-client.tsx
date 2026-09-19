@@ -7,12 +7,16 @@ import { SecuritySettings } from './components/SecuritySettings';
 import { NotificationSettings } from './components/NotificationSettings';
 import { TeamSettings } from './components/TeamSettings';
 import { PayoutSettings } from './components/PayoutSettings';
-import { Store, CreditCard, Shield, Bell, Users, Settings as SettingsIcon } from 'lucide-react';
+import { PaymentMethodsSettings } from './components/PaymentMethodsSettings';
+import { Store, CreditCard, Shield, Bell, Users, Settings as SettingsIcon, WalletCards, ReceiptText, BadgeCheck } from 'lucide-react';
+import type { MerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
 
 type Tab = 'profile' | 'paymentMethods' | 'payouts' | 'security' | 'notifications' | 'team';
 
-export function SettingsClient({ user, merchant, settings, members, userRole = 'owner' }: { user: any, merchant: any, settings: any, members: any[], userRole?: string }) {
-  const [activeTab, setActiveTab] = useState<Tab>('profile');
+export function SettingsClient({ user, merchant, settings, members, paymentMethods, userRole = 'owner', initialTab }: { user: any, merchant: any, settings: any, members: any[], paymentMethods: MerchantPaymentMethodState, userRole?: string, initialTab?: string }) {
+  const validTabs: Tab[] = ['profile', 'paymentMethods', 'payouts', 'security', 'notifications', 'team'];
+  const requestedTab = validTabs.includes(initialTab as Tab) ? initialTab as Tab : 'profile';
+  const [activeTab, setActiveTab] = useState<Tab>(userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab) ? 'profile' : requestedTab);
 
   const tabs: { id: Tab, label: string, icon: any, desc: string, ownerOnly?: boolean }[] = [
     { id: 'profile', label: 'Profil Entreprise', icon: Store, desc: 'Logo, nom, adresse' },

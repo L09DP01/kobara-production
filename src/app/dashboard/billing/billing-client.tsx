@@ -193,7 +193,8 @@ export function BillingClient() {
     );
   }
 
-  const { merchant, plan, subscription, entitlement, usage } = data;
+  const { merchant, plan, subscription, entitlement, usage, businessRequest } = data;
+  const businessRequestPending = businessRequest?.status === 'pending';
   return (
     <div className="space-y-8 max-w-6xl">
       <div>

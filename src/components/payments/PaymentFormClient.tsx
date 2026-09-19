@@ -35,6 +35,7 @@ export default function PaymentFormClient({
   transactionFeePercent,
   allowCardPayment = false,
   allowCryptoPayment = false,
+  enabledPaymentMethods,
   paymentsBlocked = false,
 }: { 
   link: PublicPaymentLink,
@@ -44,6 +45,7 @@ export default function PaymentFormClient({
   transactionFeePercent: number,
   allowCardPayment?: boolean,
   allowCryptoPayment?: boolean,
+  enabledPaymentMethods: MerchantPaymentMethodMap,
   paymentsBlocked?: boolean,
 }) {
   const moncashAvailable = enabledPaymentMethods.moncash && (providerConfig.active_provider === 'bazik'
@@ -99,7 +101,8 @@ export default function PaymentFormClient({
 
   const isAppleDevice = /iPhone|iPad|Macintosh/i.test(globalThis.navigator?.userAgent || '');
   const walletAvailable = allowCardPayment && (isAppleDevice ? enabledPaymentMethods.apple_pay : enabledPaymentMethods.google_pay);
-  const hasAvailableMethod = moncashAvailable || natcashAvailable || cardAvailable || paypalAvailable || walletAvailable;
+  const cryptoAvailable = allowCryptoPayment && enabledPaymentMethods.crypto;
+  const hasAvailableMethod = moncashAvailable || natcashAvailable || cardAvailable || paypalAvailable || walletAvailable || cryptoAvailable;
   const backendProvider = selectedMethod === 'apple_google_pay'
     ? (isAppleDevice ? 'apple_pay' : 'google_pay')
     : selectedMethod;
@@ -421,7 +424,7 @@ export default function PaymentFormClient({
           )}
 
           {/* 5. CRYPTO */}
-          {allowCryptoPayment && (
+          {cryptoAvailable && (
             <label
               onClick={() => setSelectedMethod('crypto')}
               className={`flex min-h-16 cursor-pointer items-center justify-between rounded-lg border p-4 transition-colors ${
@@ -494,7 +497,7 @@ export default function PaymentFormClient({
       {(!internationalPaymentId || !isInternationalMethod) && (
         <button
           type="submit"
-          disabled={paymentsBlocked || isSubmitting || (!moncashAvailable && !natcashAvailable && !allowCardPayment && !allowCryptoPayment)}
+          disabled={paymentsBlocked || isSubmitting || !hasAvailableMethod}
           className="relative flex h-14 w-full items-center justify-center gap-2 overflow-hidden rounded-lg bg-[#F95005] px-4 text-base font-bold text-white transition-colors hover:bg-[#ff6420] disabled:cursor-not-allowed disabled:opacity-70"
         >
           <Lock size={18} />

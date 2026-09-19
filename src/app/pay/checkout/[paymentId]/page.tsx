@@ -6,6 +6,7 @@ import { CryptoCheckout } from './CryptoCheckout';
 import { PaymentProcessingLoader } from "@/components/payments/PaymentProcessingLoader";
 import { Lock, ShieldCheck } from "lucide-react";
 import { getPaymentMethodLabel } from '@/lib/payment-settlement';
+import { getMerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
 
 export default async function UnifiedCheckoutPage({ 
   params,
@@ -179,6 +180,7 @@ export default async function UnifiedCheckoutPage({
             defaultName={payment.metadata?.customer_name || payment.metadata?.name || ''}
             defaultEmail={payment.metadata?.customer_email || payment.metadata?.email || ''}
             defaultPhone={payment.metadata?.phone || payment.metadata?.customer_phone || ''}
+            enabledPaymentMethods={paymentMethods.enabled}
           />
         </section>
         <p className="mt-4 flex items-center justify-center gap-2 text-center text-[11px] text-slate-500"><ShieldCheck className="h-4 w-4 text-emerald-400" /> Paiement chiffré et sécurisé</p>

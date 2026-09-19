@@ -1,6 +1,7 @@
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { SettingsClient } from "./settings-client";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getMerchantPaymentMethodState } from "@/lib/server/payments/merchant-payment-methods";
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const filteredMembers = (members || []).filter((m: any) => m.email?.toLowerCase() !== ownerUser?.email?.toLowerCase());
   const allMembers = [...ownerMember, ...filteredMembers];
+  const paymentMethods = await getMerchantPaymentMethodState(merchant.id);
 
   return (
     <SettingsClient 
@@ -57,6 +59,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       settings={settings} 
       members={allMembers} 
       userRole={userRole}
+      paymentMethods={paymentMethods}
+      initialTab={params.tab}
     />
   );
 }

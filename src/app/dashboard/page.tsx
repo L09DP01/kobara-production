@@ -13,6 +13,8 @@ import UsdAccountSection from "@/components/dashboard/UsdAccountSection";
 import DashboardChartWrapper from "./analytics/DashboardChartWrapper";
 import { getMerchantFundsAvailability } from "@/lib/server/withdrawals/funds-availability";
 import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
+import { getMerchantSetupGuide } from "@/lib/server/onboarding/merchant-setup";
+import { SetupGuide } from "@/components/dashboard/setup-guide";
 
 interface DashboardPayment {
   id: string;
@@ -95,11 +97,12 @@ function TechnicalCard({ title, icon: Icon, metrics }: { title: string; icon: Lu
 }
 
 export default async function DashboardPage() {
-  const { merchant, supabase } = await getCurrentUserAndMerchant();
+  const { merchant, supabase, userRole } = await getCurrentUserAndMerchant();
   const totalHtgBalance = Number(merchant.available_balance || 0);
-  const [usdAccount, htgFunds] = await Promise.all([
+  const [usdAccount, htgFunds, setupGuide] = await Promise.all([
     PayPalService.getMerchantUsdAccountState(merchant),
     getMerchantFundsAvailability(merchant.id, 'live', 'HTG', totalHtgBalance),
+    getMerchantSetupGuide(merchant),
   ]);
 
   const usdMerchant = merchant as typeof merchant & {
@@ -172,6 +175,8 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </section>
+
+      {userRole === 'owner' && <SetupGuide guide={setupGuide} />}
 
       <section aria-labelledby="financial-overview">
         <div className="mb-3 flex items-center justify-between">

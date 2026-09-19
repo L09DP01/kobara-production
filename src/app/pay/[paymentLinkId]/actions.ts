@@ -14,6 +14,7 @@ import { PayPalService } from "@/lib/server/payments/paypal";
 import { canCreatePayment } from "@/lib/server/access";
 import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
+import { isMerchantPaymentMethodEnabled } from "@/lib/server/payments/merchant-payment-methods";
 
 function paymentLimitError(limit?: number, used?: number) {
   const normalizedLimit = Number(limit || 0);

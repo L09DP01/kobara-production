@@ -7,7 +7,7 @@ import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
   BadgeCheck, BarChart3, BookOpen, CreditCard, Headphones, KeyRound,
-  LayoutDashboard, LogOut, Menu, Settings, Users, WalletCards, Webhook, X,
+  LayoutDashboard, LogOut, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
 

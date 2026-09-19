@@ -9,6 +9,7 @@ import { PayPalService } from "@/lib/server/payments/paypal";
 import { canCreatePayment } from "@/lib/server/access";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import { getPaymentMethodLabel } from '@/lib/payment-settlement';
+import { getMerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
 
 export default async function PublicPaymentPage({ 
   params, 
@@ -305,6 +306,7 @@ export default async function PublicPaymentPage({
               transactionFeePercent={transactionFeePercent}
               allowCardPayment={allowCardPayment}
               allowCryptoPayment={isNowPaymentsConfigured()}
+              enabledPaymentMethods={paymentMethods.enabled}
             />
           </div>
         </div>

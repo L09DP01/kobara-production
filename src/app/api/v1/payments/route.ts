@@ -23,6 +23,7 @@ import { canCreatePayment } from "@/lib/server/access";
 import { getPublicApiCorsHeaders } from "@/lib/http/api-cors";
 import { PayPalService } from "@/lib/server/payments/paypal";
 import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
+import { isMerchantPaymentMethodEnabled } from "@/lib/server/payments/merchant-payment-methods";
 
 export async function OPTIONS(request: NextRequest) {
   const corsHeaders = getPublicApiCorsHeaders(request.headers.get('origin'));
