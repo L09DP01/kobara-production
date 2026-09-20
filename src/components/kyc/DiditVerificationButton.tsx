@@ -55,7 +55,7 @@ export function DiditVerificationButton({
   return (
     <div className="w-full">
       {error && (
-        <div className="p-3 mb-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl text-center">
+        <div className="mb-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-center text-xs text-red-400">
           {error}
         </div>
       )}
@@ -65,7 +65,7 @@ export function DiditVerificationButton({
         disabled={loading}
         className={
           variant === 'default'
-            ? `w-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-semibold py-3.5 h-auto shadow-lg shadow-orange-500/20 transition-all ${className}`
+            ? `min-h-12 w-full touch-manipulation bg-orange-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-colors hover:bg-orange-600 ${className}`
             : className
         }
       >

@@ -31,38 +31,36 @@ export default async function KycPage() {
   const isNotStarted = kycStatus === 'not_started';
 
   return (
-    <div className="max-w-[800px] w-full mx-auto pb-12 space-y-8">
+    <div className="mx-auto w-full max-w-[760px] pb-6 sm:pb-12">
       {/* Header Card */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-8 shadow-xl relative overflow-hidden">
-        <div className="absolute -top-24 -right-24 w-60 h-60 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <div className="flex items-start justify-between gap-4 mb-6 relative z-10">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-semibold mb-3">
+      <div className="relative border-slate-800 bg-transparent sm:overflow-hidden sm:rounded-lg sm:border sm:bg-slate-900/80 sm:p-8 sm:shadow-xl">
+        <div className="mb-5 flex items-start justify-between gap-4 sm:mb-6">
+          <div className="min-w-0">
+            <div className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-orange-500/20 bg-orange-500/10 px-2.5 py-1 text-[11px] font-semibold text-orange-400 sm:gap-2 sm:px-3 sm:text-xs">
               <Sparkles className="w-3.5 h-3.5" />
-              Vérification Certifiée & Sécurisée
+              Vérification certifiée et sécurisée
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-2xl font-extrabold text-white sm:text-3xl">
               Vérification d'Identité
             </h1>
-            <p className="text-sm text-slate-400 mt-2 max-w-xl leading-relaxed">
-              La vérification d'identité est obligatoire pour accéder au dashboard Production et recevoir des paiements réels.
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
+              Vérifiez votre identité pour débloquer les paiements réels et les fonctions du dashboard.
             </p>
           </div>
 
-          <div className="hidden sm:flex w-14 h-14 rounded-2xl bg-orange-500/10 border border-orange-500/20 items-center justify-center text-orange-400 flex-shrink-0">
+          <div className="hidden h-14 w-14 flex-shrink-0 items-center justify-center rounded-lg border border-orange-500/20 bg-orange-500/10 text-orange-400 sm:flex">
             <ShieldCheck className="w-8 h-8" />
           </div>
         </div>
 
         {/* Status Section */}
         {isApproved && (
-          <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-2xl text-center relative overflow-hidden">
-            <div className="w-16 h-16 rounded-2xl bg-green-500/20 mx-auto flex items-center justify-center mb-4 text-green-400">
-              <CheckCircle2 className="w-10 h-10" />
+          <div className="relative overflow-hidden rounded-lg border border-green-500/20 bg-green-500/10 p-5 text-center sm:p-8">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/20 text-green-400 sm:h-16 sm:w-16">
+              <CheckCircle2 className="h-8 w-8 sm:h-10 sm:w-10" />
             </div>
-            <h3 className="text-xl font-bold text-green-400 mb-2">Compte Vérifié avec Succès !</h3>
-            <p className="text-sm text-slate-300 max-w-md mx-auto mb-6 leading-relaxed">
+            <h3 className="mb-2 text-lg font-bold text-green-400 sm:text-xl">Compte vérifié avec succès</h3>
+            <p className="mx-auto mb-5 max-w-md text-sm leading-relaxed text-slate-300 sm:mb-6">
               Votre identité a été confirmée. Vos encaissements réels et retraits MonCash / NatCash / Zelle sont pleinement opérationnels.
             </p>
             <div className="inline-flex items-center gap-2 bg-green-500/20 text-green-300 px-5 py-2 rounded-full text-xs font-bold border border-green-500/30">
@@ -73,12 +71,12 @@ export default async function KycPage() {
         )}
 
         {isInReview && (
-          <div className="bg-amber-500/10 border border-amber-500/20 p-8 rounded-2xl text-center">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 mx-auto flex items-center justify-center mb-4 text-amber-400">
-              <Clock className="w-8 h-8 animate-pulse" />
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-5 text-center sm:p-8">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 sm:h-16 sm:w-16">
+              <Clock className="h-7 w-7 animate-pulse sm:h-8 sm:w-8" />
             </div>
-            <h3 className="text-xl font-bold text-amber-400 mb-2">Vérification en Cours d'Examen</h3>
-            <p className="text-sm text-slate-300 max-w-md mx-auto mb-6 leading-relaxed">
+            <h3 className="mb-2 text-lg font-bold text-amber-400 sm:text-xl">Vérification en cours d'examen</h3>
+            <p className="mx-auto mb-5 max-w-md text-sm leading-relaxed text-slate-300 sm:mb-6">
               Votre dossier d'identité a été soumis avec succès. Notre équipe de conformité finalise son analyse.
             </p>
             <div className="inline-flex items-center gap-2 bg-amber-500/20 text-amber-300 px-4 py-2 rounded-full text-xs font-semibold border border-amber-500/30 mb-6">
@@ -92,35 +90,41 @@ export default async function KycPage() {
         )}
 
         {(isNotStarted || isRejected) && (
-          <div className="space-y-6">
-            <div className="bg-slate-950/60 border border-slate-800 p-6 rounded-xl space-y-4">
-              <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-orange-400" />
-                Déroulement de la vérification (Moins de 2 minutes) :
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 sm:p-6">
+              <h3 className="flex min-h-10 items-center gap-2 text-sm font-bold text-white sm:mb-4 sm:text-base">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-orange-400" />
+                <span>3 étapes, moins de 2 minutes</span>
               </h3>
               
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold text-xs mb-3">1</div>
-                  <h4 className="text-sm font-semibold text-white mb-1">Pièce d'identité</h4>
-                  <p className="text-xs text-slate-400">Passeport, Carte Nationale d'Identité ou Permis de conduire valide.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 sm:gap-4">
+                <div className="flex items-start gap-3 border-b border-slate-800 py-3 sm:block sm:rounded-lg sm:border sm:bg-slate-900 sm:p-4">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-orange-500/10 text-xs font-bold text-orange-400 sm:mb-3">1</div>
+                  <div className="min-w-0">
+                    <h4 className="mb-1 text-sm font-semibold text-white">Pièce d'identité</h4>
+                    <p className="text-xs leading-5 text-slate-400">Passeport, carte d'identité ou permis valide.</p>
+                  </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold text-xs mb-3">2</div>
-                  <h4 className="text-sm font-semibold text-white mb-1">Vérification faciale</h4>
-                  <p className="text-xs text-slate-400">Un selfie rapide avec détection biométrique du vivant (Liveness).</p>
+                <div className="flex items-start gap-3 border-b border-slate-800 py-3 sm:block sm:rounded-lg sm:border sm:bg-slate-900 sm:p-4">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-orange-500/10 text-xs font-bold text-orange-400 sm:mb-3">2</div>
+                  <div className="min-w-0">
+                    <h4 className="mb-1 text-sm font-semibold text-white">Vérification faciale</h4>
+                    <p className="text-xs leading-5 text-slate-400">Un selfie rapide avec détection du vivant.</p>
+                  </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
-                  <div className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold text-xs mb-3">3</div>
-                  <h4 className="text-sm font-semibold text-white mb-1">Activation immédiate</h4>
-                  <p className="text-xs text-slate-400">Validation instantanée et déblocage de vos fonctionnalités.</p>
+                <div className="flex items-start gap-3 py-3 sm:block sm:rounded-lg sm:border sm:border-slate-800 sm:bg-slate-900 sm:p-4">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-orange-500/10 text-xs font-bold text-orange-400 sm:mb-3">3</div>
+                  <div className="min-w-0">
+                    <h4 className="mb-1 text-sm font-semibold text-white">Activation</h4>
+                    <p className="text-xs leading-5 text-slate-400">Déblocage des fonctionnalités après validation.</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-2">
+            <div>
               <DiditVerificationButton buttonText="Lancer la vérification d'identité" />
             </div>
           </div>

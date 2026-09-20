@@ -452,7 +452,7 @@ export default function PaymentFormClient({
           )}
 
           {/* 6. APPLE PAY / GOOGLE PAY (selon l'appareil) */}
-          {allowCardPayment && (
+          {walletAvailable && (
             <>
             <label 
               onClick={() => setSelectedMethod('apple_google_pay')}
