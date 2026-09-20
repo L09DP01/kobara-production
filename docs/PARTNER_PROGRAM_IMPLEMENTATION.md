@@ -71,17 +71,17 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 
 ### Phase 7 - Passage en Live et bonus Developer
 
-- [ ] Identifier les paiements crees avec une cle marchand.
-- [ ] Passer automatiquement la relation a `live`.
-- [ ] Verifier le plan Pro actif.
-- [ ] Crediter une seule fois le bonus de 10 USD.
+- [x] Identifier les paiements crees avec une cle marchand.
+- [x] Passer automatiquement la relation a `live`.
+- [x] Verifier le plan Pro actif.
+- [x] Crediter une seule fois le bonus de 10 USD.
 - [ ] Garantir l'idempotence en cas de callbacks multiples.
 
 ### Phase 8 - Niveaux et commissions Developer
 
-- [ ] Calculer le nombre de marchands actifs.
-- [ ] Determiner le niveau courant.
-- [ ] Calculer la part sur le revenu Kobara de 1 %.
+- [x] Calculer le nombre de marchands actifs.
+- [x] Determiner le niveau courant.
+- [x] Calculer la part sur le revenu Kobara de 1 %.
 - [ ] Gerer les etats `pending`, `available`, `paid`, `reversed`.
 - [ ] Ajouter les retraits de commissions.
 
@@ -131,3 +131,4 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - 2026-09-20: plan enregistre, audit initial du depot et verification des recommandations Supabase termines.
 - 2026-09-20: fondation SQL, scopes API, plafonds Developer, passage en Live et registre idempotent implementes; validation et migration Production encore requises.
 - 2026-09-20: migrations Production appliquees et verifiees; RLS actif, aucun privilege `anon`/`authenticated`, 237 cles existantes migrees avec leurs scopes, compilation et tests metier valides.
+- 2026-09-20: commit `dda764d` deploye sur le Worker Production, version `38ee992c`; controle HTTP termine avec succes.
