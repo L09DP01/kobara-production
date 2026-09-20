@@ -55,7 +55,19 @@ export async function onPaymentSucceeded(paymentId: string) {
       .select('id')
       .eq('payment_id', payment.id)
       .maybeSingle();
-    if (existingActivation) return;
+    if (existingActivation) {
+      try {
+        const { processPartnerPlanActivation } = await import('@/lib/server/partners/program');
+        await processPartnerPlanActivation({
+          merchantId,
+          subscriptionId: existingActivation.id,
+          planSlug: metadata.plan_slug,
+        });
+      } catch (partnerError) {
+        console.error('Partner plan activation retry failed:', partnerError);
+      }
+      return;
+    }
 
     const { upgradeMerchantPlan } = await import("@/lib/server/plans");
     await upgradeMerchantPlan(merchantId, metadata.plan_slug, {
@@ -114,6 +126,13 @@ export async function onPaymentSucceeded(paymentId: string) {
 
   const settledAmounts = getSettlementAmounts(settledPayment);
   const paymentMethodLabel = getPaymentMethodLabel(settledPayment);
+
+  try {
+    const { processPartnerPaymentSuccess } = await import('@/lib/server/partners/program');
+    await processPartnerPaymentSuccess(settledPayment);
+  } catch (partnerError) {
+    console.error('Partner payment processing failed:', partnerError);
+  }
 
   // --- 2. Send Notification ---
   try {

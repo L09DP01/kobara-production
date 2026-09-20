@@ -197,6 +197,18 @@ export async function upgradeMerchantPlan(
   } catch (notificationError) {
     console.error('Subscription plan notification failed:', notificationError);
   }
+
+  try {
+    const { processPartnerPlanActivation } = await import('@/lib/server/partners/program');
+    await processPartnerPlanActivation({
+      merchantId,
+      subscriptionId: String(subscriptionId),
+      planSlug: plan.slug,
+    });
+  } catch (partnerError) {
+    console.error('Partner plan activation processing failed:', partnerError);
+  }
+
   return { success: true, subscriptionId };
 }
 

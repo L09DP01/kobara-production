@@ -9,11 +9,11 @@ import { notifyApiKeyRevoked } from "@/lib/server/notifications";
 
 export async function generateApiKey(name: string) {
   try {
-    const { user, merchant, supabase } = await getCurrentUserAndMerchant();
+    const { user, merchant } = await getCurrentUserAndMerchant();
 
     // For API keys, the user should be owner/admin. Let's assume standard role for now as per MVP.
-    let role = 'owner';
-    let merchantId = merchant.id;
+    const role = 'owner';
+    const merchantId = merchant.id;
 
     // Apply permission logic
     if (role !== 'owner' && role !== 'admin') {
@@ -44,7 +44,10 @@ export async function generateApiKey(name: string) {
         name: name,
         prefix: prefix,
         key_hash: keyHash,
-        environment: 'live'
+        environment: 'live',
+        created_by_type: 'merchant',
+        created_by_user_id: user.id,
+        scopes: ['payments:create', 'payments:read', 'withdrawals:create'],
       });
 
     if (error) {
@@ -66,9 +69,9 @@ export async function generateApiKey(name: string) {
     revalidatePath('/dashboard/api-keys');
 
     return { rawKey, name, environment: 'live' as const };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("API Key Gen Error:", err);
-    return { error: err.message || "Une erreur interne est survenue." };
+    return { error: err instanceof Error ? err.message : "Une erreur interne est survenue." };
   }
 }
 
@@ -112,8 +115,8 @@ export async function revokeApiKey(id: string) {
 
     revalidatePath('/dashboard/api-keys');
     return { success: true };
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("API Key Revoke Error:", err);
-    return { error: err.message || "Une erreur interne est survenue." };
+    return { error: err instanceof Error ? err.message : "Une erreur interne est survenue." };
   }
 }

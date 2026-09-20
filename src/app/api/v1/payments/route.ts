@@ -38,10 +38,18 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { merchantId, environment, error: authError } = await authenticateApiRequest(request);
+    const {
+      merchantId,
+      environment,
+      apiKeyId,
+      apiKeyOrigin,
+      developerConnectionId,
+      error: authError,
+      forbidden,
+    } = await authenticateApiRequest(request, { requiredScope: 'payments:create' });
 
     if (authError || !merchantId) {
-      return NextResponse.json({ error: authError || "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: authError || "Unauthorized" }, { status: forbidden ? 403 : 401 });
     }
 
     const accessCheck = await canCreatePayment(merchantId, 'live');
@@ -193,6 +201,29 @@ export async function POST(request: NextRequest) {
       ? normalizePaymAmount('natcash', amount)
       : amount;
 
+    if (apiKeyOrigin === 'developer' && developerConnectionId) {
+      const { checkDeveloperPaymentCapacity } = await import('@/lib/server/partners/program');
+      const capacity = await checkDeveloperPaymentCapacity({
+        connectionId: developerConnectionId,
+        amount: paymentAmount,
+        currency,
+      });
+      if (!capacity.allowed) {
+        return NextResponse.json({
+          status: 'error',
+          error: 'developer_integration_limit_reached',
+          code: 'DEVELOPER_INTEGRATION_LIMIT_REACHED',
+          message: capacity.limit === 0
+            ? "Cette devise n'est pas autorisée pour une clé API Developer en intégration."
+            : `La limite d'intégration Developer est atteinte pour ${capacity.currency}.`,
+          currency: capacity.currency,
+          limit: capacity.limit,
+          used: capacity.used,
+          remaining: capacity.remaining,
+        }, { status: 403 });
+      }
+    }
+
     // Generate the short reference only for a direct NatCash request. Unified
     // checkout generates it later if the customer actually chooses NatCash.
     if (provider === 'natcash') {
@@ -327,6 +358,8 @@ export async function POST(request: NextRequest) {
 
     const { data: payment, error: dbError } = await supabase.from('payments').insert({
       merchant_id: merchantId,
+      api_key_id: apiKeyId,
+      api_key_origin: apiKeyOrigin,
       environment: environment,
       customer_id: customerId,
       kobara_reference: kobaraReference,
@@ -390,6 +423,21 @@ export async function POST(request: NextRequest) {
           used,
           remaining: 0,
           renewal_url: 'https://dashboard.kobara.app/billing',
+        }, { status: 403 });
+      }
+      const developerLimitMatch = dbError.message?.match(/developer_integration_limit_reached:(HTG|USD):([0-9.]+):([0-9.]+)/);
+      if (developerLimitMatch) {
+        const used = Number(developerLimitMatch[2]);
+        const limit = Number(developerLimitMatch[3]);
+        return NextResponse.json({
+          status: 'error',
+          error: 'developer_integration_limit_reached',
+          code: 'DEVELOPER_INTEGRATION_LIMIT_REACHED',
+          message: `La limite d'intégration Developer est atteinte pour ${developerLimitMatch[1]}.`,
+          currency: developerLimitMatch[1],
+          limit,
+          used,
+          remaining: Math.max(0, limit - used),
         }, { status: 403 });
       }
       return NextResponse.json({ error: "Internal Database Error" }, { status: 500 });
@@ -469,10 +517,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { merchantId, error: authError } = await authenticateApiRequest(request);
+    const { merchantId, error: authError, forbidden } = await authenticateApiRequest(request, { requiredScope: 'payments:read' });
 
     if (authError || !merchantId) {
-      return NextResponse.json({ error: authError || "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: authError || "Unauthorized" }, { status: forbidden ? 403 : 401 });
     }
 
     const { merchant, plan } = await getMerchantCurrentPlan(merchantId);

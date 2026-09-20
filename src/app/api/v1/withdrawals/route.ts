@@ -74,9 +74,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { merchantId, error: authError } = await authenticateApiRequest(request);
+    const { merchantId, error: authError, errorCode: authErrorCode, forbidden } = await authenticateApiRequest(request, { requiredScope: 'withdrawals:create' });
     if (authError || !merchantId) {
-      return apiJson(request, { status: "error", error: "unauthorized", message: authError || "Unauthorized" }, 401);
+      return apiJson(request, {
+        status: "error",
+        error: forbidden ? "forbidden" : "unauthorized",
+        code: authErrorCode || (forbidden ? "FORBIDDEN" : "UNAUTHORIZED"),
+        message: authError || "Unauthorized",
+      }, forbidden ? 403 : 401);
     }
 
     const rateLimit = await withdrawalsLimiter.limit(`api-withdrawal:${merchantId}:${getClientIp(request.headers)}`);
