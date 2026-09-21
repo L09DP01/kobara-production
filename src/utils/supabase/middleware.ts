@@ -35,6 +35,14 @@ export async function updateSession(request: NextRequest) {
 
   const isMainDomain = hostname === 'kobara.app' || hostname === 'www.kobara.app' || hostname === 'localhost' || hostname === 'kobara.local';
   const isDashboardSubdomain = hostname === 'dashboard.kobara.app' || hostname === 'dashboard.localhost' || hostname === 'dashboard.kobara.local';
+  const isPublicPartnerPath = pathname === '/developer'
+    || pathname === '/developer/login'
+    || pathname === '/developer/register'
+    || pathname === '/developer/status'
+    || pathname.startsWith('/developer/invitations/')
+    || pathname === '/partnership/ambassador'
+    || pathname === '/ambassador/login'
+    || pathname === '/ambassador/status';
 
   if (isMainDomain) {
     if (pathname.startsWith('/dashboard')) {
@@ -55,7 +63,11 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Require authentication for dashboard subdomain (except APIs which have their own auth)
-    if (!userLoggedIn && !pathname.startsWith('/api') && !pathname.startsWith('/_next')) {
+    if (!userLoggedIn
+      && !pathname.startsWith('/api')
+      && !pathname.startsWith('/_next')
+      && !pathname.startsWith('/system-core')
+      && !isPublicPartnerPath) {
       const redirectUrl = hostname.includes('localhost') || hostname.includes('local') ?
         `http://${hostname.replace('dashboard.', '')}:3000/login${request.nextUrl.search}` :
         `https://kobara.app/login${request.nextUrl.search}`;
