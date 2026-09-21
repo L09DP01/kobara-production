@@ -62,6 +62,7 @@ export async function onPaymentSucceeded(paymentId: string) {
           merchantId,
           subscriptionId: existingActivation.id,
           planSlug: metadata.plan_slug,
+          promoCodeId: metadata.promo_code_id || null,
         });
       } catch (partnerError) {
         console.error('Partner plan activation retry failed:', partnerError);

@@ -521,5 +521,9 @@ export async function applyNowPaymentsStatus(payment: NowPaymentsPayment) {
     .select('*')
     .maybeSingle();
   if (updateError) throw new Error(`Mise à jour crypto impossible: ${updateError.message}`);
+  if (updated && nextStatus === 'refunded') {
+    const { processPartnerPaymentReversal } = await import('@/lib/server/partners/program');
+    await processPartnerPaymentReversal(updated.id);
+  }
   return { payment: updated || kobaraPayment, transitioned: false };
 }

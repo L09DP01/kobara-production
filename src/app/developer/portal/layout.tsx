@@ -1,0 +1,2 @@
+import { requirePartner } from '@/lib/server/partners/auth'; import { PartnerPortalShell } from '@/components/partners/partner-portal-shell';
+export default async function DeveloperPortalLayout({children}:{children:React.ReactNode}){const {account}=await requirePartner('developer');return <PartnerPortalShell role="developer" name={account.company_name||account.display_name}>{children}</PartnerPortalShell>}

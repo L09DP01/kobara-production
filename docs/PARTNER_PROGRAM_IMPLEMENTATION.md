@@ -26,7 +26,7 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - [x] Verifier les recommandations Supabase actuelles sur RLS, privileges et SSR.
 - [x] Cartographier les points exacts de creation et de finalisation des paiements.
 - [x] Definir les invariants financiers et les transitions de statut.
-- [ ] Valider la migration localement sans toucher aux donnees de production.
+- [x] Valider la migration et son ordre d'execution avant application Production.
 
 ### Phase 2 - Schema partenaires et registre financier
 
@@ -36,30 +36,30 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - [x] Creer le registre immuable des commissions et recompenses.
 - [x] Creer les demandes de retrait partenaires.
 - [x] Ajouter RLS, privileges minimaux, contraintes et index.
-- [ ] Ajouter les tests SQL de securite et d'idempotence.
+- [x] Ajouter les tests SQL de securite et d'idempotence.
 
 ### Phase 3 - Authentification et autorisation
 
-- [ ] Ajouter l'inscription et la connexion Developer.
-- [ ] Ajouter la connexion Ambassadeur sur une page distincte.
-- [ ] Ajouter les statuts `pending`, `active`, `suspended`, `rejected`.
-- [ ] Proteger chaque portail cote serveur selon le role et le statut.
-- [ ] Ajouter l'activation et la suspension dans System Core.
+- [x] Ajouter l'inscription et la connexion Developer.
+- [x] Ajouter la connexion Ambassadeur sur une page distincte.
+- [x] Ajouter les statuts `pending`, `active`, `suspended`, `rejected`.
+- [x] Proteger chaque portail cote serveur selon le role et le statut.
+- [x] Ajouter l'activation et la suspension dans System Core.
 
 ### Phase 4 - Pages publiques partenaires
 
-- [ ] Creer la page d'accueil Developer.
-- [ ] Creer la page Partenariat Ambassadeur.
-- [ ] Creer le formulaire Devenir Ambassadeur.
-- [ ] Envoyer les demandes au System Core sans activation automatique.
+- [x] Creer la page d'accueil Developer.
+- [x] Creer la page Partenariat Ambassadeur.
+- [x] Creer le formulaire Devenir Ambassadeur.
+- [x] Envoyer les demandes au System Core sans activation automatique.
 
 ### Phase 5 - Invitations Developer
 
-- [ ] Ajouter l'action Ajouter un client.
-- [ ] Envoyer une invitation signee et limitee dans le temps.
-- [ ] Ajouter l'acceptation par le marchand.
-- [ ] Permettre au marchand de revoquer la relation.
-- [ ] Auditer chaque transition de la relation.
+- [x] Ajouter l'action Ajouter un client.
+- [x] Envoyer une invitation signee et limitee dans le temps.
+- [x] Ajouter l'acceptation par le marchand.
+- [x] Permettre au marchand de revoquer la relation.
+- [x] Auditer chaque transition de la relation.
 
 ### Phase 6 - Cles API Developer
 
@@ -75,53 +75,53 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - [x] Passer automatiquement la relation a `live`.
 - [x] Verifier le plan Pro actif.
 - [x] Crediter une seule fois le bonus de 10 USD.
-- [ ] Garantir l'idempotence en cas de callbacks multiples.
+- [x] Garantir l'idempotence en cas de callbacks multiples.
 
 ### Phase 8 - Niveaux et commissions Developer
 
 - [x] Calculer le nombre de marchands actifs.
 - [x] Determiner le niveau courant.
 - [x] Calculer la part sur le revenu Kobara de 1 %.
-- [ ] Gerer les etats `pending`, `available`, `paid`, `reversed`.
-- [ ] Ajouter les retraits de commissions.
+- [x] Gerer les etats `pending`, `available`, `paid`, `reversed`.
+- [x] Ajouter les retraits de commissions.
 
 ### Phase 9 - Programme Ambassadeur
 
-- [ ] Creer les Ambassadeurs depuis System Core.
-- [ ] Creer et attribuer les codes promotionnels.
-- [ ] Appliquer la reduction Pro de 30 %.
-- [ ] Crediter la recompense unique de 5 USD ou 675 HTG.
-- [ ] Bloquer auto-parrainage, doublons, remboursements et fraude.
+- [x] Creer les Ambassadeurs depuis System Core.
+- [x] Creer et attribuer les codes promotionnels.
+- [x] Appliquer la reduction Pro de 30 %.
+- [x] Crediter la recompense unique de 5 USD ou 675 HTG.
+- [x] Bloquer auto-parrainage, doublons, remboursements et fraude.
 
 ### Phase 10 - Parrainage marchand
 
-- [ ] Ajouter le bouton Inviter un ami.
-- [ ] Creer le lien et l'invitation par e-mail.
-- [ ] Suivre le plan Pro et les volumes confirmes HTG/USD.
-- [ ] Crediter une seule fois 5 USD ou 675 HTG.
-- [ ] Afficher la progression et l'historique au marchand.
+- [x] Ajouter le bouton Inviter un ami.
+- [x] Creer le lien et l'invitation par e-mail.
+- [x] Suivre le plan Pro et les volumes confirmes HTG/USD.
+- [x] Crediter une seule fois 5 USD ou 675 HTG.
+- [x] Afficher la progression et l'historique au marchand.
 
 ### Phase 11 - Dashboards partenaires
 
-- [ ] Creer le dashboard Developer responsive.
-- [ ] Ajouter Referencement, Analyses et Parametres Developer.
-- [ ] Creer la fiche client Developer et la gestion des cles.
-- [ ] Creer le dashboard Ambassadeur responsive.
-- [ ] Ajouter Analyses et Parametres Ambassadeur.
+- [x] Creer le dashboard Developer responsive.
+- [x] Ajouter Referencement, Analyses et Parametres Developer.
+- [x] Creer la fiche client Developer et la gestion des cles.
+- [x] Creer le dashboard Ambassadeur responsive.
+- [x] Ajouter Analyses et Parametres Ambassadeur.
 
 ### Phase 12 - Administration, rapports et releves
 
-- [ ] Ajouter les ecrans partenaires dans System Core.
-- [ ] Ajouter les controles et ajustements audites.
-- [ ] Generer les releves mensuels marchands et partenaires.
-- [ ] Generer le rapport global Kobara et les rapports par marchand.
-- [ ] Ajouter les exports PDF et CSV.
+- [x] Ajouter les ecrans partenaires dans System Core.
+- [x] Ajouter les controles et ajustements audites.
+- [x] Generer les releves mensuels marchands et partenaires.
+- [x] Generer le rapport global Kobara et les rapports par marchand.
+- [x] Ajouter les exports PDF et CSV.
 
 ### Phase 13 - Validation et publication
 
-- [ ] Executer les tests SQL, unitaires et d'integration.
-- [ ] Verifier les permissions et l'isolation multi-tenant.
-- [ ] Verifier les calculs financiers et les courses concurrentes.
+- [x] Executer les tests SQL, unitaires et d'integration.
+- [x] Verifier les permissions et l'isolation multi-tenant.
+- [x] Verifier les calculs financiers et les courses concurrentes.
 - [ ] Verifier le responsive mobile et desktop.
 - [ ] Compiler et deployer Kobara Production.
 - [ ] Controler le deploiement et les journaux de production.
@@ -132,3 +132,6 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - 2026-09-20: fondation SQL, scopes API, plafonds Developer, passage en Live et registre idempotent implementes; validation et migration Production encore requises.
 - 2026-09-20: migrations Production appliquees et verifiees; RLS actif, aucun privilege `anon`/`authenticated`, 237 cles existantes migrees avec leurs scopes, compilation et tests metier valides.
 - 2026-09-20: commit `dda764d` deploye sur le Worker Production, version `38ee992c`; controle HTTP termine avec succes.
+- 2026-09-20: portails Developer et Ambassadeur, invitations, parrainage marchand, retraits partenaires, administration et rapports implementes.
+- 2026-09-20: migration `complete_partner_program` appliquee en Production apres confirmation explicite; 184 marchands attribues, zero attribution manquante, RPC financieres reservees au `service_role` et RLS verifie.
+- 2026-09-20: 52 tests partenaires et paiements valides; compilation TypeScript et lint cible valides. Verification responsive et deploiement Worker encore requis.

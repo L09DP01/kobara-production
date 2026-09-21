@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
-  BarChart3, BookOpen, CreditCard, Headphones, KeyRound,
+  BarChart3, BookOpen, CreditCard, Headphones, KeyRound, UserPlus, FileText,
   LayoutDashboard, LockKeyhole, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
@@ -29,14 +29,16 @@ const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
       { href: "/payments", icon: CreditCard, label: "Paiements", requiresKyc: true },
       { href: "/payment-links", icon: Link2, label: "Liens de paiement", requiresKyc: true },
       { href: "/customers", icon: Users, label: "Clients", requiresKyc: true },
+      { href: "/referrals", icon: UserPlus, label: "Inviter un ami", requiresKyc: true },
       { href: "/withdrawals", icon: WalletCards, label: "Retraits", ownerOnly: true, requiresKyc: true },
     ],
   },
-  { title: "Performance", links: [{ href: "/analytics", icon: BarChart3, label: "Analyses", requiresKyc: true }] },
+  { title: "Performance", links: [{ href: "/analytics", icon: BarChart3, label: "Analyses", requiresKyc: true }, { href: "/statements", icon: FileText, label: "Relevés", requiresKyc: true }] },
   {
     title: "Développeurs",
     links: [
       { href: "/developers", icon: Blocks, label: "Intégration", requiresKyc: true },
+      { href: "/developer-access", icon: Users, label: "Accès Developer", ownerOnly: true, requiresKyc: true },
       { href: "/api-keys", icon: KeyRound, label: "Clés API", requiresKyc: true },
       { href: "/webhooks", icon: Webhook, label: "Webhooks", requiresKyc: true },
       { href: "https://docs.kobara.app/docs/quickstart", icon: BookOpen, label: "Documentation", external: true },

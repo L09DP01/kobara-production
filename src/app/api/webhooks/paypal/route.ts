@@ -111,6 +111,8 @@ export async function POST(request: NextRequest) {
         .select('id, merchant_id, environment')
         .maybeSingle();
       if (refunded) {
+        const { processPartnerPaymentReversal } = await import('@/lib/server/partners/program');
+        await processPartnerPaymentReversal(refunded.id);
         const { dispatchMerchantWebhook } = await import('@/lib/server/webhooks/dispatcher');
         await dispatchMerchantWebhook({
           merchantId: refunded.merchant_id,

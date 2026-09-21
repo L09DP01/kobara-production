@@ -132,6 +132,17 @@ export async function POST(request: NextRequest) {
       } catch (notificationError) {
         console.error('Balance subscription notification failed:', notificationError);
       }
+      try {
+        const { processPartnerPlanActivation } = await import('@/lib/server/partners/program');
+        await processPartnerPlanActivation({
+          merchantId: merchant.id,
+          subscriptionId: String(subscriptionId),
+          planSlug: plan.slug,
+          promoCodeId,
+        });
+      } catch (partnerError) {
+        console.error('Balance partner activation failed:', partnerError);
+      }
       return NextResponse.json({ success: true, requiresPayment: false, message: 'Plan activé via le solde' });
     }
 

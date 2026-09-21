@@ -1,0 +1,2 @@
+import Link from 'next/link'; import { DeveloperRegisterForm } from '@/components/partners/developer-register-form';
+export default function DeveloperRegisterPage(){return <main className="min-h-[100dvh] bg-[#07101d] p-5 text-white"><section className="mx-auto max-w-2xl py-10"><Link href="/developer" className="text-sm text-slate-400">← Programme Developer</Link><h1 className="mt-8 text-3xl font-black">Créer un compte Developer</h1><p className="mt-2 mb-8 text-slate-400">Votre compte sera examiné avant activation.</p><DeveloperRegisterForm/></section></main>}

@@ -204,6 +204,7 @@ export async function upgradeMerchantPlan(
       merchantId,
       subscriptionId: String(subscriptionId),
       planSlug: plan.slug,
+      promoCodeId: activation.promoCodeId ?? null,
     });
   } catch (partnerError) {
     console.error('Partner plan activation processing failed:', partnerError);

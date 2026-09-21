@@ -8,6 +8,7 @@ import { getMaintenanceState } from '@/lib/server/maintenance'
 import { isMaintenanceActive } from '@/lib/maintenance-state'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
+import { hashPartnerToken } from '@/lib/server/partners/tokens'
 import dns from 'dns'
 
 import { authLimiter, getClientIp } from '@/lib/server/security/rate-limit'
@@ -155,6 +156,35 @@ export async function signup(formData: FormData) {
         redirect('/register?error=' + encodeURIComponent(BUSINESS_NAME_TAKEN_MESSAGE));
       }
       redirect('/register?error=' + encodeURIComponent("Une erreur est survenue lors de la création de votre profil marchand."));
+    }
+  }
+
+  // Complete a signed partner attribution after the merchant row exists.
+  // Failure does not delete the newly-created account; the acceptance page
+  // will display a precise error when the user follows the link again.
+  const cookieStore = await cookies();
+  const developerInvite = cookieStore.get('kobara_developer_invite')?.value;
+  const merchantReferral = cookieStore.get('kobara_merchant_referral')?.value;
+  let partnerAttributed = false;
+  if (developerInvite) {
+    const { error: inviteError } = await supabase.rpc('accept_developer_invitation', {
+      p_token_hash: hashPartnerToken(developerInvite), p_user_id: userId,
+    });
+    if (!inviteError) { cookieStore.delete('kobara_developer_invite'); partnerAttributed = true; }
+    else console.error('Developer invitation attribution failed:', inviteError.message);
+  } else if (merchantReferral) {
+    const { error: referralError } = await supabase.rpc('accept_merchant_referral', {
+      p_token_hash: hashPartnerToken(merchantReferral), p_user_id: userId,
+    });
+    if (!referralError) { cookieStore.delete('kobara_merchant_referral'); partnerAttributed = true; }
+    else console.error('Merchant referral attribution failed:', referralError.message);
+  }
+  if (!partnerAttributed) {
+    const { data: newMerchant } = await supabase.from('merchants').select('id').eq('user_id', userId).maybeSingle();
+    if (newMerchant) {
+      await supabase.from('referral_attributions').insert({
+        merchant_id: newMerchant.id, source_type: 'direct', source_reference: 'merchant_signup',
+      });
     }
   }
 

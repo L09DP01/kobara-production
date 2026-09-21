@@ -23,6 +23,8 @@ import {
   HeartPulse,
   BellRing,
   BriefcaseBusiness,
+  Handshake,
+  FileBarChart,
   Menu,
   X
 } from "lucide-react";
@@ -39,6 +41,8 @@ export default function SystemCoreLayout({ children }: { children: React.ReactNo
     { name: "TRANSACTIONS", href: "/system-core/transactions", icon: CreditCard },
     { name: "SUBSCRIPTIONS", href: "/system-core/subscriptions", icon: ReceiptText },
     { name: "BUSINESS REQUESTS", href: "/system-core/business-requests", icon: BriefcaseBusiness },
+    { name: "PARTNERS", href: "/system-core/partners", icon: Handshake },
+    { name: "REPORTS", href: "/system-core/reports", icon: FileBarChart },
     { name: "WITHDRAWALS", href: "/system-core/withdrawals", icon: Banknote },
     { name: "SUPPORT", href: "/system-core/support", icon: LifeBuoy },
     { name: "AUDIT LOGS", href: "/system-core/audit", icon: SearchCode },

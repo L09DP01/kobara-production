@@ -20,6 +20,8 @@ function LoginContent() {
   const registered = searchParams.get('registered') === 'true';
   const resetSuccess = searchParams.get('reset') === 'success';
   const emailParam = searchParams.get('email') || '';
+  const callbackUrlParam = searchParams.get('callbackUrl') || '';
+  const callbackUrl = callbackUrlParam.startsWith('/') && !callbackUrlParam.startsWith('//') ? callbackUrlParam : getDashboardUrl('/dashboard');
 
   const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState('');
@@ -76,7 +78,7 @@ function LoginContent() {
       } else {
         // Success! Redirect to the dashboard
         markClientSessionActive();
-        window.location.assign(getDashboardUrl('/dashboard'));
+        window.location.assign(callbackUrl);
       }
     } catch (err: any) {
       setError(err?.message || (language === "fr" ? "Une erreur inattendue est survenue." : "An unexpected error occurred."));

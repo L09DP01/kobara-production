@@ -1,0 +1,2 @@
+'use server'; import { requireAdmin } from '@/lib/auth/require-admin'; import { generateMonthlyPartnerReports } from '@/lib/server/partners/reports'; import { revalidatePath } from 'next/cache';
+export async function generateReportsNow(){await requireAdmin(['super_admin','operations']);try{const result=await generateMonthlyPartnerReports();revalidatePath('/system-core/reports');return{success:true,result}}catch(error){return{error:error instanceof Error?error.message:'Échec de génération'}}}

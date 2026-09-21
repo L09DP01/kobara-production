@@ -374,10 +374,29 @@ export async function processPartnerPlanActivation(input: {
   merchantId: string;
   subscriptionId: string;
   planSlug: string;
+  promoCodeId?: string | null;
 }) {
   if (input.planSlug !== 'pro') return;
 
   const supabase = createAdminClient();
+  if (input.promoCodeId) {
+    const { data: ambassador } = await supabase
+      .from('ambassador_accounts')
+      .select('id, status')
+      .eq('promo_code_id', input.promoCodeId)
+      .maybeSingle();
+    if (ambassador?.status === 'active') {
+      const { error: attributionError } = await supabase.from('referral_attributions').insert({
+        merchant_id: input.merchantId,
+        source_type: 'ambassador_promo',
+        ambassador_id: ambassador.id,
+        source_reference: input.promoCodeId,
+      });
+      if (attributionError && !isUniqueViolation(attributionError)) {
+        throw new Error(`Ambassador attribution failed: ${attributionError.message}`);
+      }
+    }
+  }
   const { data: connection } = await supabase
     .from('developer_merchant_connections')
     .select('id')
@@ -396,5 +415,86 @@ export async function processPartnerPlanActivation(input: {
     .maybeSingle();
   if (attribution?.merchant_referral_id) {
     await refreshMerchantReferral(attribution.merchant_referral_id);
+  }
+}
+
+export async function processPartnerPaymentReversal(paymentId: string) {
+  const supabase = createAdminClient();
+  const { data: entries, error } = await supabase
+    .from('partner_commission_ledger')
+    .select('id, status, beneficiary_type, developer_id, ambassador_id, merchant_id, amount, currency')
+    .eq('source_payment_id', paymentId)
+    .neq('status', 'reversed');
+  if (error) throw new Error(`Partner reversal lookup failed: ${error.message}`);
+
+  const reversible = (entries ?? []).filter(entry => entry.status !== 'paid');
+  if (reversible.length > 0) {
+    const { error: reversalError } = await supabase
+      .from('partner_commission_ledger')
+      .update({ status: 'reversed', partner_withdrawal_id: null })
+      .in('id', reversible.map(entry => entry.id));
+    if (reversalError) throw new Error(`Partner reversal failed: ${reversalError.message}`);
+  }
+
+  const paid = (entries ?? []).filter(entry => entry.status === 'paid');
+  for (const entry of paid) {
+    const beneficiaryId = entry.developer_id || entry.ambassador_id || entry.merchant_id;
+    const { error: debtError } = await supabase.from('partner_commission_ledger').insert({
+      beneficiary_type: entry.beneficiary_type,
+      developer_id: entry.developer_id,
+      ambassador_id: entry.ambassador_id,
+      merchant_id: entry.merchant_id,
+      source_payment_id: paymentId,
+      entry_type: 'reversal',
+      amount: entry.amount,
+      currency: entry.currency,
+      status: 'reversed',
+      idempotency_key: `partner_paid_reversal:${entry.id}`,
+      metadata: { reverses_entry_id: entry.id, beneficiary_id: beneficiaryId, creates_partner_debt: true },
+    });
+    if (debtError && !isUniqueViolation(debtError)) throw new Error(`Partner paid reversal failed: ${debtError.message}`);
+  }
+
+  const { data: credit } = await supabase
+    .from('merchant_referral_payment_credits')
+    .delete()
+    .eq('payment_id', paymentId)
+    .select('merchant_referral_id')
+    .maybeSingle();
+  if (credit?.merchant_referral_id) {
+    const [{ data: referral }, { data: remainingCredits }] = await Promise.all([
+      supabase.from('merchant_referrals').select('id, invited_merchant_id, status').eq('id', credit.merchant_referral_id).maybeSingle(),
+      supabase.from('merchant_referral_payment_credits').select('amount, currency').eq('merchant_referral_id', credit.merchant_referral_id),
+    ]);
+    if (referral?.invited_merchant_id) {
+      const totals = (remainingCredits ?? []).reduce((sum, item) => {
+        const currency = String(item.currency).toUpperCase();
+        if (currency === 'HTG' || currency === 'USD') sum[currency] += Number(item.amount);
+        return sum;
+      }, { HTG: 0, USD: 0 });
+      const proActive = await hasActiveProPlan(referral.invited_merchant_id);
+      const stillQualified = isMerchantReferralQualified({ hasActiveProPlan: proActive, htgTotal: totals.HTG, usdTotal: totals.USD });
+      if (!stillQualified && referral.status === 'rewarded') {
+        const { data: reward } = await supabase.from('partner_commission_ledger')
+          .select('id, status, beneficiary_type, merchant_id, amount, currency')
+          .eq('idempotency_key', `merchant_referral_reward:${referral.id}`).maybeSingle();
+        if (reward && reward.status !== 'paid') {
+          await supabase.from('partner_commission_ledger').update({ status: 'reversed' }).eq('id', reward.id);
+        } else if (reward?.status === 'paid') {
+          await supabase.from('partner_commission_ledger').insert({
+            beneficiary_type: 'merchant_referral', merchant_id: reward.merchant_id,
+            entry_type: 'reversal', amount: reward.amount, currency: reward.currency, status: 'reversed',
+            idempotency_key: `merchant_referral_paid_reversal:${referral.id}`,
+            metadata: { reverses_entry_id: reward.id, creates_partner_debt: true },
+          });
+        }
+        await supabase.from('merchant_referrals').update({
+          status: proActive ? 'volume_pending' : 'account_created', rewarded_at: null, qualified_at: null,
+          qualifying_htg_total: totals.HTG, qualifying_usd_total: totals.USD,
+        }).eq('id', referral.id);
+      } else {
+        await refreshMerchantReferral(referral.id);
+      }
+    }
   }
 }
