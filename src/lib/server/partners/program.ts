@@ -123,12 +123,12 @@ async function creditDeveloperActivationBonus(connectionId: string) {
   const supabase = createAdminClient();
   const { data: connection, error } = await supabase
     .from('developer_merchant_connections')
-    .select('id, developer_id, merchant_id, first_merchant_api_payment_id, developer_bonus_credited_at')
+    .select('id, developer_id, merchant_id, first_merchant_api_payment_id, developer_bonus_credited_at, commission_eligible')
     .eq('id', connectionId)
     .maybeSingle();
 
   if (error) throw new Error(`Developer connection lookup failed: ${error.message}`);
-  if (!connection?.first_merchant_api_payment_id || connection.developer_bonus_credited_at) return;
+  if (!connection?.commission_eligible || !connection.first_merchant_api_payment_id || connection.developer_bonus_credited_at) return;
   if (!(await hasActiveProPlan(connection.merchant_id))) return;
 
   const { data: developer } = await supabase
@@ -169,6 +169,7 @@ async function markDeveloperConnectionLive(merchantId: string, paymentId: string
     .from('developer_merchant_connections')
     .select('id, status, live_at, first_merchant_api_payment_id')
     .eq('merchant_id', merchantId)
+    .eq('commission_eligible', true)
     .neq('status', 'revoked')
     .maybeSingle();
 
@@ -197,13 +198,13 @@ async function creditDeveloperTransactionCommission(
   const supabase = createAdminClient();
   const { data: connection, error } = await supabase
     .from('developer_merchant_connections')
-    .select('developer_id, merchant_id, status')
+    .select('developer_id, merchant_id, status, commission_eligible')
     .eq('id', connectionId)
     .eq('merchant_id', payment.merchant_id)
     .maybeSingle();
 
   if (error) throw new Error(`Developer commission connection lookup failed: ${error.message}`);
-  if (!connection || connection.status === 'revoked') return;
+  if (!connection || connection.status === 'revoked' || !connection.commission_eligible) return;
 
   const developer = await refreshDeveloperTier(connection.developer_id);
   if (developer.status !== 'active' || developer.commissionRate === null) return;
@@ -435,6 +436,7 @@ export async function processPartnerPlanActivation(input: {
     .from('developer_merchant_connections')
     .select('id')
     .eq('merchant_id', input.merchantId)
+    .eq('commission_eligible', true)
     .neq('status', 'revoked')
     .maybeSingle();
   if (connection) await creditDeveloperActivationBonus(connection.id);

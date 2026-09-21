@@ -1,4 +1,5 @@
 'use server'
+/* eslint-disable @typescript-eslint/no-explicit-any -- Settings JSON and legacy session claims are runtime-shaped. */
 
 import { auth } from "@/auth";
 import { createAdminClient } from "@/utils/supabase/admin";
@@ -18,6 +19,7 @@ import {
   normalizeBusinessName,
 } from "@/lib/business-name";
 import { normalizeSixDigitCode } from '@/lib/two-factor';
+import { createPartnerToken } from '@/lib/server/partners/tokens';
 import {
   getMerchantPaymentMethodState,
   MERCHANT_PAYMENT_METHODS,
@@ -187,7 +189,8 @@ export async function inviteTeamMember(email: string, role: string = 'developer'
   }
 
   const cleanEmail = email.toLowerCase().trim();
-  if (!cleanEmail) throw new Error("Adresse e-mail invalide.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) throw new Error("Adresse e-mail invalide.");
+  if (!['developer', 'admin'].includes(role)) throw new Error("Rôle invalide.");
 
   const supabase = createAdminClient();
 
@@ -202,7 +205,7 @@ export async function inviteTeamMember(email: string, role: string = 'developer'
     .from('merchant_members')
     .select('id, status')
     .eq('merchant_id', merchant.id)
-    .eq('email', cleanEmail)
+    .ilike('email', cleanEmail)
     .maybeSingle();
 
   if (existing) {
@@ -213,13 +216,36 @@ export async function inviteTeamMember(email: string, role: string = 'developer'
     }
   }
 
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id, role')
+    .ilike('email', cleanEmail)
+    .maybeSingle();
+  let developerAccountId: string | null = null;
+  let developerStatus: string | null = null;
+  if (role === 'developer' && existingUser) {
+    const { data: developerAccount } = await supabase
+      .from('developer_accounts')
+      .select('id, status')
+      .eq('user_id', existingUser.id)
+      .maybeSingle();
+    developerAccountId = developerAccount?.id || null;
+    developerStatus = developerAccount?.status || null;
+  }
+
+  const { raw, hash } = createPartnerToken();
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
   const { data: newMember, error } = await supabase
     .from('merchant_members')
     .insert({
       merchant_id: merchant.id,
       email: cleanEmail,
       role: role || 'developer',
-      status: 'pending'
+      status: 'pending',
+      user_id: existingUser?.id || null,
+      developer_account_id: developerAccountId,
+      invite_token_hash: hash,
+      invite_expires_at: expiresAt,
     })
     .select('id')
     .single();
@@ -227,18 +253,22 @@ export async function inviteTeamMember(email: string, role: string = 'developer'
   if (error) throw new Error("Erreur lors de la création de l'invitation: " + error.message);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kobara.app';
-  const inviteLink = `${appUrl}/invite?token=${newMember.id}`;
+  const inviteLink = `${appUrl}/invite?token=${encodeURIComponent(raw)}`;
 
   const { sendTeamInviteEmail } = await import('@/lib/server/mail');
-  await sendTeamInviteEmail({
+  const sent = await sendTeamInviteEmail({
     to: cleanEmail,
     businessName: merchant.business_name || 'Kobara',
     inviteLink,
     role: role || 'developer'
   });
+  if (!sent.success) {
+    await supabase.from('merchant_members').delete().eq('id', newMember.id).eq('merchant_id', merchant.id);
+    throw new Error("L'invitation n'a pas pu être envoyée.");
+  }
 
   revalidatePath('/dashboard/settings');
-  return { success: true, memberId: newMember.id };
+  return { success: true, memberId: newMember.id, developerStatus };
 }
 
 export async function removeTeamMember(memberId: string) {
@@ -248,6 +278,30 @@ export async function removeTeamMember(memberId: string) {
   }
 
   const supabase = createAdminClient();
+  const { data: member } = await supabase
+    .from('merchant_members')
+    .select('id, developer_account_id')
+    .eq('id', memberId)
+    .eq('merchant_id', merchant.id)
+    .maybeSingle();
+  if (!member) throw new Error("Membre introuvable.");
+
+  if (member.developer_account_id) {
+    const now = new Date().toISOString();
+    const { data: connections } = await supabase
+      .from('developer_merchant_connections')
+      .update({ status: 'revoked', revoked_at: now, withdrawal_access: false })
+      .eq('merchant_id', merchant.id)
+      .eq('developer_id', member.developer_account_id)
+      .neq('status', 'revoked')
+      .select('id');
+    const connectionIds = (connections || []).map(connection => connection.id);
+    if (connectionIds.length) {
+      await supabase.from('api_keys').update({ revoked_at: now })
+        .in('developer_connection_id', connectionIds).is('revoked_at', null);
+    }
+  }
+
   const { error } = await supabase
     .from('merchant_members')
     .delete()
@@ -276,17 +330,77 @@ export async function resendTeamInvite(memberId: string) {
   if (error || !member) throw new Error("Membre introuvable.");
   if (member.status !== 'pending') throw new Error("Ce membre a déjà accepté l'invitation.");
 
+  const { raw, hash } = createPartnerToken();
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+  const { error: tokenError } = await supabase.from('merchant_members').update({
+    invite_token_hash: hash,
+    invite_expires_at: expiresAt,
+  }).eq('id', member.id).eq('merchant_id', merchant.id).eq('status', 'pending');
+  if (tokenError) throw new Error("Impossible de renouveler l'invitation.");
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kobara.app';
-  const inviteLink = `${appUrl}/invite?token=${member.id}`;
+  const inviteLink = `${appUrl}/invite?token=${encodeURIComponent(raw)}`;
 
   const { sendTeamInviteEmail } = await import('@/lib/server/mail');
-  await sendTeamInviteEmail({
+  const sent = await sendTeamInviteEmail({
     to: member.email,
     businessName: merchant.business_name || 'Kobara',
     inviteLink,
     role: member.role || 'developer'
   });
+  if (!sent.success) throw new Error("L'invitation n'a pas pu être renvoyée.");
 
+  return { success: true };
+}
+
+export async function setTeamDeveloperWithdrawalAccess(memberId: string, enabled: boolean) {
+  const { user, merchant, userRole } = await getAuthUserAndMerchant();
+  if (userRole !== 'owner') throw new Error("Seul le propriétaire peut modifier cette autorisation.");
+  const supabase = createAdminClient();
+  const { data: member } = await supabase.from('merchant_members')
+    .select('developer_account_id, status').eq('id', memberId).eq('merchant_id', merchant.id).maybeSingle();
+  if (!member?.developer_account_id || member.status !== 'active') throw new Error("Développeur actif introuvable.");
+  const { data: connection, error } = await supabase.from('developer_merchant_connections').update({
+    withdrawal_access: enabled,
+    withdrawal_access_granted_at: enabled ? new Date().toISOString() : null,
+    withdrawal_access_granted_by: enabled ? user.id : null,
+  }).eq('merchant_id', merchant.id).eq('developer_id', member.developer_account_id)
+    .neq('status', 'revoked').select('id').maybeSingle();
+  if (error || !connection) throw new Error("Impossible de modifier cette autorisation.");
+  if (!enabled) {
+    await supabase.from('api_keys').update({ scopes: ['payments:create'] })
+      .eq('developer_connection_id', connection.id).eq('created_by_type', 'developer').is('revoked_at', null);
+  }
+  await supabase.from('audit_logs').insert({
+    merchant_id: merchant.id, user_id: user.id,
+    action: enabled ? 'developer.withdrawals_granted' : 'developer.withdrawals_revoked',
+    entity_type: 'developer_merchant_connections', entity_id: connection.id,
+  });
+  revalidatePath('/dashboard/settings');
+  return { success: true };
+}
+
+export async function revokeTeamDeveloperApiKey(memberId: string, apiKeyId: string) {
+  const { user, merchant, userRole } = await getAuthUserAndMerchant();
+  if (userRole !== 'owner') throw new Error("Seul le propriétaire peut révoquer cette clé.");
+  const supabase = createAdminClient();
+  const { data: member } = await supabase.from('merchant_members')
+    .select('developer_account_id').eq('id', memberId).eq('merchant_id', merchant.id).maybeSingle();
+  if (!member?.developer_account_id) throw new Error("Développeur introuvable.");
+  const { data: connection } = await supabase.from('developer_merchant_connections')
+    .select('id').eq('merchant_id', merchant.id).eq('developer_id', member.developer_account_id)
+    .neq('status', 'revoked').maybeSingle();
+  if (!connection) throw new Error("Accès Developer introuvable.");
+  const { data: key, error } = await supabase.from('api_keys').update({ revoked_at: new Date().toISOString() })
+    .eq('id', apiKeyId).eq('merchant_id', merchant.id).eq('developer_connection_id', connection.id)
+    .eq('created_by_type', 'developer').is('revoked_at', null).select('id').maybeSingle();
+  if (error || !key) throw new Error("Clé Developer introuvable ou déjà révoquée.");
+  await supabase.from('audit_logs').insert({
+    merchant_id: merchant.id, user_id: user.id, action: 'developer.api_key_revoked',
+    entity_type: 'api_keys', entity_id: apiKeyId, metadata: { developer_connection_id: connection.id },
+  });
+  revalidatePath('/dashboard/settings');
+  revalidatePath('/dashboard/api-keys');
   return { success: true };
 }
 

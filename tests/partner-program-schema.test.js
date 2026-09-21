@@ -10,7 +10,11 @@ const completion = readFileSync(
   new URL('../supabase/migrations/20260920235900_complete_partner_program.sql', import.meta.url),
   'utf8',
 );
-const migration = `${foundation}\n${completion}`;
+const teamAccess = readFileSync(
+  new URL('../supabase/migrations/20260921220000_unify_developer_team_access.sql', import.meta.url),
+  'utf8',
+);
+const migration = `${foundation}\n${completion}\n${teamAccess}`;
 
 test('partner financial RPCs are exposed only to the server service role', () => {
   const rpcNames = [
@@ -19,6 +23,7 @@ test('partner financial RPCs are exposed only to the server service role', () =>
     'request_partner_withdrawal',
     'review_partner_withdrawal',
     'release_partner_commissions',
+    'accept_merchant_developer_invitation',
   ];
 
   for (const name of rpcNames) {
@@ -26,6 +31,14 @@ test('partner financial RPCs are exposed only to the server service role', () =>
     assert.match(migration, new RegExp(`REVOKE ALL ON FUNCTION public\\.${name}\\([^;]+FROM PUBLIC, anon, authenticated;`));
     assert.match(migration, new RegExp(`GRANT EXECUTE ON FUNCTION public\\.${name}\\([^;]+TO service_role;`));
   }
+});
+
+test('merchant team Developer access is explicitly excluded from commissions', () => {
+  assert.match(teamAccess, /connection_source TEXT NOT NULL DEFAULT 'developer_referral'/);
+  assert.match(teamAccess, /commission_eligible BOOLEAN NOT NULL DEFAULT TRUE/);
+  assert.match(teamAccess, /'merchant_invitation', FALSE/);
+  assert.match(teamAccess, /connection_source = 'merchant_invitation'/);
+  assert.match(teamAccess, /commission_eligible = FALSE/);
 });
 
 test('attribution remains unique and immutable per merchant', () => {

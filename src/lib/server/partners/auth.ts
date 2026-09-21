@@ -9,7 +9,7 @@ export type PartnerRole = 'developer' | 'ambassador';
 export async function getPartnerSession(role: PartnerRole, options: { activeOnly?: boolean } = {}) {
   const session = await auth();
   const user = session?.user as { id?: string; email?: string | null; role?: string } | undefined;
-  if (!user?.id || user.role !== role) return null;
+  if (!user?.id) return null;
 
   const supabase = createAdminClient();
   const table = role === 'developer' ? 'developer_accounts' : 'ambassador_accounts';

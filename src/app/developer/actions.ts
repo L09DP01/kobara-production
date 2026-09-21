@@ -28,21 +28,29 @@ export async function registerDeveloper(formData: FormData) {
   }
 
   const supabase = createAdminClient();
-  const { data: existing } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
-  if (existing) return { error: 'Un compte existe déjà avec cette adresse e-mail.' };
+  const { data: existing } = await supabase.from('users').select('id, role, password_hash').ilike('email', email).maybeSingle();
+  if (existing) {
+    const { data: existingDeveloper } = await supabase.from('developer_accounts').select('id').eq('user_id', existing.id).maybeSingle();
+    if (existingDeveloper) return { error: 'Un compte Developer existe déjà. Connectez-vous avec cette adresse.' };
+    if (!existing.password_hash) return { error: 'Ce compte Kobara ne peut pas être vérifié avec un mot de passe.' };
+    const passwordMatches = await bcrypt.compare(password, existing.password_hash);
+    if (!passwordMatches) return { error: 'Cette adresse possède déjà un compte Kobara. Saisissez le mot de passe de ce compte.' };
+  }
 
-  const userId = crypto.randomUUID();
-  const passwordHash = await bcrypt.hash(password, 12);
+  const userId = existing?.id || crypto.randomUUID();
+  let createdUser = false;
   const referralCode = `DEV${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
-  const { error: userError } = await supabase.from('users').insert({
-    id: userId,
-    email,
-    password_hash: passwordHash,
-    email_verified: true,
-    role: 'developer',
-    is_active: true,
-  });
-  if (userError) return { error: 'Impossible de créer le compte Developer.' };
+  if (!existing) {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const { error: userError } = await supabase.from('users').insert({
+      id: userId, email, password_hash: passwordHash, email_verified: true, role: 'developer', is_active: true,
+    });
+    if (userError) {
+      console.error('Developer account user creation failed:', { code: userError.code, message: userError.message });
+      return { error: userError.code === '23505' ? 'Un compte existe déjà avec cette adresse e-mail.' : `Impossible de créer le compte Developer (${userError.code || 'DB_ERROR'}).` };
+    }
+    createdUser = true;
+  }
 
   const { error: developerError } = await supabase.from('developer_accounts').insert({
     user_id: userId,
@@ -54,8 +62,9 @@ export async function registerDeveloper(formData: FormData) {
     status: 'pending',
   });
   if (developerError) {
-    await supabase.from('users').delete().eq('id', userId);
-    return { error: 'Impossible de créer le profil Developer.' };
+    if (createdUser) await supabase.from('users').delete().eq('id', userId);
+    console.error('Developer profile creation failed:', { code: developerError.code, message: developerError.message });
+    return { error: `Impossible de créer le profil Developer (${developerError.code || 'DB_ERROR'}).` };
   }
 
   await supabase.from('partner_applications').insert({

@@ -5,6 +5,9 @@ import { getMerchantPaymentMethodState } from "@/lib/server/payments/merchant-pa
 
 export const dynamic = 'force-dynamic';
 
+type DeveloperConnectionRow = { developer_id: string; [key: string]: unknown };
+type TeamMemberRow = { email?: string | null; developer_account_id?: string | null; [key: string]: unknown };
+
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const params = await searchParams;
   const { user, merchant, userRole } = await getCurrentUserAndMerchant();
@@ -26,11 +29,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     .eq('merchant_id', merchant.id)
     .maybeSingle();
 
-  const { data: members } = await supabase
-    .from('merchant_members')
-    .select('*')
-    .eq('merchant_id', merchant.id)
-    .order('created_at', { ascending: false });
+  const [{ data: members }, { data: developerConnections }] = await Promise.all([
+    supabase.from('merchant_members').select('*').eq('merchant_id', merchant.id)
+      .order('created_at', { ascending: false }),
+    supabase.from('developer_merchant_connections')
+      .select('id, developer_id, status, withdrawal_access, connection_source, commission_eligible, developer_accounts(display_name, company_name, status), api_keys(id, name, prefix, scopes, revoked_at, created_at)')
+      .eq('merchant_id', merchant.id)
+      .order('created_at', { ascending: false }),
+  ]);
 
   // Fetch merchant owner details
   const { data: ownerUser } = await supabase
@@ -48,7 +54,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     isOwner: true
   }] : [];
 
-  const filteredMembers = (members || []).filter((m: any) => m.email?.toLowerCase() !== ownerUser?.email?.toLowerCase());
+  const connectionRows = (developerConnections || []) as DeveloperConnectionRow[];
+  const memberRows = (members || []) as TeamMemberRow[];
+  const connectionsByDeveloper = new Map(connectionRows.map((connection) => [connection.developer_id, connection]));
+  const filteredMembers = memberRows
+    .filter((member) => member.email?.toLowerCase() !== ownerUser?.email?.toLowerCase())
+    .map((member) => ({
+      ...member,
+      developerConnection: member.developer_account_id ? connectionsByDeveloper.get(member.developer_account_id) || null : null,
+    }));
   const allMembers = [...ownerMember, ...filteredMembers];
   const paymentMethods = await getMerchantPaymentMethodState(merchant.id);
 

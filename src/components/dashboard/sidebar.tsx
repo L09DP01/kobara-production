@@ -37,7 +37,6 @@ const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
     title: "Développeurs",
     links: [
       { href: "/developers", icon: Blocks, label: "Intégration", requiresKyc: true },
-      { href: "/developer-access", icon: Users, label: "Accès Developer", ownerOnly: true, requiresKyc: true },
       { href: "/api-keys", icon: KeyRound, label: "Clés API", requiresKyc: true },
       { href: "/webhooks", icon: Webhook, label: "Webhooks", requiresKyc: true },
       { href: "https://docs.kobara.app/docs/quickstart", icon: BookOpen, label: "Documentation", external: true },
