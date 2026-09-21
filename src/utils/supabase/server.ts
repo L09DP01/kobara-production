@@ -7,7 +7,8 @@ export const createClient = (
   supabaseAccessToken?: string
 ) => {
   const supabaseUrl = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_URL");
-  const supabaseKey = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+  const supabaseKey = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
+    || getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Supabase server credentials are not configured.");
