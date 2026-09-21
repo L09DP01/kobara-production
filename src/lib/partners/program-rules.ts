@@ -10,6 +10,8 @@ export const MERCHANT_REFERRAL_THRESHOLDS = {
   USD: 50,
 } as const;
 
+export const MERCHANT_REFERRER_MINIMUM_HTG = 1_500;
+
 export function getDeveloperTier(activeMerchantCount: number): DeveloperTier {
   if (activeMerchantCount >= 50) return 'agency';
   if (activeMerchantCount >= 20) return 'pro_partner';
@@ -48,4 +50,13 @@ export function isMerchantReferralQualified(input: {
   if (!input.hasActiveProPlan) return false;
   return input.htgTotal >= MERCHANT_REFERRAL_THRESHOLDS.HTG
     || input.usdTotal >= MERCHANT_REFERRAL_THRESHOLDS.USD;
+}
+
+export function canCreditMerchantReferralReward(input: {
+  invitedMerchantQualified: boolean;
+  referrerHtgTotal: number;
+}): boolean {
+  return input.invitedMerchantQualified
+    && Number.isFinite(input.referrerHtgTotal)
+    && input.referrerHtgTotal >= MERCHANT_REFERRER_MINIMUM_HTG;
 }

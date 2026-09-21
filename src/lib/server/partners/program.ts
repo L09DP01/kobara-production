@@ -3,6 +3,7 @@ import 'server-only';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getMerchantCurrentPlan } from '@/lib/server/plans';
 import {
+  canCreditMerchantReferralReward,
   calculateDeveloperCommission,
   DEVELOPER_INTEGRATION_LIMITS,
   getDeveloperCommissionRate,
@@ -67,6 +68,21 @@ function isUniqueViolation(error: { code?: string } | null): boolean {
 async function hasActiveProPlan(merchantId: string): Promise<boolean> {
   const { plan, entitlement } = await getMerchantCurrentPlan(merchantId);
   return plan?.slug === 'pro' && entitlement.canUsePaidFeatures;
+}
+
+async function getReferrerQualifyingHtgTotal(merchantId: string): Promise<number> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('payments')
+    .select('amount')
+    .eq('merchant_id', merchantId)
+    .eq('environment', 'live')
+    .eq('currency', 'HTG')
+    .in('status', ['succeeded', 'success', 'completed'])
+    .or('payment_link_id.not.is.null,api_key_id.not.is.null')
+    .or('api_key_origin.is.null,api_key_origin.neq.developer');
+  if (error) throw new Error(`Merchant referral referrer volume lookup failed: ${error.message}`);
+  return (data ?? []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 }
 
 async function refreshDeveloperTier(developerId: string) {
@@ -249,6 +265,13 @@ async function refreshMerchantReferral(referralId: string) {
     htgTotal: totals.HTG,
     usdTotal: totals.USD,
   });
+  const referrerHtgTotal = qualified
+    ? await getReferrerQualifyingHtgTotal(referral.referrer_merchant_id)
+    : 0;
+  const canCreditReward = canCreditMerchantReferralReward({
+    invitedMerchantQualified: qualified,
+    referrerHtgTotal,
+  });
 
   const now = new Date().toISOString();
   const nextStatus = qualified ? 'qualified' : proActive ? 'volume_pending' : 'account_created';
@@ -264,7 +287,7 @@ async function refreshMerchantReferral(referralId: string) {
     .eq('id', referral.id)
     .neq('status', 'rewarded');
   if (updateError) throw new Error(`Merchant referral update failed: ${updateError.message}`);
-  if (!qualified) return;
+  if (!canCreditReward) return;
 
   const currency = referral.reward_currency as SupportedCurrency;
   const rewardAmount = currency === 'USD' ? 5 : 675;
@@ -278,7 +301,7 @@ async function refreshMerchantReferral(referralId: string) {
     status: 'available',
     available_at: now,
     idempotency_key: `merchant_referral_reward:${referral.id}`,
-    metadata: { merchant_referral_id: referral.id },
+    metadata: { merchant_referral_id: referral.id, referrer_qualifying_htg_total: referrerHtgTotal },
   });
   if (ledgerError && !isUniqueViolation(ledgerError)) {
     throw new Error(`Merchant referral reward failed: ${ledgerError.message}`);
@@ -289,6 +312,17 @@ async function refreshMerchantReferral(referralId: string) {
     .update({ status: 'rewarded', rewarded_at: now, qualified_at: now })
     .eq('id', referral.id);
   if (rewardedError) throw new Error(`Merchant referral reward marker failed: ${rewardedError.message}`);
+}
+
+async function refreshReferrerMerchantRewards(merchantId: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('merchant_referrals')
+    .select('id')
+    .eq('referrer_merchant_id', merchantId)
+    .eq('status', 'qualified');
+  if (error) throw new Error(`Merchant referral pending reward lookup failed: ${error.message}`);
+  for (const referral of data ?? []) await refreshMerchantReferral(referral.id);
 }
 
 async function recordMerchantReferralPayment(payment: SuccessfulPayment, referralId: string) {
@@ -360,14 +394,14 @@ export async function processPartnerPaymentSuccess(payment: SuccessfulPayment) {
     .eq('merchant_id', payment.merchant_id)
     .maybeSingle();
   if (error) throw new Error(`Partner attribution lookup failed: ${error.message}`);
-  if (!attribution) return;
 
-  if (attribution.source_type === 'developer_referral' && attribution.developer_connection_id) {
+  if (attribution?.source_type === 'developer_referral' && attribution.developer_connection_id) {
     await creditDeveloperTransactionCommission(payment, attribution.developer_connection_id);
   }
-  if (attribution.source_type === 'merchant_referral' && attribution.merchant_referral_id) {
+  if (attribution?.source_type === 'merchant_referral' && attribution.merchant_referral_id) {
     await recordMerchantReferralPayment(payment, attribution.merchant_referral_id);
   }
+  await refreshReferrerMerchantRewards(payment.merchant_id);
 }
 
 export async function processPartnerPlanActivation(input: {

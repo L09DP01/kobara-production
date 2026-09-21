@@ -8,6 +8,7 @@ import { ensureCurrentSessionIsAllowed } from "@/app/dashboard/settings/sessions
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
 import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
 import { SessionInactivityGuard } from '@/components/dashboard/session-inactivity-guard';
+import type { MerchantReferralSummary } from '@/components/dashboard/merchant-referral-dialog';
 
 export default async function DashboardLayout({
   children,
@@ -44,6 +45,7 @@ export default async function DashboardLayout({
   let userRole = 'owner';
   let subscriptionEntitlement: SubscriptionEntitlement | null = null;
   let isTelegramLinked = false;
+  let referralSummary: MerchantReferralSummary | null = null;
 
   if (user) {
     const supabase = createAdminClient();
@@ -127,6 +129,21 @@ export default async function DashboardLayout({
           .maybeSingle();
 
         isTelegramLinked = !!telegramLink;
+
+        if (userRole === 'owner' && merchant.referral_code) {
+          const [referralsResult, rewardsResult, ownPaymentsResult] = await Promise.all([
+            supabase.from('merchant_referrals').select('id', { count: 'exact', head: true }).eq('referrer_merchant_id', merchant.id),
+            supabase.from('partner_commission_ledger').select('amount').eq('beneficiary_type', 'merchant_referral').eq('merchant_id', merchant.id).eq('entry_type', 'merchant_referral_reward').eq('currency', 'HTG').eq('status', 'paid'),
+            supabase.from('payments').select('amount').eq('merchant_id', merchant.id).eq('environment', 'live').eq('currency', 'HTG').in('status', ['succeeded', 'success', 'completed']).or('payment_link_id.not.is.null,api_key_id.not.is.null').or('api_key_origin.is.null,api_key_origin.neq.developer'),
+          ]);
+
+          referralSummary = {
+            code: merchant.referral_code,
+            invitedCount: referralsResult.count || 0,
+            earnedHtg: (rewardsResult.data || []).reduce((sum, entry) => sum + Number(entry.amount || 0), 0),
+            ownQualifyingHtg: (ownPaymentsResult.data || []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0),
+          };
+        }
       }
     }
 
@@ -296,6 +313,7 @@ export default async function DashboardLayout({
         subscriptionEntitlement={subscriptionEntitlement}
         isTelegramLinked={isTelegramLinked}
         kycApproved={isKycApproved}
+        referralSummary={referralSummary}
       >
         {children}
       </DashboardLayoutClient>

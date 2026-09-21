@@ -10,6 +10,7 @@ import { PasskeyPromptModal } from "@/components/dashboard/passkey-prompt-modal"
 import { SubscriptionStatusPopup } from '@/components/dashboard/subscription-status-popup';
 import { TelegramConnectBanner } from '@/components/dashboard/telegram-connect-banner';
 import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
+import type { MerchantReferralSummary } from '@/components/dashboard/merchant-referral-dialog';
 
 export default function DashboardLayoutClient({
   children,
@@ -23,6 +24,7 @@ export default function DashboardLayoutClient({
   subscriptionEntitlement = null,
   isTelegramLinked = false,
   kycApproved,
+  referralSummary = null,
 }: {
   children: React.ReactNode;
   merchant?: any;
@@ -35,6 +37,7 @@ export default function DashboardLayoutClient({
   subscriptionEntitlement?: SubscriptionEntitlement | null;
   isTelegramLinked?: boolean;
   kycApproved?: boolean;
+  referralSummary?: MerchantReferralSummary | null;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const hasKycAccess = kycApproved ?? merchant?.kyc_status === 'approved';
@@ -92,7 +95,7 @@ export default function DashboardLayoutClient({
       <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={userRole} kycApproved={hasKycAccess} />
 
       <div className="flex min-h-full flex-1 flex-col transition-[padding] duration-200 lg:pl-60">
-        <TopNav onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} merchant={merchant} user={user} initialNotifications={initialNotifications} accessibleMerchants={accessibleMerchants} userRole={userRole} />
+        <TopNav onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} merchant={merchant} user={user} initialNotifications={initialNotifications} accessibleMerchants={accessibleMerchants} userRole={userRole} referralSummary={referralSummary} />
         
         {/* Telegram Connect & Community Banner (disappears if connected, closable with X) */}
         {hasKycAccess && <TelegramConnectBanner merchantId={merchant?.id} isTelegramLinked={isTelegramLinked} />}

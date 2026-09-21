@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  canCreditMerchantReferralReward,
   calculateDeveloperCommission,
   getDeveloperCommissionRate,
   getDeveloperTier,
@@ -34,4 +35,10 @@ test('merchant referral needs Pro and one independent currency threshold', () =>
   assert.equal(isMerchantReferralQualified({ hasActiveProPlan: true, htgTotal: 9_999, usdTotal: 49.99 }), false);
   assert.equal(isMerchantReferralQualified({ hasActiveProPlan: true, htgTotal: 10_000, usdTotal: 0 }), true);
   assert.equal(isMerchantReferralQualified({ hasActiveProPlan: true, htgTotal: 0, usdTotal: 50 }), true);
+});
+
+test('merchant referral reward also requires 1500 HTG of referrer payment volume', () => {
+  assert.equal(canCreditMerchantReferralReward({ invitedMerchantQualified: true, referrerHtgTotal: 1499.99 }), false);
+  assert.equal(canCreditMerchantReferralReward({ invitedMerchantQualified: false, referrerHtgTotal: 5000 }), false);
+  assert.equal(canCreditMerchantReferralReward({ invitedMerchantQualified: true, referrerHtgTotal: 1500 }), true);
 });

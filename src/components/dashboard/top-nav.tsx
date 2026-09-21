@@ -6,12 +6,14 @@ import { useRouter } from 'next/navigation';
 import { performFullLogout } from '@/lib/utils/logout-client';
 import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from './actions';
 import { siteConfig } from '@/config/site';
+import { MerchantReferralDialog, type MerchantReferralSummary } from './merchant-referral-dialog';
 
-export default function TopNav({ onToggleSidebar, merchant, user, initialNotifications = [], accessibleMerchants = [], userRole = 'owner' }: { onToggleSidebar: () => void, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string }) {
+export default function TopNav({ onToggleSidebar, merchant, user, initialNotifications = [], accessibleMerchants = [], userRole = 'owner', referralSummary = null }: { onToggleSidebar: () => void, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string, referralSummary?: MerchantReferralSummary | null }) {
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [isReferralOpen, setIsReferralOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>(initialNotifications);
   
   const profileRef = useRef<HTMLDivElement>(null);
@@ -71,6 +73,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
   };
 
   return (
+    <>
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#223047] bg-[#07101D]/90 px-4 text-white backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
       {/* Left: Greeting / Search */}
       <div className="flex items-center gap-4 md:gap-6">
@@ -98,6 +101,17 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
       {/* Right: Actions */}
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="relative flex items-center gap-1 sm:gap-2">
+          {referralSummary && userRole === 'owner' && (
+            <button
+              type="button"
+              onClick={() => setIsReferralOpen(true)}
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-orange-500/30 bg-orange-500/10 px-2 text-xs font-bold text-orange-300 transition-colors hover:bg-orange-500/20 lg:hidden"
+              aria-label="Recevez 675 Gdes en invitant un marchand"
+            >
+              <span className="material-symbols-outlined text-[17px]">redeem</span>
+              <span><span className="hidden min-[430px]:inline">Recevez </span>675 Gdes</span>
+            </button>
+          )}
           
           {/* Notifications */}
           <div ref={notifRef} className="relative">
@@ -231,6 +245,19 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                 )}
                 
                 <div className="flex flex-col px-2">
+                  {referralSummary && userRole === 'owner' && (
+                    <button
+                      type="button"
+                      onClick={() => { setIsProfileOpen(false); setIsReferralOpen(true); }}
+                      className="hidden w-full items-center justify-between rounded-lg px-3 py-2 text-left text-body-sm text-orange-300 transition-colors hover:bg-orange-500/10 lg:flex"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px]">redeem</span>
+                        Recevez 675 Gdes
+                      </span>
+                      <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                    </button>
+                  )}
                   <Link href="/settings" className="px-3 py-2 text-body-sm text-text-primary hover:bg-surface-container-low rounded-lg transition-colors flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px]">account_circle</span>
                     Mon profil
@@ -264,5 +291,9 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
         </div>
       </div>
     </header>
+    {referralSummary && (
+      <MerchantReferralDialog open={isReferralOpen} onOpenChange={setIsReferralOpen} summary={referralSummary} />
+    )}
+    </>
   );
 }

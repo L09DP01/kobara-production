@@ -165,6 +165,7 @@ export async function signup(formData: FormData) {
   const cookieStore = await cookies();
   const developerInvite = cookieStore.get('kobara_developer_invite')?.value;
   const merchantReferral = cookieStore.get('kobara_merchant_referral')?.value;
+  const merchantReferralCode = cookieStore.get('kobara_merchant_referral_code')?.value;
   let partnerAttributed = false;
   if (developerInvite) {
     const { error: inviteError } = await supabase.rpc('accept_developer_invitation', {
@@ -178,6 +179,12 @@ export async function signup(formData: FormData) {
     });
     if (!referralError) { cookieStore.delete('kobara_merchant_referral'); partnerAttributed = true; }
     else console.error('Merchant referral attribution failed:', referralError.message);
+  } else if (merchantReferralCode) {
+    const { error: referralError } = await supabase.rpc('accept_merchant_referral_code', {
+      p_referral_code: merchantReferralCode, p_user_id: userId,
+    });
+    if (!referralError) { cookieStore.delete('kobara_merchant_referral_code'); partnerAttributed = true; }
+    else console.error('Merchant referral link attribution failed:', referralError.message);
   }
   if (!partnerAttributed) {
     const { data: newMerchant } = await supabase.from('merchants').select('id').eq('user_id', userId).maybeSingle();

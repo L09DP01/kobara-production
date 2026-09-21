@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/utils/supabase/admin";
 import { auth } from "@/auth";
+import { cookies } from "next/headers";
 import {
   BUSINESS_NAME_TAKEN_MESSAGE,
   getBusinessNameValidationError,
@@ -64,6 +65,7 @@ export async function completeOnboarding(formData: {
     .maybeSingle();
 
   let error;
+  let merchantId = existingMerchant?.id as string | undefined;
   if (existingMerchant) {
     const { error: updateError } = await supabase
       .from('merchants')
@@ -79,7 +81,7 @@ export async function completeOnboarding(formData: {
       .eq('id', existingMerchant.id);
     error = updateError;
   } else {
-    const { error: insertError } = await supabase
+    const { data: insertedMerchant, error: insertError } = await supabase
       .from('merchants')
       .insert({
         user_id: user.id,
@@ -92,14 +94,31 @@ export async function completeOnboarding(formData: {
         status: 'active',
         available_balance: 0,
         pending_balance: 0
-      });
+      })
+      .select('id')
+      .single();
     error = insertError;
+    merchantId = insertedMerchant?.id;
   }
 
   if (error) {
     console.error("Erreur onboarding:", error);
     if (isBusinessNameConflict(error)) return { error: BUSINESS_NAME_TAKEN_MESSAGE };
     return { error: "Erreur lors de la configuration du profil marchand. " + error.message };
+  }
+
+  const cookieStore = await cookies();
+  const referralCode = cookieStore.get('kobara_merchant_referral_code')?.value;
+  if (referralCode && merchantId) {
+    const { error: referralError } = await supabase.rpc('accept_merchant_referral_code', {
+      p_referral_code: referralCode,
+      p_user_id: user.id,
+    });
+    if (!referralError || referralError.code === '23505') {
+      cookieStore.delete('kobara_merchant_referral_code');
+    } else {
+      console.error('Merchant referral link attribution failed after onboarding:', referralError.message);
+    }
   }
 
   return { success: true };
