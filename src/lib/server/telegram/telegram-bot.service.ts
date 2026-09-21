@@ -29,7 +29,7 @@ export class TelegramBotService {
       keyboard: [
         [{ text: '💰 Mon Solde (Live)' }, { text: '🔗 Créer un Lien' }],
         [{ text: '🏦 Transfert B2B' }, { text: '💸 Demander un Retrait' }],
-        [{ text: '⭐ Mon Abonnement' }],
+        [{ text: '⭐ Mon Abonnement' }, { text: '🎁 Recevez 675 Gdes' }],
         [{ text: '🔔 Statut & Paramètres' }, { text: '❓ Aide' }],
       ],
       resize_keyboard: true,
@@ -124,6 +124,10 @@ export class TelegramBotService {
 
     if (text === '⭐ Mon Abonnement' || text === '/abonnement' || text === '/plan') {
       return this.handleSubscription(chatId, merchant);
+    }
+
+    if (text === '🎁 Recevez 675 Gdes' || text === '/parrainage' || text === '/invite') {
+      return this.handleMerchantReferral(chatId, merchant);
     }
 
     if (text === '🔔 Statut & Paramètres' || text === '/settings') {
@@ -1066,6 +1070,10 @@ L'équipe de sécurité Kobara — https://kobara.app
       return this.startCreateLinkFlow(chatId, messageId);
     }
 
+    if (data === 'action:referral') {
+      return this.handleMerchantReferral(chatId, merchant, messageId);
+    }
+
     if (data === 'action:create_usd_account') {
       const adminClient = createAdminClient();
       const { PayPalService } = await import('@/lib/server/payments/paypal');
@@ -1705,6 +1713,114 @@ Cliquez ci-dessous pour effectuer votre paiement sur <b>${methodName}</b>. Dès 
       },
       messageId
     );
+  }
+
+  /**
+   * Parrainage marchand avec statistiques, règles et liens de partage.
+   */
+  private static async handleMerchantReferral(
+    chatId: string | number,
+    merchant: any,
+    messageId?: number,
+  ) {
+    const supabase = createAdminClient();
+    const [{ data: freshMerchant, error: merchantError }, referrals, rewards, ownPayments] = await Promise.all([
+      supabase
+        .from('merchants')
+        .select('business_name, referral_code')
+        .eq('id', merchant.id)
+        .maybeSingle(),
+      supabase
+        .from('merchant_referrals')
+        .select('id', { count: 'exact', head: true })
+        .eq('referrer_merchant_id', merchant.id),
+      supabase
+        .from('partner_commission_ledger')
+        .select('amount')
+        .eq('beneficiary_type', 'merchant_referral')
+        .eq('merchant_id', merchant.id)
+        .eq('entry_type', 'merchant_referral_reward')
+        .eq('currency', 'HTG')
+        .eq('status', 'paid'),
+      supabase
+        .from('payments')
+        .select('amount')
+        .eq('merchant_id', merchant.id)
+        .eq('environment', 'live')
+        .eq('currency', 'HTG')
+        .in('status', ['succeeded', 'success', 'completed'])
+        .or('payment_link_id.not.is.null,api_key_id.not.is.null')
+        .or('api_key_origin.is.null,api_key_origin.neq.developer'),
+    ]);
+
+    if (merchantError || !freshMerchant?.referral_code) {
+      await this.sendOrEditMessage(
+        chatId,
+        `⚠️ <b>Parrainage indisponible</b>\n\nVotre lien personnel ne peut pas être chargé pour le moment. Réessayez dans quelques instants.`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [[{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }]],
+          },
+        },
+        messageId,
+      );
+      return { success: true };
+    }
+
+    const referralUrl = `https://kobara.app/r/${encodeURIComponent(freshMerchant.referral_code)}`;
+    const shareText = `Rejoignez Kobara avec l'invitation de ${freshMerchant.business_name || merchant.business_name}.`;
+    const shareUrl = encodeURIComponent(referralUrl);
+    const shareMessage = encodeURIComponent(`${shareText} ${referralUrl}`);
+    const earnedHtg = (rewards.data ?? []).reduce(
+      (sum, entry) => sum + Number(entry.amount || 0),
+      0,
+    );
+    const ownQualifyingHtg = (ownPayments.data ?? []).reduce(
+      (sum, payment) => sum + Number(payment.amount || 0),
+      0,
+    );
+
+    const message = [
+      '🎁 <b>RECEVEZ 675 GDES</b>',
+      '',
+      'Invitez un marchand Kobara avec votre lien personnel :',
+      `<code>${this.escapeHtml(referralUrl)}</code>`,
+      '',
+      `👥 <b>Personnes invitées :</b> ${referrals.count ?? 0}`,
+      `💰 <b>Commissions reçues :</b> ${earnedHtg.toLocaleString('fr-HT')} Gdes`,
+      `📈 <b>Votre volume admissible :</b> ${ownQualifyingHtg.toLocaleString('fr-HT')} / 1 500 HTG`,
+      '',
+      '<b>Questions fréquentes</b>',
+      '',
+      '<b>Quand les 675 Gdes sont-ils versés ?</b>',
+      "Après l'activation du plan Pro de votre invité et la réception de 10 000 HTG ou 50 USD de paiements. Votre entreprise doit aussi avoir reçu au moins 1 500 HTG.",
+      '',
+      '<b>Quels paiements comptent pour vos 1 500 HTG ?</b>',
+      'Vos paiements réussis reçus via vos propres liens ou clés API. Les transactions créées avec une clé Developer sont exclues.',
+    ].join('\n');
+
+    await this.sendOrEditMessage(
+      chatId,
+      message,
+      {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '✈️ Partager sur Telegram', url: `https://t.me/share/url?url=${shareUrl}&text=${encodeURIComponent(shareText)}` }],
+            [
+              { text: 'WhatsApp', url: `https://wa.me/?text=${shareMessage}` },
+              { text: 'Facebook', url: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}` },
+            ],
+            [{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }],
+          ],
+        },
+      },
+      messageId,
+    );
+
+    return { success: true };
   }
 
   /**
