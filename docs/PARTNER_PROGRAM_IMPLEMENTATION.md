@@ -122,9 +122,9 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - [x] Executer les tests SQL, unitaires et d'integration.
 - [x] Verifier les permissions et l'isolation multi-tenant.
 - [x] Verifier les calculs financiers et les courses concurrentes.
-- [ ] Verifier le responsive mobile et desktop.
-- [ ] Compiler et deployer Kobara Production.
-- [ ] Controler le deploiement et les journaux de production.
+- [x] Verifier le responsive mobile et desktop.
+- [x] Compiler et deployer Kobara Production.
+- [x] Controler le deploiement et les journaux de production.
 
 ## Journal d'avancement
 
@@ -135,3 +135,5 @@ Une etape est cochee uniquement apres implementation, verification et revue de s
 - 2026-09-20: portails Developer et Ambassadeur, invitations, parrainage marchand, retraits partenaires, administration et rapports implementes.
 - 2026-09-20: migration `complete_partner_program` appliquee en Production apres confirmation explicite; 184 marchands attribues, zero attribution manquante, RPC financieres reservees au `service_role` et RLS verifie.
 - 2026-09-20: 52 tests partenaires et paiements valides; compilation TypeScript et lint cible valides. Verification responsive et deploiement Worker encore requis.
+- 2026-09-21: verification responsive terminee a 390 px et 1440 px sans debordement sur les parcours Developer et Ambassadeur.
+- 2026-09-21: correctifs runtime Supabase `31c5c2b` et `536cd6d` deployes; dashboard authentifie et expiration de session de 20 minutes controles en Production. Worker actif: `c07fc5dd-a1ec-4c93-969a-9643796af215`.
