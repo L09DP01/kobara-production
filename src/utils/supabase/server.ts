@@ -1,16 +1,21 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+import { getRuntimeEnvironmentValue } from "@/lib/server/runtime-env";
 
 export const createClient = (
   cookieStore: Awaited<ReturnType<typeof cookies>>, 
   supabaseAccessToken?: string
 ) => {
+  const supabaseUrl = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseKey = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("Supabase server credentials are not configured.");
+  }
+
   return createServerClient(
-    supabaseUrl!,
-    supabaseKey!,
+    supabaseUrl,
+    supabaseKey,
     {
       global: {
         headers: supabaseAccessToken ? {
