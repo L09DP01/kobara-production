@@ -3,18 +3,23 @@ import { createAdminClient } from '@/utils/supabase/admin';
 import { sendEmail } from '@/lib/server/mail';
 import crypto from 'crypto';
 
-const JWT_SECRET_VALUE = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+const ADMIN_ROLES = new Set(['super_admin', 'operations', 'compliance', 'support']);
 
-if (!JWT_SECRET_VALUE || JWT_SECRET_VALUE.length < 32) {
-  throw new Error('JWT_SECRET or NEXTAUTH_SECRET must contain at least 32 characters.');
+function getJwtSecretValue() {
+  const value = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!value || value.length < 32) {
+    throw new Error('JWT_SECRET or NEXTAUTH_SECRET must contain at least 32 characters.');
+  }
+  return value;
 }
 
-const JWT_SECRET = new TextEncoder().encode(JWT_SECRET_VALUE);
-const ADMIN_ROLES = new Set(['super_admin', 'operations', 'compliance', 'support']);
+function getJwtSecret() {
+  return new TextEncoder().encode(getJwtSecretValue());
+}
 
 function hashOtp(email: string, code: string) {
   return crypto
-    .createHmac('sha256', JWT_SECRET_VALUE as string)
+    .createHmac('sha256', getJwtSecretValue())
     .update(`${email.toLowerCase()}:${code}`)
     .digest('hex');
 }
@@ -149,14 +154,14 @@ export async function verifyAdminOtp(email: string, code: string) {
     .setSubject(admin.id)
     .setIssuedAt()
     .setExpirationTime('5m')
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 
   return { success: true, token, adminId: admin.id };
 }
 
 export async function verifyAdminJwt(token: string) {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     if (!payload.sub || !ADMIN_ROLES.has(String(payload.role))) return null;
     return payload;
   } catch {
@@ -174,7 +179,7 @@ export async function refreshAdminJwt(token: string) {
     .setSubject(payload.sub as string)
     .setIssuedAt()
     .setExpirationTime('5m')
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 
   return newToken;
 }
