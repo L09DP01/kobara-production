@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import * as Switch from '@radix-ui/react-switch';
 import { CreditCard, Landmark, Smartphone, WalletCards } from 'lucide-react';
 import { updatePaymentMethodSetting } from '../actions';
-import { confirmPaymentMethodsAction } from '../../setup-guide/actions';
 import type { MerchantPaymentMethod, MerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
 
 const METHODS: Array<{
@@ -26,9 +25,7 @@ export function PaymentMethodsSettings({ initialState }: { initialState: Merchan
   const [state, setState] = useState(initialState);
   const [pendingMethod, setPendingMethod] = useState<MerchantPaymentMethod | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [confirmed, setConfirmed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isPending, startTransition] = useTransition();
 
   async function toggle(method: MerchantPaymentMethod) {
     const nextValue = !state.configured[method];
@@ -42,7 +39,6 @@ export function PaymentMethodsSettings({ initialState }: { initialState: Merchan
         return;
       }
       setState(result.state);
-      setConfirmed(false);
     } catch {
       setError('Impossible de modifier ce moyen de paiement. Réessayez dans quelques instants.');
     } finally {
@@ -91,9 +87,8 @@ export function PaymentMethodsSettings({ initialState }: { initialState: Merchan
           );
         })}
       </div>
-      <div className="flex flex-col gap-3 border-t border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="border-t border-white/10 px-5 py-5 sm:px-6">
         <p className="text-xs text-slate-400">MonCash et NatCash sont activés par défaut. Les autres moyens restent optionnels.</p>
-        <button type="button" disabled={isPending || isUpdating || confirmed} onClick={() => startTransition(async () => { try { await confirmPaymentMethodsAction(); setConfirmed(true); } catch (caught) { setError(caught instanceof Error ? caught.message : 'Validation impossible.'); } })} className="rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50">{confirmed ? 'Sélection validée' : 'Valider cette sélection'}</button>
       </div>
     </section>
   );
