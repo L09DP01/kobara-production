@@ -1175,6 +1175,9 @@ L'équipe de sécurité Kobara — https://kobara.app
       const parts = data.split(':');
       const planSlug = parts[1];
       const cycle = parts[2] === 'yearly' ? 'yearly' : 'monthly';
+      if (parts[3] === 'balance') {
+        return this.purchaseSubscriptionWithBalance(chatId, merchant, planSlug, cycle, messageId);
+      }
       const method = parts[3] === 'natcash' ? 'natcash' : 'moncash';
       return this.generateSubscriptionPaymentLink(chatId, merchant, planSlug, cycle, method, messageId);
     }
@@ -1470,7 +1473,29 @@ Choisissez votre période de facturation :
       const monthlyPrice = Number(plan.price_htg);
       const amount = billingCycle === 'yearly' ? Math.round(monthlyPrice * 0.8 * 12) : monthlyPrice;
 
-      const buttons = [
+      const supabase = createAdminClient();
+      const linkedAccount = await this.getLinkedMerchant(chatId);
+      if (!linkedAccount) {
+        await TelegramClient.sendMessage(chatId, '❌ Compte marchand non associé.');
+        return;
+      }
+      const { data: freshMerchant } = await supabase
+        .from('merchants')
+        .select('available_balance')
+        .eq('id', linkedAccount.merchant.id)
+        .maybeSingle();
+      const accountBalance = Number(freshMerchant?.available_balance || 0);
+
+      const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
+      if (accountBalance >= amount) {
+        buttons.push([
+          {
+            text: `💰 Payer avec mon solde (${amount.toLocaleString('fr-HT')} HTG)`,
+            callback_data: `sub_pay:${plan.slug}:${billingCycle}:balance`,
+          },
+        ]);
+      }
+      buttons.push(
         [
           {
             text: `📱 Payer avec MonCash (${amount.toLocaleString('fr-HT')} HTG)`,
@@ -1487,7 +1512,7 @@ Choisissez votre période de facturation :
           { text: '🔙 Changer de période', callback_data: `sub_select:${plan.slug}` },
           { text: '🏠 Menu Principal', callback_data: 'action:main_menu' },
         ],
-      ];
+      );
 
       await this.sendOrEditMessage(
         chatId,
@@ -1508,6 +1533,96 @@ Choisissez comment vous souhaitez effectuer votre paiement :
     } catch (err: any) {
       console.error('[TelegramBotService] showPlanMethodSelection error:', err);
       await TelegramClient.sendMessage(chatId, "Erreur lors du choix de méthode.");
+    }
+  }
+
+  /** Débite atomiquement le solde Kobara et active le plan. */
+  private static async purchaseSubscriptionWithBalance(
+    chatId: string | number,
+    merchant: any,
+    planSlug: string,
+    billingCycle: 'monthly' | 'yearly',
+    messageId?: number
+  ) {
+    try {
+      const { getPlanBySlug, notifyMerchantPlanTransition } = await import('@/lib/server/plans');
+      const plan = await getPlanBySlug(planSlug);
+      if (!plan || plan.slug === 'free' || Number(plan.price_htg) <= 0) {
+        await TelegramClient.sendMessage(chatId, '❌ Ce plan ne peut pas être acheté avec le solde.');
+        return;
+      }
+
+      const amount = billingCycle === 'yearly'
+        ? Math.round(Number(plan.price_htg) * 0.8 * 12)
+        : Number(plan.price_htg);
+      const supabase = createAdminClient();
+      const { data: freshMerchant } = await supabase
+        .from('merchants')
+        .select('email, plan_slug, available_balance')
+        .eq('id', merchant.id)
+        .maybeSingle();
+
+      if (Number(freshMerchant?.available_balance || 0) < amount) {
+        await TelegramClient.sendMessage(
+          chatId,
+          '⚠️ Votre solde n’est plus suffisant. Choisissez MonCash ou NatCash.',
+          { reply_markup: { inline_keyboard: [[{ text: '🔄 Choisir un moyen', callback_data: `sub_cycle:${plan.slug}:${billingCycle}:upgrade` }]] } },
+        );
+        return;
+      }
+
+      const { data: subscriptionId, error } = await supabase.rpc('purchase_subscription_from_balance', {
+        p_merchant_id: merchant.id,
+        p_plan_id: plan.id,
+        p_billing_cycle: billingCycle,
+        p_amount_htg: amount,
+        p_activation_source: 'balance',
+      });
+      if (error) {
+        const message = error.message.includes('insufficient_balance')
+          ? '⚠️ Votre solde n’est plus suffisant. Choisissez un autre moyen de paiement.'
+          : '❌ Impossible d’activer le plan avec votre solde. Veuillez réessayer.';
+        await TelegramClient.sendMessage(chatId, message);
+        return;
+      }
+
+      try {
+        await notifyMerchantPlanTransition({
+          merchantId: merchant.id,
+          email: freshMerchant?.email || merchant.email || '',
+          previousPlanSlug: freshMerchant?.plan_slug || merchant.plan_slug || null,
+          newPlan: plan,
+          source: 'balance',
+          resourceId: String(subscriptionId),
+        });
+      } catch (notificationError) {
+        console.error('[TelegramBotService] Balance plan notification failed:', notificationError);
+      }
+
+      try {
+        const { processPartnerPlanActivation } = await import('@/lib/server/partners/program');
+        await processPartnerPlanActivation({
+          merchantId: merchant.id,
+          subscriptionId: String(subscriptionId),
+          planSlug: plan.slug,
+          promoCodeId: null,
+        });
+      } catch (partnerError) {
+        console.error('[TelegramBotService] Balance partner activation failed:', partnerError);
+      }
+
+      await this.sendOrEditMessage(
+        chatId,
+        `✅ <b>PLAN ACTIVÉ AVEC SUCCÈS</b>\n\n⭐ <b>Plan :</b> ${plan.name}\n💰 <b>Payé avec votre solde :</b> ${amount.toLocaleString('fr-HT')} HTG\n📅 <b>Période :</b> ${billingCycle === 'yearly' ? 'Annuelle' : 'Mensuelle'}`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[{ text: '⭐ Voir mon abonnement', callback_data: 'action:subscription' }], [{ text: '🏠 Menu principal', callback_data: 'action:main_menu' }]] },
+        },
+        messageId,
+      );
+    } catch (error) {
+      console.error('[TelegramBotService] purchaseSubscriptionWithBalance error:', error);
+      await TelegramClient.sendMessage(chatId, '❌ Impossible d’activer le plan avec votre solde.');
     }
   }
 
@@ -1619,7 +1734,11 @@ Choisissez comment vous souhaitez effectuer votre paiement :
         });
 
         if (gatewayRes?.paymentUrl) {
-          gatewayPaymentUrl = gatewayRes.paymentUrl;
+          const directPaymentUrl = new URL(gatewayRes.paymentUrl);
+          if (directPaymentUrl.protocol !== 'https:') {
+            throw new Error("L’URL directe de paiement n’est pas sécurisée.");
+          }
+          gatewayPaymentUrl = directPaymentUrl.toString();
         }
 
         const { error: routingError } = await supabase
@@ -1643,9 +1762,6 @@ Choisissez comment vous souhaitez effectuer votre paiement :
           .eq('id', payment.id);
         if (routingError) throw routingError;
 
-        if (gatewayRes.processor === 'paym' && gatewayRes.paymentUrl) {
-          gatewayPaymentUrl = `https://pay.kobara.app/pay/redirect/${payment.id}`;
-        }
       } catch (gwErr: any) {
         console.warn('[TelegramBotService] Direct gateway initialization note:', gwErr?.message);
         await supabase.from('payments').update({ status: 'failed' }).eq('id', payment.id).eq('status', 'pending');
