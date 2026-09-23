@@ -117,10 +117,14 @@ export async function GET(
     }
 
     const reference = responsePayment.kobara_reference || '';
-    const successRedirect = payment.metadata?.is_subscription_upgrade
-      ? `/pay/plan-success?payment_id=${encodeURIComponent(paymentId)}`
+    const isTelegramSubscription = payment.metadata?.is_subscription_upgrade
+      && payment.metadata?.initiated_from === 'telegram_bot';
+    const successRedirect = isTelegramSubscription
+      ? responsePayment.success_url || payment.metadata?.success_url || 'https://t.me/KobaraPayBot'
+      : payment.metadata?.is_subscription_upgrade
+        ? `/pay/plan-success?payment_id=${encodeURIComponent(paymentId)}`
       : responsePayment.success_url || `/pay/success?reference=${encodeURIComponent(reference)}&amount=${encodeURIComponent(String(responsePayment.amount))}&currency=${encodeURIComponent(responsePayment.currency || 'HTG')}&method=${encodeURIComponent(responsePayment.payment_method || responsePayment.provider || '')}`;
-    const failureRedirect = payment.error_url
+    const failureRedirect = (isTelegramSubscription ? payment.error_url || payment.metadata?.cancel_url : payment.error_url)
       || `/pay/error?reference=${encodeURIComponent(reference)}&reason=${currentStatus === 'expired' ? 'expired' : 'failed'}`;
 
     return NextResponse.json({

@@ -1535,7 +1535,11 @@ Choisissez comment vous souhaitez effectuer votre paiement :
       const amount = billingCycle === 'yearly' ? Math.round(monthlyPrice * 0.8 * 12) : monthlyPrice;
 
       const { getPaymentProviderConfig, createPaymentGateway } = await import('@/lib/server/payments/gateway');
-      const { createPaymReference, normalizePaymAmount } = await import('@/lib/payment-routing');
+      const {
+        createPaymReference,
+        normalizePaymAmount,
+        withPaymentRoutingMetadata,
+      } = await import('@/lib/payment-routing');
 
       const providerConfig = await getPaymentProviderConfig();
       let finalAmount = amount;
@@ -1549,81 +1553,55 @@ Choisissez comment vous souhaitez effectuer votre paiement :
       const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'KobaraPayBot';
       const telegramReturnUrl = `https://t.me/${botUsername}`;
 
-      const nowIso = new Date().toISOString();
       const subscriptionMetadata = {
         is_subscription_upgrade: true,
         plan_slug: planSlug,
         billing_cycle: billingCycle,
         merchant_id: merchant.id,
         initiated_from: 'telegram_bot',
+        telegram_chat_id: String(chatId),
+        expected_amount: finalAmount,
         success_url: telegramReturnUrl,
         cancel_url: telegramReturnUrl,
       };
 
-      let payment: any = null;
-      let reference = '';
-
-      // Vérifier si un paiement d'abonnement en attente existe déjà pour ce marchand
-      const { data: existingSubPayment } = await supabase
+      // Une nouvelle tentative doit avoir sa propre référence fournisseur. Réutiliser
+      // une ancienne référence peut laisser le nouveau paiement bloqué en attente.
+      await supabase
         .from('payments')
-        .select('*')
+        .update({ status: 'expired' })
         .eq('merchant_id', merchant.id)
         .eq('status', 'pending')
-        .gt('expires_at', nowIso)
         .filter('metadata->is_subscription_upgrade', 'eq', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .filter('metadata->initiated_from', 'eq', 'telegram_bot');
 
-      if (existingSubPayment) {
-        payment = existingSubPayment;
-        reference = existingSubPayment.kobara_reference;
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-        await supabase
-          .from('payments')
-          .update({
-            amount: finalAmount,
-            net_amount: finalAmount,
-            provider: method,
-            payment_method: method,
-            expires_at: expiresAt,
-            metadata: {
-              ...(existingSubPayment.metadata || {}),
-              ...subscriptionMetadata,
-            },
-          })
-          .eq('id', existingSubPayment.id);
-      } else {
-        reference = createPaymReference('SUB');
-        const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 heure
+      const reference = createPaymReference('SUB');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const { data: payment, error } = await supabase
+        .from('payments')
+        .insert({
+          merchant_id: merchant.id,
+          amount: finalAmount,
+          net_amount: finalAmount,
+          fee_amount: 0,
+          currency: 'HTG',
+          status: 'pending',
+          environment: 'live',
+          provider: method,
+          payment_method: method,
+          kobara_reference: reference,
+          expires_at: expiresAt,
+          success_url: telegramReturnUrl,
+          error_url: telegramReturnUrl,
+          metadata: subscriptionMetadata,
+        })
+        .select('*')
+        .single();
 
-        // 1. Créer la transaction de paiement d'abonnement en base côté backend
-        const { data: newPayment, error } = await supabase
-          .from('payments')
-          .insert({
-            merchant_id: merchant.id,
-            amount: finalAmount,
-            net_amount: finalAmount,
-            fee_amount: 0,
-            currency: 'HTG',
-            status: 'pending',
-            environment: 'live',
-            provider: method,
-            payment_method: method,
-            kobara_reference: reference,
-            expires_at: expiresAt,
-            metadata: subscriptionMetadata,
-          })
-          .select('*')
-          .single();
-
-        if (error || !newPayment) {
-          console.error('[TelegramBotService] Failed to create subscription payment:', error);
-          await TelegramClient.sendMessage(chatId, `❌ Erreur lors de l'initialisation du paiement : ${error?.message || 'Erreur backend'}`);
-          return;
-        }
-
-        payment = newPayment;
+      if (error || !payment) {
+        console.error('[TelegramBotService] Failed to create subscription payment:', error);
+        await TelegramClient.sendMessage(chatId, `❌ Erreur lors de l'initialisation du paiement : ${error?.message || 'Erreur backend'}`);
+        return;
       }
 
       // 2. Initialiser la passerelle de paiement unique (MonCash ou NatCash via Pay'm/Bazik)
@@ -1644,17 +1622,34 @@ Choisissez comment vous souhaitez effectuer votre paiement :
           gatewayPaymentUrl = gatewayRes.paymentUrl;
         }
 
-        if (gatewayRes?.orderId || gatewayRes?.transactionId) {
-          await supabase
-            .from('payments')
-            .update({
-              bazik_order_id: gatewayRes.orderId,
-              bazik_transaction_id: gatewayRes.transactionId,
-            })
-            .eq('id', payment.id);
+        const { error: routingError } = await supabase
+          .from('payments')
+          .update({
+            provider: method,
+            payment_method: gatewayRes.paymentMethod,
+            bazik_order_id: gatewayRes.processor === 'bazik' ? gatewayRes.orderId : null,
+            bazik_transaction_id: gatewayRes.transactionId,
+            metadata: {
+              ...withPaymentRoutingMetadata(
+                subscriptionMetadata,
+                gatewayRes.route,
+                gatewayRes.transactionId,
+              ),
+              ...(gatewayRes.processor === 'paym' && gatewayRes.paymentUrl
+                ? { provider_checkout_url: gatewayRes.paymentUrl }
+                : {}),
+            },
+          })
+          .eq('id', payment.id);
+        if (routingError) throw routingError;
+
+        if (gatewayRes.processor === 'paym' && gatewayRes.paymentUrl) {
+          gatewayPaymentUrl = `https://pay.kobara.app/pay/redirect/${payment.id}`;
         }
       } catch (gwErr: any) {
         console.warn('[TelegramBotService] Direct gateway initialization note:', gwErr?.message);
+        await supabase.from('payments').update({ status: 'failed' }).eq('id', payment.id).eq('status', 'pending');
+        throw gwErr;
       }
 
       // 3. Déterminer l'URL finale de paiement (Passerelle directe ou Page de paiement sécurisée)
