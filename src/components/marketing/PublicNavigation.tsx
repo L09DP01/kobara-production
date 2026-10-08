@@ -179,18 +179,12 @@ function MegaPanel({ name, close }: { name: MenuName; close: () => void }) {
           </Link>
         )}
 
-        {name === "developers" && (
-          <div className="mt-6 grid overflow-hidden rounded-md border border-[#333847] bg-[#10131D] text-white md:grid-cols-[1fr_1.1fr]">
-            <div className="p-5"><strong className="text-lg">Kobara for Developers</strong><p className="mt-1 text-sm text-white/65">Build payments into your product.</p></div>
-            <pre className="overflow-x-auto border-t border-white/10 bg-[#171B27] p-5 text-xs leading-6 text-[#D7DBE7] md:border-l md:border-t-0"><code>{`const payment = await kobara.payments.create({\n  amount: 2500,\n  currency: "HTG"\n});`}</code></pre>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-export function PublicHeader() {
+export function PublicHeader({ theme = "light" }: { theme?: "light" | "dark" } = {}) {
   const [active, setActive] = useState<MenuName | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -202,7 +196,7 @@ export function PublicHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-[70] border-b border-[#DDD7D3] bg-white/95 text-[#10131D] backdrop-blur">
+    <header className={`${theme === "dark" ? "kobara-navigation-dark " : ""}sticky top-0 z-[70] border-b border-[#DDD7D3] bg-white/95 text-[#10131D] backdrop-blur`}>
       <div className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 sm:px-8">
         <Brand />
         <nav aria-label="Navigation principale" className="hidden items-center gap-1 lg:flex">

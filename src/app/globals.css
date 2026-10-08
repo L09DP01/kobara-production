@@ -249,6 +249,43 @@ body {
   overflow-x: clip;
 }
 
+.kobara-navigation-dark {
+  color-scheme: dark;
+  background-color: #07111F;
+  color: #FFFFFF;
+  border-color: #1E2A38;
+}
+
+.kobara-navigation-dark [class*="bg-white"] {
+  background-color: #07111F;
+}
+
+.kobara-navigation-dark :is([class*="text-[#10131D]"], [class*="text-[#333847]"]) {
+  color: #FFFFFF;
+}
+
+.kobara-navigation-dark :is([class*="text-[#5C5E66]"], [class*="text-[#9D9EA3]"]) {
+  color: #AAB3C2;
+}
+
+.kobara-navigation-dark :is([class*="border-[#DDD7D3]"], [class*="border-[#EEE9E5]"]) {
+  border-color: #1E2A38;
+}
+
+.kobara-navigation-dark a:hover,
+.kobara-navigation-dark button:hover {
+  color: #FC9A65;
+}
+
+.kobara-navigation-dark [class*="hover:bg-[#FFF1E9]"]:hover {
+  background-color: #1E2A38;
+}
+
+.kobara-navigation-dark .kobara-cta,
+.kobara-navigation-dark [class*="bg-[#F45D2C]"] {
+  color: #FFFFFF;
+}
+
 .kobara-public {
   min-height: 100dvh;
   background: var(--public-bg) !important;

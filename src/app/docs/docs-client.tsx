@@ -109,9 +109,9 @@ export function DocsClient({
   };
 
   return (
-    <div className="kobara-public min-h-[100dvh] bg-[#FCF7F4] font-sans text-[#10131D] antialiased selection:bg-[#F45D2C]/20 selection:text-[#10131D]">
-      <PublicHeader />
-      <div className="public-dark-panel flex min-h-[calc(100dvh-72px)] bg-[#020B14] text-white">
+    <div className="kobara-docs min-h-[100dvh] bg-[#020B14] font-sans text-white antialiased selection:bg-[#F45D2C]/30 selection:text-white">
+      <PublicHeader theme="dark" />
+      <div className="flex min-h-[calc(100dvh-72px)] bg-[#020B14] text-white">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -151,7 +151,7 @@ export function DocsClient({
       <div className="flex-1 flex flex-col min-h-[100dvh] ml-0 md:ml-[280px] lg:mr-[450px] w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] relative">
         
         {/* Top Nav */}
-        <header className="bg-[#020B14]/80 backdrop-blur-xl border-b border-[#1E2A38] fixed top-[72px] right-0 w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] flex justify-between items-center h-16 sm:h-20 px-6 sm:px-10 z-40 transition-all duration-200">
+        <header className="bg-[#020B14]/95 backdrop-blur-xl border-b border-[#1E2A38] fixed top-[72px] right-0 lg:right-[450px] w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] flex justify-between items-center h-16 sm:h-20 px-6 sm:px-10 z-40 transition-all duration-200">
           <div className="flex items-center gap-4 sm:gap-6">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -188,7 +188,7 @@ export function DocsClient({
         </header>
 
         {/* Content */}
-        <main className="flex-1 px-6 sm:px-10 flex flex-col max-w-[840px] mx-auto w-full pt-28 pb-16 min-w-0">
+        <main className="flex-1 bg-[#020B14] px-6 sm:px-10 flex flex-col max-w-[840px] mx-auto w-full pt-28 pb-16 min-w-0">
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]} 
             rehypePlugins={[rehypeSlug]}
