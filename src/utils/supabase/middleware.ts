@@ -29,7 +29,7 @@ export async function updateSession(request: NextRequest) {
   }
   
   // Custom subdomains are public
-  if (hostname === 'pay.kobara.app' || hostname === 'api.kobara.app' || hostname === 'docs.kobara.app') {
+  if (hostname === 'pay.kobara.app' || hostname === 'api.kobara.app' || hostname === 'docs.kobara.app' || hostname === 'help.kobara.app') {
     return supabaseResponse;
   }
 

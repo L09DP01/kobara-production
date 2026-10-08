@@ -233,20 +233,14 @@ export async function notifyPaymentSucceeded(params: {
     'payment_succeeded',
     'Paiement reçu',
     message,
-    params.email,
+    undefined,
     params.paymentId
   );
 }
 
 export async function notifyPaymentCreated(merchantId: string, email: string, amount: number, currency: string, paymentId?: string) {
-  await createNotification(
-    merchantId,
-    'payment_created',
-    'Nouveau paiement créé',
-    `Un paiement de ${amount} ${currency} est en attente.`,
-    email,
-    paymentId
-  );
+  // Payment creation is intentionally silent on every checkout/API path.
+  return;
 }
 
 export async function notifyPaymentFailed(merchantId: string, email: string, amount: number, currency: string, paymentId?: string) {

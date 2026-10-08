@@ -1,77 +1,58 @@
-import { Navbar } from "@/components/landing/Navbar";
+import { Clock3, Mail, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
+
 import { Footer } from "@/components/landing/Footer";
-import { FloatingBackground } from "@/components/landing/FloatingBackground";
-import { Mail, MessageCircle, MapPin, ArrowRight } from "lucide-react";
+import { PublicHeader } from "@/components/marketing/PublicNavigation";
+
 import { ContactForm } from "./contact-form";
 
 export const metadata = {
   title: "Contact — Kobara",
-  description: "Contactez l'équipe Kobara et suivez votre demande avec une référence de support.",
+  description: "Contactez l’équipe Kobara et suivez votre demande avec une référence de support.",
 };
+
+const contactItems = [
+  { icon: Mail, label: "Assistance", value: "support@kobara.app", href: "mailto:support@kobara.app" },
+  { icon: MessageCircle, label: "Téléphone et WhatsApp", value: "+509 4003 5664", href: "tel:+50940035664" },
+  { icon: MapPin, label: "Localisation", value: "Port-au-Prince, Haïti", href: null },
+];
 
 export default function ContactPage() {
   return (
-    <main className="relative min-h-[100dvh] bg-[#020B14] selection:bg-[#FF4A1C] selection:text-white font-sans text-white">
-      <FloatingBackground />
-      <Navbar />
+    <main className="kobara-public min-h-[100dvh] bg-[#FCF7F4] font-sans text-[#10131D] selection:bg-[#F45D2C] selection:text-white">
+      <PublicHeader />
 
-      <section className="pt-40 pb-24 relative">
-        <div className="max-w-[1100px] mx-auto px-5 sm:px-10">
-          {/* Header */}
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center px-4 py-1.5 rounded-full bg-[#FF4A1C]/10 border border-[#FF4A1C]/20 text-sm font-bold text-[#FF4A1C] mb-6 shadow-[0_0_15px_rgba(255,74,28,0.2)]">
-              Nous contacter
-            </div>
-            <h1 className="text-5xl sm:text-6xl font-black text-white tracking-tighter leading-[1.05] mb-5">
-              Parlons de votre<br />
-              <span className="text-[#FF4A1C]">demande.</span>
-            </h1>
-            <p className="text-lg text-[#AAB3C2] font-medium max-w-xl mx-auto leading-relaxed">
-              Assistance, intégration ou partenariat : chaque message devient une demande suivie par notre équipe.
-            </p>
-          </div>
+      <section className="border-b border-[#DDD7D3] py-10 sm:py-14">
+        <div className="mx-auto max-w-[1120px] px-5 sm:px-8">
+          <p className="text-sm font-bold text-[#F45D2C]">Contact Kobara</p>
+          <h1 className="mt-2 max-w-3xl text-3xl font-extrabold leading-tight text-[#10131D] sm:text-4xl">Parlez directement à la bonne équipe.</h1>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-[#5C5E66]">Assistance, intégration, tarification ou partenariat : décrivez votre besoin et conservez la référence fournie pour suivre votre demande.</p>
 
-          <div className="grid lg:grid-cols-2 gap-10">
-            {/* Contact info */}
-            <div className="space-y-6">
-              {[
-                { icon: Mail, label: "Assistance", value: "support@kobara.app", href: "#contact-form" },
-                { icon: MessageCircle, label: "WhatsApp", value: "+509 4003 5664", href: "tel:+50940035664" },
-                { icon: MapPin, label: "Location", value: "Port-au-Prince, Haïti", href: "#" },
-              ].map((item, i) => (
-                <a
-                  key={i}
-                  href={item.href}
-                  className="flex items-center gap-5 p-6 bg-[#07111F] border border-[#1E2A38] rounded-2xl hover:border-[#AAB3C2]/30 hover:shadow-[0_10px_30px_rgba(0,0,0,0.5)] hover:-translate-y-0.5 transition-all group"
-                >
-                  <div className="w-14 h-14 rounded-xl bg-[#020B14] border border-[#1E2A38] flex items-center justify-center text-[#FF4A1C] shrink-0 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(255,74,28,0.1)] group-hover:shadow-[0_0_20px_rgba(255,74,28,0.3)]">
-                    <item.icon className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-[#AAB3C2] font-semibold">{item.label}</div>
-                    <div className="text-white font-bold text-lg">{item.value}</div>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-[#AAB3C2] ml-auto opacity-0 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                </a>
-              ))}
+          <div className="mt-10 grid items-start gap-10 lg:grid-cols-[0.72fr_1.28fr] lg:gap-16">
+            <div>
+              <div className="divide-y divide-[#DDD7D3] border-y border-[#DDD7D3]">
+                {contactItems.map(({ icon: Icon, label, value, href }) => {
+                  const content = (
+                    <>
+                      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[#FFF1E9] text-[#F45D2C]"><Icon className="h-5 w-5" /></span>
+                      <span><span className="block text-xs font-bold text-[#8A6960]">{label}</span><strong className="mt-1 block text-sm text-[#10131D]">{value}</strong></span>
+                    </>
+                  );
+                  return href ? <a key={label} href={href} className="flex min-h-20 items-center gap-4 py-4 transition-colors hover:text-[#F45D2C]">{content}</a> : <div key={label} className="flex min-h-20 items-center gap-4 py-4">{content}</div>;
+                })}
+              </div>
 
-              <div className="p-8 bg-[#FF4A1C]/5 border border-[#FF4A1C]/20 rounded-2xl text-white relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF4A1C]/10 rounded-full blur-[40px] -translate-y-1/2 translate-x-1/2" />
-                <h3 className="font-bold text-xl mb-3 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-[#FF4A1C] animate-pulse" />
-                  Horaires
-                </h3>
-                <p className="text-[#AAB3C2] font-medium leading-relaxed">
-                  Lundi – vendredi : 8 h – 18 h (EST)<br />
-                  Samedi : 9 h – 13 h (EST)<br />
-                  Dimanche : fermé
-                </p>
+              <div className="mt-8 border-b border-[#DDD7D3] pb-8">
+                <div className="flex items-center gap-3"><Clock3 className="h-5 w-5 text-[#F45D2C]" /><h2 className="font-extrabold text-[#10131D]">Horaires</h2></div>
+                <p className="mt-3 text-sm leading-6 text-[#5C5E66]">Lundi au vendredi : 8 h – 18 h (EST)<br />Samedi : 9 h – 13 h (EST)<br />Dimanche : fermé</p>
+              </div>
+
+              <div className="mt-8 flex gap-3 text-sm leading-6 text-[#5C5E66]">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#39715B]" />
+                <p>Ne transmettez jamais votre mot de passe, votre clé API secrète ou des données bancaires dans ce formulaire.</p>
               </div>
             </div>
 
-            <div id="contact-form" className="scroll-mt-28">
-              <ContactForm />
-            </div>
+            <div id="contact-form" className="scroll-mt-24"><ContactForm /></div>
           </div>
         </div>
       </section>

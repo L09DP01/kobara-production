@@ -1,15 +1,19 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
-This version has breaking changes â€” APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes â€” APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` â€” verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
 <!-- END:nextjs-agent-rules -->
 
 <!-- BEGIN:security-rules -->
-# RÈGLE CRITIQUE ABSOLUE : SÉCURITÉ ET GITHUB
+# Rï¿½GLE CRITIQUE ABSOLUE : Sï¿½CURITï¿½ ET GITHUB
 
 AVANT CHAQUE GIT PUSH ou chaque manipulation de code :
-1. VÉRIFIER SCRUPULEUSEMENT qu'aucun identifiant, clé d'API, mot de passe SMTP, ou donnée de test sensible n'est présent dans les fichiers à commiter.
-2. SUPPRIMER immédiatement tout fichier de test ou script temporaire (comme test-smtp.js) avant d'ajouter les fichiers à git.
-3. TOUJOURS utiliser les variables d'environnement (.env) pour les données sensibles.
-Ceci est une promesse faite au créateur du projet et ne doit JAMAIS être oubliée.
+1. Vï¿½RIFIER SCRUPULEUSEMENT qu'aucun identifiant, clï¿½ d'API, mot de passe SMTP, ou donnï¿½e de test sensible n'est prï¿½sent dans les fichiers ï¿½ commiter.
+2. SUPPRIMER immï¿½diatement tout fichier de test ou script temporaire (comme test-smtp.js) avant d'ajouter les fichiers ï¿½ git.
+3. TOUJOURS utiliser les variables d'environnement (.env) pour les donnï¿½es sensibles.
+Ceci est une promesse faite au crï¿½ateur du projet et ne doit JAMAIS ï¿½tre oubliï¿½e.
 <!-- END:security-rules -->

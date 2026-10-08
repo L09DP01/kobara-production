@@ -277,7 +277,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
   return (
     <>
       {/* --- DESKTOP (Fixe à droite sous le header) --- */}
-      <aside className="hidden lg:block fixed right-0 top-16 sm:top-20 bottom-0 w-[450px] z-30 transform transition-transform">
+      <aside className="public-dark-panel hidden lg:block fixed right-0 top-[136px] sm:top-[152px] bottom-0 w-[450px] z-30 transform transition-transform">
         {chatInterfaceNode}
       </aside>
 
@@ -314,7 +314,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="fixed inset-x-0 bottom-0 top-[10vh] z-50 bg-[#07111F] rounded-t-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col border-t border-[#1E2A38]"
+                className="public-dark-panel fixed inset-x-0 bottom-0 top-[10vh] z-50 bg-[#07111F] rounded-t-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col border-t border-[#1E2A38]"
               >
                 {/* Handle for drawer */}
                 <div className="w-full flex justify-center py-3 absolute top-0 z-10">

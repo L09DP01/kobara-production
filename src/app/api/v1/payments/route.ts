@@ -385,6 +385,7 @@ export async function POST(request: NextRequest) {
             {
               ...(metadata || {}),
               customer_name: customer?.name,
+              customer_email: customer?.email || null,
               customer_phone: customer?.phone,
               ...(gatewayResult.processor === 'paym' && paymentUrl
                 ? { provider_checkout_url: paymentUrl }
@@ -396,6 +397,7 @@ export async function POST(request: NextRequest) {
         : {
             ...(metadata || {}),
             customer_name: customer?.name,
+            customer_email: customer?.email || null,
             customer_phone: customer?.phone,
             requested_payment_source: isCard
               ? (rawProvider === 'apple_pay' || rawProvider === 'google_pay' || rawProvider === 'paypal' ? rawProvider : 'card')

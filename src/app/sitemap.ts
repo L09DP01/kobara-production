@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next';
 import { siteConfig } from '@/config/site';
+import { publishedHelpArticles } from '@/lib/help-center-content';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const routes = [
@@ -17,6 +18,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { route: '/docs/php-sdk', priority: 0.8, changeFrequency: 'weekly' as const },
     { route: '/docs/python-sdk', priority: 0.8, changeFrequency: 'weekly' as const },
     { route: '/contact', priority: 0.75, changeFrequency: 'monthly' as const },
+    { route: '/help', priority: 0.9, changeFrequency: 'weekly' as const },
     { route: '/terms', priority: 0.5, changeFrequency: 'monthly' as const },
     { route: '/privacy', priority: 0.5, changeFrequency: 'monthly' as const },
   ].map(({ route, priority, changeFrequency }) => ({
@@ -26,5 +28,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority,
   }));
 
-  return [...routes];
+  const helpRoutes = publishedHelpArticles.map((article) => ({
+    url: `${siteConfig.url}/help/${article.path}`,
+    lastModified: article.lastUpdatedAt,
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+
+  return [...routes, ...helpRoutes];
 }

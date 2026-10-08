@@ -16,17 +16,17 @@ export function LanguageSwitcher() {
   if (!mounted) return <div className="w-32 h-8" />;
 
   return (
-    <div className="flex items-center gap-2 bg-[#07111F] border border-[#1E2A38] rounded-xl px-3 py-1.5 transition-colors hover:border-[#334155]">
-      <Globe className="w-4 h-4 text-[#AAB3C2]" />
+    <div className="flex items-center gap-2 rounded-md border border-[#DDD7D3] bg-white px-3 py-1.5 transition-colors hover:border-[#F45D2C]">
+      <Globe className="w-4 h-4 text-[#5C5E66]" />
       <select 
         value={language} 
         onChange={(e) => setLanguage(e.target.value as Language)} 
-        className="bg-transparent text-xs text-[#AAB3C2] font-medium focus:outline-none cursor-pointer appearance-none outline-none"
+        className="cursor-pointer appearance-none bg-transparent text-xs font-medium text-[#333847] outline-none focus:outline-none"
         style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
       >
-        <option value="fr" className="bg-[#020B14] text-white">Français</option>
-        <option value="en" className="bg-[#020B14] text-white">English</option>
-        <option value="ht" className="bg-[#020B14] text-white">Kreyòl Ayisyen</option>
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+        <option value="ht">Kreyòl Ayisyen</option>
       </select>
     </div>
   );

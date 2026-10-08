@@ -1,115 +1,121 @@
-'use client';
+"use client";
 
-import { FormEvent, useState } from 'react';
-import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react';
-import { TurnstileWidget } from '@/components/ui/turnstile-widget';
+import { type FormEvent, type ReactNode, useState } from "react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
+
+import { TurnstileWidget } from "@/components/ui/turnstile-widget";
+
+const fieldClass = "min-h-12 w-full rounded-md border border-[#D8D3CF] bg-white px-4 text-sm text-[#10131D] outline-none transition-colors placeholder:text-[#8A8C92] focus:border-[#F45D2C] focus:ring-2 focus:ring-[#F45D2C]/15";
 
 export function ContactForm() {
   const [loading, setLoading] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState('');
-  const [error, setError] = useState('');
-  const [reference, setReference] = useState('');
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const [error, setError] = useState("");
+  const [reference, setReference] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError('');
-    setReference('');
+    setError("");
+    setReference("");
 
     if (!turnstileToken) {
-      setError('Veuillez terminer la vérification de sécurité.');
+      setError("Veuillez terminer la vérification de sécurité.");
       return;
     }
 
     setLoading(true);
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
+
     try {
-      const response = await fetch('/api/support/public', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/support/public", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          firstName: form.get('firstName'),
-          lastName: form.get('lastName'),
-          email: form.get('email'),
-          category: form.get('category'),
-          subject: form.get('subject'),
-          message: form.get('message'),
-          website: form.get('website'),
+          firstName: form.get("firstName"),
+          lastName: form.get("lastName"),
+          email: form.get("email"),
+          category: form.get("category"),
+          subject: form.get("subject"),
+          message: form.get("message"),
+          website: form.get("website"),
           turnstileToken,
         }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "L'envoi a échoué.");
+      if (!response.ok) throw new Error(payload.error || "L’envoi a échoué.");
 
       setReference(payload.reference);
       formElement.reset();
-      setTurnstileToken('');
+      setTurnstileToken("");
     } catch (submissionError) {
-      setError(submissionError instanceof Error ? submissionError.message : "L'envoi a échoué.");
+      setError(submissionError instanceof Error ? submissionError.message : "L’envoi a échoué.");
     } finally {
       setLoading(false);
     }
   }
 
-  const inputClass = 'w-full h-13 px-5 rounded-xl border border-[#1E2A38] bg-[#020B14] text-white placeholder:text-[#657184] font-medium focus:outline-none focus:ring-2 focus:ring-[#FF4A1C]/30 focus:border-[#FF4A1C] transition-all';
-
   return (
-    <form onSubmit={submit} className="bg-[#07111F] border border-[#1E2A38] rounded-[24px] p-8 md:p-10 space-y-6 shadow-2xl relative overflow-hidden">
-      <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#FF4A1C]/5 rounded-full blur-[80px] pointer-events-none" />
+    <form onSubmit={submit} className="rounded-md border border-[#D8D3CF] bg-white p-5 shadow-[0_20px_50px_rgba(16,19,29,0.07)] sm:p-8">
       <input name="website" type="text" tabIndex={-1} autoComplete="off" className="hidden" aria-hidden="true" />
 
+      <div className="border-b border-[#DDD7D3] pb-6">
+        <h2 className="text-2xl font-extrabold text-[#10131D]">Envoyez votre demande</h2>
+        <p className="mt-2 text-sm leading-6 text-[#5C5E66]">Les champs nous permettent d’orienter votre message vers la bonne équipe.</p>
+      </div>
+
       {reference && (
-        <div className="relative z-10 flex gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200" role="status">
+        <div className="mt-6 flex gap-3 rounded-md border border-[#A7D6C1] bg-[#EEF9F3] p-4 text-sm text-[#245440]" role="status">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
           <p>Message reçu. Votre référence est <strong>{reference}</strong>.</p>
         </div>
       )}
-      {error && (
-        <div className="relative z-10 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200" role="alert">{error}</div>
-      )}
+      {error && <div className="mt-6 rounded-md border border-[#E8A49C] bg-[#FFF0EE] p-4 text-sm font-medium text-[#8B241B]" role="alert">{error}</div>}
 
-      <div className="grid sm:grid-cols-2 gap-5 relative z-10">
-        <div>
-          <label className="block text-sm font-bold text-[#AAB3C2] mb-2">Prénom</label>
-          <input required name="firstName" type="text" maxLength={80} autoComplete="given-name" placeholder="Jean" className={inputClass} />
-        </div>
-        <div>
-          <label className="block text-sm font-bold text-[#AAB3C2] mb-2">Nom</label>
-          <input required name="lastName" type="text" maxLength={80} autoComplete="family-name" placeholder="Pierre" className={inputClass} />
-        </div>
-      </div>
-      <div className="relative z-10">
-        <label className="block text-sm font-bold text-[#AAB3C2] mb-2">Adresse e-mail</label>
-        <input required name="email" type="email" maxLength={254} autoComplete="email" placeholder="jean@example.com" className={inputClass} />
-      </div>
-      <div className="relative z-10">
-        <label className="block text-sm font-bold text-[#AAB3C2] mb-2">Catégorie</label>
-        <select required name="category" defaultValue="" className={`${inputClass} appearance-none`}>
-          <option value="" disabled>Sélectionnez une catégorie</option>
-          <option value="support">Assistance technique</option>
-          <option value="sales">Tarifs et ventes</option>
-          <option value="partnership">Partenariat</option>
-          <option value="other">Autre demande</option>
-        </select>
-      </div>
-      <div className="relative z-10">
-        <label className="block text-sm font-bold text-[#AAB3C2] mb-2">Sujet</label>
-        <input required name="subject" type="text" maxLength={255} placeholder="Comment pouvons-nous vous aider ?" className={inputClass} />
-      </div>
-      <div className="relative z-10">
-        <label className="block text-sm font-bold text-[#AAB3C2] mb-2">Message</label>
-        <textarea required name="message" minLength={10} maxLength={10000} rows={5} placeholder="Décrivez votre demande sans inclure de mot de passe ni de données bancaires." className={`${inputClass} h-auto py-4 resize-y`} />
+      <div className="mt-6 grid gap-5 sm:grid-cols-2">
+        <Field label="Prénom"><input required name="firstName" type="text" maxLength={80} autoComplete="given-name" placeholder="Jean" className={fieldClass} /></Field>
+        <Field label="Nom"><input required name="lastName" type="text" maxLength={80} autoComplete="family-name" placeholder="Pierre" className={fieldClass} /></Field>
       </div>
 
-      <TurnstileWidget
-        onVerify={setTurnstileToken}
-        onExpire={() => setTurnstileToken('')}
-        onError={() => setTurnstileToken('')}
-      />
-      <button disabled={loading || !turnstileToken} type="submit" className="w-full h-14 rounded-xl bg-[#FF4A1C] hover:bg-[#FF2E14] disabled:cursor-not-allowed disabled:opacity-50 text-white font-bold text-[16px] transition-colors flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(255,74,28,0.3)] relative z-10">
-        {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
-        {loading ? 'Envoi en cours...' : 'Envoyer le message'}
+      <div className="mt-5">
+        <Field label="Adresse e-mail"><input required name="email" type="email" maxLength={254} autoComplete="email" placeholder="jean@entreprise.com" className={fieldClass} /></Field>
+      </div>
+
+      <div className="mt-5 grid gap-5 sm:grid-cols-2">
+        <Field label="Catégorie">
+          <select required name="category" defaultValue="" className={`${fieldClass} cursor-pointer appearance-none`}>
+            <option value="" disabled>Sélectionnez</option>
+            <option value="support">Assistance technique</option>
+            <option value="sales">Tarifs et ventes</option>
+            <option value="partnership">Partenariat</option>
+            <option value="other">Autre demande</option>
+          </select>
+        </Field>
+        <Field label="Sujet"><input required name="subject" type="text" maxLength={255} placeholder="Objet de la demande" className={fieldClass} /></Field>
+      </div>
+
+      <div className="mt-5">
+        <Field label="Message">
+          <textarea required name="message" minLength={10} maxLength={10000} rows={6} placeholder="Décrivez votre demande sans inclure de mot de passe ni de données bancaires." className={`${fieldClass} resize-y py-3`} />
+        </Field>
+      </div>
+
+      <div className="mt-6"><TurnstileWidget onVerify={setTurnstileToken} onExpire={() => setTurnstileToken("")} onError={() => setTurnstileToken("")} /></div>
+
+      <button disabled={loading || !turnstileToken} type="submit" className="kobara-cta mt-6 flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-[#F45D2C] px-5 text-sm font-extrabold text-white transition-colors hover:bg-[#E22F23] disabled:cursor-not-allowed disabled:opacity-50">
+        {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+        {loading ? "Envoi en cours…" : "Envoyer le message"}
+        {!loading ? <ArrowRight className="h-4 w-4" /> : null}
       </button>
     </form>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block text-sm font-bold text-[#333847]">
+      <span className="mb-2 block">{label}</span>
+      {children}
+    </label>
   );
 }

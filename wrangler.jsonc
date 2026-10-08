@@ -30,7 +30,8 @@
     { "pattern": "dashboard.kobara.app", "custom_domain": true },
     { "pattern": "api.kobara.app", "custom_domain": true },
     { "pattern": "pay.kobara.app", "custom_domain": true },
-    { "pattern": "docs.kobara.app", "custom_domain": true }
+    { "pattern": "docs.kobara.app", "custom_domain": true },
+    { "pattern": "help.kobara.app", "custom_domain": true }
   ],
   "observability": {
     "enabled": true

@@ -17,7 +17,8 @@ export type SupportTicketSource =
   | 'dashboard'
   | 'public_contact'
   | 'suspended_account'
-  | 'inbound_email';
+  | 'inbound_email'
+  | 'whatsapp';
 
 type CreateConversationInput = {
   merchantId?: string | null;

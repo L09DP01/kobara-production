@@ -71,6 +71,7 @@ export async function handleRequestProxy(request: NextRequest) {
   const requestOrigin = request.headers.get('origin');
   const isApiHostname = hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local";
   const isDocsHostname = hostname === 'docs.kobara.app' || hostname === 'docs.localhost' || hostname === 'docs.kobara.local';
+  const isHelpHostname = hostname === 'help.kobara.app' || hostname === 'help.localhost' || hostname === 'help.kobara.local';
   const isMainHostname = hostname === 'kobara.app' || hostname === 'www.kobara.app' || hostname === 'localhost' || hostname === 'kobara.local';
   const routedPathname = isApiHostname && !url.pathname.startsWith('/api/')
     ? `/api${url.pathname}`
@@ -110,6 +111,17 @@ export async function handleRequestProxy(request: NextRequest) {
 
   // Host-based redirects live here because OpenNext does not reliably preserve
   // Next.js `has: host` redirect conditions on Cloudflare Workers.
+  if (isHelpHostname
+    && !url.pathname.startsWith('/help')
+    && !url.pathname.startsWith('/api')
+    && !url.pathname.startsWith('/_next')
+    && !url.pathname.startsWith('/favicon')
+    && !url.pathname.includes('.')) {
+    const helpUrl = url.clone();
+    helpUrl.pathname = url.pathname === '/' ? '/help' : `/help${url.pathname}`;
+    return NextResponse.rewrite(helpUrl);
+  }
+
   if (isDocsHostname && url.pathname === '/') {
     return NextResponse.redirect(new URL('/docs/quickstart', request.url), 307);
   }
@@ -142,6 +154,7 @@ export async function handleRequestProxy(request: NextRequest) {
   const isApiRequest = url.pathname.startsWith('/api') || hostname === "api.kobara.app" || hostname?.startsWith("api.localhost") || hostname === "api.kobara.local";
   const isV1Api = url.pathname.startsWith('/api/v1');
   const isVerifiedProviderWebhook = url.pathname === '/api/webhooks/resend-inbound'
+    || url.pathname === '/api/webhooks/whatsapp'
     || url.pathname === '/api/webhooks/nowpayments'
     || url.pathname === '/api/webhooks/nowpayments/payouts';
   const corsHeaders = isV1Api

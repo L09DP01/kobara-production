@@ -9,6 +9,7 @@ import rehypeSlug from 'rehype-slug';
 import { Terminal } from 'lucide-react';
 
 import { DocsAIAssistant } from '@/components/docs/DocsAIAssistant';
+import { PublicHeader } from '@/components/marketing/PublicNavigation';
 
 export function DocsClient({
   isAuthenticated,
@@ -108,7 +109,9 @@ export function DocsClient({
   };
 
   return (
-    <div className="bg-[#020B14] font-sans text-white antialiased min-h-[100dvh] flex selection:bg-[#FF4A1C]/30 selection:text-white">
+    <div className="kobara-public min-h-[100dvh] bg-[#FCF7F4] font-sans text-[#10131D] antialiased selection:bg-[#F45D2C]/20 selection:text-[#10131D]">
+      <PublicHeader />
+      <div className="public-dark-panel flex min-h-[calc(100dvh-72px)] bg-[#020B14] text-white">
       
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -120,7 +123,7 @@ export function DocsClient({
 
       {/* Sidebar */}
       <aside className={clsx(
-        "fixed flex flex-col z-40 bg-[#07111F] text-white w-[280px] left-0 top-0 bottom-0 border-r border-[#1E2A38] transition-transform duration-300 ease-in-out md:translate-x-0 md:flex shadow-2xl md:shadow-none",
+        "fixed flex flex-col z-40 bg-[#07111F] text-white w-[280px] left-0 top-[72px] bottom-0 border-r border-[#1E2A38] transition-transform duration-300 ease-in-out md:translate-x-0 md:flex shadow-2xl md:shadow-none",
         isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         {/* Header inside Sidebar */}
@@ -148,7 +151,7 @@ export function DocsClient({
       <div className="flex-1 flex flex-col min-h-[100dvh] ml-0 md:ml-[280px] lg:mr-[450px] w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] relative">
         
         {/* Top Nav */}
-        <header className="bg-[#020B14]/80 backdrop-blur-xl border-b border-[#1E2A38] fixed top-0 right-0 w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] flex justify-between items-center h-16 sm:h-20 px-6 sm:px-10 z-40 transition-all duration-200">
+        <header className="bg-[#020B14]/80 backdrop-blur-xl border-b border-[#1E2A38] fixed top-[72px] right-0 w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] flex justify-between items-center h-16 sm:h-20 px-6 sm:px-10 z-40 transition-all duration-200">
           <div className="flex items-center gap-4 sm:gap-6">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -227,6 +230,7 @@ export function DocsClient({
 
       {/* Docs AI Assistant Panel */}
       <DocsAIAssistant currentSlug={currentSlug} />
+      </div>
     </div>
   );
 }

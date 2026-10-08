@@ -26,7 +26,9 @@ import {
   Handshake,
   FileBarChart,
   Menu,
-  X
+  X,
+  MessageCircleMore,
+  ScrollText
 } from "lucide-react";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -45,6 +47,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { name: "REPORTS", href: "/system-core/reports", icon: FileBarChart },
     { name: "WITHDRAWALS", href: "/system-core/withdrawals", icon: Banknote },
     { name: "SUPPORT", href: "/system-core/support", icon: LifeBuoy },
+    { name: "WHATSAPP", href: "/system-core/whatsapp", icon: MessageCircleMore },
+    { name: "SYSTEM LOGS", href: "/system-core/logs", icon: ScrollText },
+    { name: "SUPABASE LOGS", href: "/system-core/logs/supabase", icon: ScrollText },
+    { name: "CLOUDFLARE LOGS", href: "/system-core/logs/cloudflare", icon: ScrollText },
     { name: "AUDIT LOGS", href: "/system-core/audit", icon: SearchCode },
     { name: "SESSIONS", href: "/system-core/sessions", icon: MonitorSmartphone },
     { name: "ADMINISTRATORS", href: "/system-core/administrators", icon: UserCog },

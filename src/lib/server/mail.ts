@@ -118,7 +118,7 @@ async function scheduleEmailSend<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 async function sendEmailCore(
-  { to, subject, html, text, replyTo }: { to: string; subject: string; html: string; text: string; replyTo?: string },
+  { to, subject, html, text, replyTo, idempotencyKey }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string },
 ): Promise<{ success: boolean; error?: string }> {
   const separator = "─".repeat(56);
   console.log(`
@@ -155,7 +155,8 @@ async function sendEmailCore(
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
           },
           body: JSON.stringify(payload)
         })
@@ -305,12 +306,12 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
 }
 
 // Fonction générique (pour la rétrocompatibilité)
-export async function sendEmail({ to, subject, html, text, replyTo }: { to: string; subject: string; html?: string; text: string; replyTo?: string }) {
+export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string }) {
   const generatedHtml = html || renderEmailTemplate({
     subject,
     paragraphs: text.split('\n\n').filter(p => p.trim() !== '')
   });
-  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo });
+  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey });
 }
 
 export async function sendBulkEmail({

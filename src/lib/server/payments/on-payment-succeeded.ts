@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/utils/supabase/admin";
+import { shouldNotifyMerchantPayment } from '@/lib/payment-notification-policy';
 import {
   getPaymentMethodLabel,
   getSettlementAmounts,
@@ -139,15 +140,15 @@ export async function onPaymentSucceeded(paymentId: string) {
   try {
     const { data: merchantData } = await supabase
       .from('merchants')
-      .select('email')
+      .select('email, business_name')
       .eq('id', merchantId)
       .single();
 
-    if (merchantData?.email) {
+    if (shouldNotifyMerchantPayment(settledPayment)) {
       const { notifyPaymentSucceeded } = await import("@/lib/server/notifications");
       await notifyPaymentSucceeded({
         merchantId,
-        email: merchantData.email,
+        email: '',
         amount: settledAmounts.gross,
         netAmount: settledAmounts.net,
         currency: settledAmounts.currency,
@@ -155,6 +156,8 @@ export async function onPaymentSucceeded(paymentId: string) {
         paymentId: settledPayment.id,
       });
     }
+    const { sendCustomerPaymentReceipt } = await import('./customer-receipt');
+    await sendCustomerPaymentReceipt(settledPayment, merchantData?.business_name);
   } catch (e) {
     console.error("Notification failed:", e);
   }
@@ -192,7 +195,9 @@ export async function onPaymentSucceeded(paymentId: string) {
   // --- 4. Send Instant Telegram Push Notification (Strictly LIVE only) ---
   try {
     const { TelegramNotifierService } = await import("@/lib/server/telegram/telegram-notifier.service");
-    await TelegramNotifierService.notifyPaymentReceived(settledPayment.id);
+    if (shouldNotifyMerchantPayment(settledPayment)) {
+      await TelegramNotifierService.notifyPaymentReceived(settledPayment.id);
+    }
   } catch (telegramErr) {
     console.error("Telegram notification failed:", telegramErr);
   }

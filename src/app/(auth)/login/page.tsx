@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import { Mail, Lock, Eye, EyeOff, ArrowRight, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { useTranslation } from '@/context/LanguageContext'
@@ -10,10 +10,10 @@ import { verifyCredentialsAction } from '../actions'
 import { TurnstileWidget } from '@/components/ui/turnstile-widget'
 import { getDashboardUrl } from '@/lib/utils'
 import { markClientSessionActive } from '@/lib/session-inactivity'
+import { AuthBackdrop, AuthCardBrand } from '@/components/auth/AuthBackdrop'
 
 function LoginContent() {
   const { t, language } = useTranslation();
-  const router = useRouter();
   const searchParams = useSearchParams();
   
   const errorParam = searchParams.get('error');
@@ -87,24 +87,26 @@ function LoginContent() {
   };
 
   return (
-    <div className="w-full animate-in fade-in slide-in-from-bottom-8 duration-1000 ease-out">
-      
-      <div className="mb-10">
-        <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tighter mb-4">
+    <AuthBackdrop>
+        <div className="w-full animate-in fade-in slide-in-from-bottom-4 rounded-lg border border-white/80 bg-white p-5 shadow-[0_28px_80px_rgba(16,19,29,0.22)] duration-700">
+      <AuthCardBrand />
+      <div className="mb-3">
+        <p className="mb-2 text-xs font-bold uppercase text-[#F45D2C]">Espace marchand</p>
+        <h1 className="mb-2 text-3xl font-black text-[#10131D] sm:text-4xl">
           {t("auth.loginTitle")}
         </h1>
-        <p className="text-[#AAB3C2] font-medium leading-relaxed text-lg">
+        <p className="text-sm font-medium leading-relaxed text-[#5C5E66] sm:text-base">
           {t("auth.loginSubtitle")}
         </p>
       </div>
 
       {/* Success Notification Banner */}
       {(registered || searchParams.get('success')) && (
-        <div className="mb-8 p-5 bg-[#27C93F]/10 border border-[#27C93F]/20 rounded-2xl flex items-start gap-4 text-white text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300 shadow-[0_0_20px_rgba(39,201,63,0.1)]">
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-[#27A35A]/20 bg-[#EFFAF3] p-4 text-sm font-medium text-[#164B2B] animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle2 className="w-5 h-5 text-[#27C93F] shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-[#27C93F] mb-1">{searchParams.get('success') ? "Vérification réussie" : t("auth.successTitle")}</p>
-            <p className="text-[#AAB3C2] leading-relaxed text-[13px]">
+            <p className="mb-1 font-bold text-[#168443]">{searchParams.get('success') ? "Vérification réussie" : t("auth.successTitle")}</p>
+            <p className="text-[13px] leading-relaxed text-[#3E684E]">
               {searchParams.get('success') || t("auth.successDesc")}
             </p>
           </div>
@@ -113,13 +115,13 @@ function LoginContent() {
 
       {/* Reset Password Success Banner */}
       {resetSuccess && (
-        <div className="mb-8 p-5 bg-[#27C93F]/10 border border-[#27C93F]/20 rounded-2xl flex items-start gap-4 text-white text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300 shadow-[0_0_20px_rgba(39,201,63,0.1)]">
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-[#27A35A]/20 bg-[#EFFAF3] p-4 text-sm font-medium text-[#164B2B] animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle2 className="w-5 h-5 text-[#27C93F] shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-[#27C93F] mb-1">
+            <p className="mb-1 font-bold text-[#168443]">
               {language === "fr" ? "Mot de passe réinitialisé" : "Password reset successfully"}
             </p>
-            <p className="text-[#AAB3C2] leading-relaxed text-[13px]">
+            <p className="text-[13px] leading-relaxed text-[#3E684E]">
               {language === "fr"
                 ? "Votre mot de passe a été réinitialisé avec succès. Vous pouvez maintenant vous connecter avec votre nouveau mot de passe."
                 : "Your password has been successfully reset. You can now log in with your new password."}
@@ -130,25 +132,25 @@ function LoginContent() {
 
       {/* Error Notification Banner */}
       {error && (
-        <div className="mb-8 p-5 bg-[#FF5F56]/10 border border-[#FF5F56]/20 rounded-2xl flex items-start gap-4 text-white text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300 shadow-[0_0_20px_rgba(255,95,86,0.1)]">
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-[#E22F23]/20 bg-[#FFF1EF] p-4 text-sm font-medium text-[#7B211A] animate-in fade-in slide-in-from-top-2 duration-300">
           <XCircle className="w-5 h-5 text-[#FF5F56] shrink-0 mt-0.5" />
           <div>
-            <p className="font-bold text-[#FF5F56] mb-1">{language === "fr" ? "Erreur d'authentification" : "Authentication error"}</p>
-            <p className="text-[#AAB3C2] leading-relaxed text-[13px]">
+            <p className="mb-1 font-bold text-[#C52A20]">{language === "fr" ? "Erreur d'authentification" : "Authentication error"}</p>
+            <p className="text-[13px] leading-relaxed text-[#8A3B35]">
               {error}
             </p>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-3">
         <div className="group relative">
-          <label className="block text-[11px] font-bold text-[#AAB3C2] uppercase tracking-wider mb-2.5 transition-colors group-focus-within:text-[#FF4A1C]" htmlFor="email">
+          <label className="mb-2 block text-sm font-bold text-[#333847] transition-colors group-focus-within:text-[#F45D2C]" htmlFor="email">
             {t("auth.emailLabel")}
           </label>
           <div className="relative flex items-center">
-            <div className="absolute left-4 flex items-center pointer-events-none text-[#AAB3C2] group-focus-within:text-[#FF4A1C] transition-colors">
-              <Mail className="h-5 w-5" />
+            <div className="pointer-events-none absolute left-3.5 flex items-center text-[#9D9EA3] transition-colors group-focus-within:text-[#F45D2C]">
+              <Mail className="h-4.5 w-4.5" />
             </div>
             <input 
               id="email"
@@ -164,24 +166,24 @@ function LoginContent() {
                   localStorage.setItem('kobara_last_email', val.toLowerCase().trim());
                 }
               }}
-              className="w-full pl-12 pr-4 py-4 bg-[#07111F] border border-[#1E2A38] rounded-2xl font-medium text-white placeholder-[#1E2A38] focus:outline-none focus:ring-2 focus:ring-[#FF4A1C]/30 focus:border-[#FF4A1C] transition-all shadow-inner"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-4 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder="you@company.com"
             />
           </div>
         </div>
         
         <div className="group relative">
-          <div className="flex items-center justify-between mb-2.5">
-            <label className="block text-[11px] font-bold text-[#AAB3C2] uppercase tracking-wider transition-colors group-focus-within:text-[#FF4A1C]" htmlFor="password">
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <label className="block text-sm font-bold text-[#333847] transition-colors group-focus-within:text-[#F45D2C]" htmlFor="password">
               {t("auth.passwordLabel")}
             </label>
-            <Link href="/forgot-password" className="text-[13px] font-bold text-[#AAB3C2] hover:text-[#FF4A1C] transition-colors">
+            <Link href="/forgot-password" className="text-xs font-bold text-[#5C5E66] transition-colors hover:text-[#F45D2C]">
               {t("auth.forgotPassword")}
             </Link>
           </div>
           <div className="relative flex items-center">
-            <div className="absolute left-4 flex items-center pointer-events-none text-[#AAB3C2] group-focus-within:text-[#FF4A1C] transition-colors">
-              <Lock className="h-5 w-5" />
+            <div className="pointer-events-none absolute left-3.5 flex items-center text-[#9D9EA3] transition-colors group-focus-within:text-[#F45D2C]">
+              <Lock className="h-4.5 w-4.5" />
             </div>
             <input 
               id="password"
@@ -190,29 +192,31 @@ function LoginContent() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full pl-12 pr-12 py-4 bg-[#07111F] border border-[#1E2A38] rounded-2xl font-medium text-white placeholder-[#1E2A38] focus:outline-none focus:ring-2 focus:ring-[#FF4A1C]/30 focus:border-[#FF4A1C] transition-all shadow-inner"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-12 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder="••••••••"
             />
             <button 
               type="button" 
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 flex items-center text-[#AAB3C2] hover:text-white transition-colors p-1"
+              className="absolute right-3.5 flex items-center rounded p-1 text-[#70727A] transition-colors hover:text-[#10131D]"
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
-        <TurnstileWidget
-          onVerify={(token) => setTurnstileToken(token)}
-          onExpire={() => setTurnstileToken('')}
-          onError={() => setTurnstileToken('')}
-        />
+        <div className="flex min-h-[65px] items-center justify-center overflow-hidden rounded-md bg-[#F7F8FA] px-1">
+          <TurnstileWidget
+            onVerify={(token) => setTurnstileToken(token)}
+            onExpire={() => setTurnstileToken('')}
+            onError={() => setTurnstileToken('')}
+          />
+        </div>
 
         <button 
           type="submit"
           disabled={loading}
-          className="w-full h-14 bg-[#FF4A1C] hover:bg-[#FF2E14] text-white rounded-2xl font-bold text-[15px] transition-all flex items-center justify-center gap-3 mt-8 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(255,74,28,0.3)] hover:shadow-[0_0_30px_rgba(255,74,28,0.5)] active:scale-95 group/btn"
+          className="group/btn mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-md bg-[#F45D2C] text-[15px] font-bold text-white shadow-[0_10px_24px_rgba(244,93,44,0.24)] transition-all hover:bg-[#E22F23] hover:shadow-[0_12px_28px_rgba(226,47,35,0.28)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? (
             <>
@@ -227,10 +231,10 @@ function LoginContent() {
           )}
         </button>
 
-        <div className="flex items-center gap-4 my-8">
-          <div className="h-[1px] flex-1 bg-[#1E2A38]"></div>
-          <span className="text-[11px] font-bold text-[#AAB3C2] uppercase tracking-widest">{language === "fr" ? "Ou continuer avec" : "Or continue with"}</span>
-          <div className="h-[1px] flex-1 bg-[#1E2A38]"></div>
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#E1E4E8]"></div>
+          <span className="text-xs font-semibold text-[#70727A]">{language === "fr" ? "Ou continuer avec" : "Or continue with"}</span>
+          <div className="h-px flex-1 bg-[#E1E4E8]"></div>
         </div>
 
         <button 
@@ -291,15 +295,15 @@ function LoginContent() {
             }
           }}
           disabled={loading}
-          className="w-full h-14 bg-[#07111F] border border-[#1E2A38] text-white rounded-2xl font-bold text-[14px] hover:border-[#AAB3C2]/50 transition-all flex items-center justify-center gap-3 mb-4 active:scale-95 group/passkey"
+          className="group/passkey mb-3 flex h-12 w-full items-center justify-center gap-3 rounded-md border border-[#CCD2DA] bg-white text-sm font-bold text-[#10131D] transition-all hover:border-[#9D9EA3] hover:bg-[#F7F8FA] active:translate-y-px"
         >
-          <span className="material-symbols-outlined text-[20px] text-[#AAB3C2] group-hover/passkey:text-[#FF4A1C] transition-colors">fingerprint</span>
+          <span className="material-symbols-outlined text-[20px] text-[#70727A] transition-colors group-hover/passkey:text-[#F45D2C]">fingerprint</span>
           {language === "fr" ? "Se connecter avec Passkey" : "Sign in with Passkey"}
         </button>
 
         <button 
           type="button"
-          className="w-full h-14 bg-[#07111F] border border-[#1E2A38] text-white rounded-2xl font-bold text-[14px] hover:border-[#AAB3C2]/50 transition-all flex items-center justify-center gap-3 active:scale-95"
+          className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-[#CCD2DA] bg-white text-sm font-bold text-[#10131D] transition-all hover:border-[#9D9EA3] hover:bg-[#F7F8FA] active:translate-y-px"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -311,15 +315,16 @@ function LoginContent() {
         </button>
       </form>
 
-      <div className="mt-10 text-center">
-        <p className="text-[14px] font-medium text-[#AAB3C2]">
+      <div className="mt-3 text-center">
+        <p className="text-sm font-medium text-[#5C5E66]">
           {t("auth.dontHaveAccount")}{' '}
-          <Link href="/register" className="font-bold text-white hover:text-[#FF4A1C] transition-colors underline underline-offset-4 decoration-[#1E2A38] hover:decoration-[#FF4A1C]">
+          <Link href="/register" className="font-bold text-[#10131D] underline decoration-[#F5B293] underline-offset-4 transition-colors hover:text-[#F45D2C] hover:decoration-[#F45D2C]">
             {t("auth.signUpNow")}
           </Link>
         </p>
       </div>
-    </div>
+        </div>
+    </AuthBackdrop>
   )
 }
 

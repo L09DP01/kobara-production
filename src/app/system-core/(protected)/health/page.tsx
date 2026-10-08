@@ -5,18 +5,21 @@ import { getMaintenanceState } from '@/lib/server/maintenance';
 import { isMaintenanceActive } from '@/lib/maintenance-state';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { setPlatformMaintenance } from './maintenance-actions';
+import Link from 'next/link';
+import { getSystemHealthChecks } from '@/lib/server/system-health';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SystemHealthPage() {
+  const adminSession = await requireAdmin();
   const supabase = createAdminClient();
-  const [merchantResult, paymentResult, settingsResult, providerConfig, maintenance, adminSession] = await Promise.all([
+  const [merchantResult, paymentResult, settingsResult, providerConfig, maintenance, serviceChecks] = await Promise.all([
     supabase.from('merchants').select('*', { count: 'exact', head: true }),
     supabase.from('payments').select('*', { count: 'exact', head: true }).eq('environment', 'live'),
     supabase.from('system_settings').select('key', { count: 'exact', head: true }),
     getPaymentProviderConfig().catch(() => null),
     getMaintenanceState(),
-    requireAdmin(),
+    getSystemHealthChecks(),
   ]);
   const maintenanceActive = isMaintenanceActive(maintenance);
   const canManageMaintenance = adminSession.user.role === 'super_admin';
@@ -41,6 +44,9 @@ export default async function SystemHealthPage() {
 
   return <div className="space-y-6">
     <div><h1 className="text-2xl font-bold">SYSTEM HEALTH</h1><p className="text-sm text-slate-500 mt-1">Contrôles réels de configuration et de disponibilité.</p></div>
+    <div className="flex flex-wrap gap-4 text-sm text-orange-400"><Link href="/system-core/logs/supabase">Logs Supabase</Link><Link href="/system-core/logs/cloudflare">Logs Cloudflare</Link><Link href="/system-core/logs">Logs application</Link><a href="/system-core/health">Actualiser</a></div>
+    <p className="text-sm text-slate-300">{serviceChecks.some(check => check.state === 'error') ? 'État global : dégradé' : maintenanceActive ? 'État global : maintenance' : 'Contrôles exécutés : disponibles'} · {serviceChecks.filter(check => check.state === 'ok').length} contrôles réussis · {serviceChecks.filter(check => check.state === 'error').length} erreurs · {serviceChecks.filter(check => check.state === 'unconfigured' || check.state === 'unchecked').length} services à vérifier</p>
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{serviceChecks.map(check => <div key={check.name} className="border border-slate-800 rounded p-4"><div className={`text-sm font-bold ${check.state === 'ok' ? 'text-emerald-300' : check.state === 'error' ? 'text-red-300' : 'text-amber-300'}`}>{check.name}</div><p className="mt-2 text-xs text-slate-300">{check.detail}</p></div>)}</div>
     <section className={`border rounded p-5 ${maintenanceActive ? 'border-red-500/50 bg-red-950/20' : 'border-amber-500/40 bg-amber-950/10'}`}>
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div>
@@ -61,6 +67,6 @@ export default async function SystemHealthPage() {
     </section>
     <div className="grid md:grid-cols-2 gap-3">{checks.map(check => <div key={check.name} className={`border rounded p-4 ${check.ok ? 'bg-green-950/10 border-green-900/40' : 'bg-red-950/10 border-red-900/40'}`}><div className="flex items-center gap-2 font-bold text-sm">{check.ok ? <CheckCircle2 className="w-4 h-4 text-green-400"/> : <XCircle className="w-4 h-4 text-red-400"/>}{check.name}</div><p className="text-xs text-slate-500 mt-2">{check.detail}</p></div>)}</div>
     <div className="border border-amber-900/40 bg-amber-950/10 rounded p-4 flex gap-3"><AlertTriangle className="w-5 h-5 text-amber-400 shrink-0"/><div><h2 className="text-sm font-bold text-amber-300">Moteur Risque suspendu</h2><p className="text-xs text-slate-400 mt-1">Le module reste retiré de la navigation jusqu’à ce que ses règles, sa planification et ses dossiers de conformité soient réellement opérationnels.</p></div></div>
-    <div className="bg-slate-900 border border-slate-800 rounded p-4"><h2 className="text-sm font-bold mb-3">TÂCHES PLANIFIÉES</h2><div className="text-xs text-slate-400 space-y-2"><p>Expiration des paiements : quotidienne à 00:00 UTC</p><p>Cycle des abonnements : quotidien à 08:00 UTC</p><p>Risque automatique : désactivé</p></div></div>
+    <div className="bg-slate-900 border border-slate-800 rounded p-4"><h2 className="text-sm font-bold mb-3">TÂCHES PLANIFIÉES</h2><p className="text-xs text-slate-300">La présence du secret ne confirme pas l'exécution du scheduler. Vérifiez les invocations scheduled dans les logs Cloudflare.</p></div>
   </div>;
 }

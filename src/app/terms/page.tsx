@@ -1,6 +1,6 @@
+/* eslint-disable react/no-unescaped-entities */
 import { getServerTranslation } from "@/lib/server/i18n";
-import Link from "next/link";
-import { ArrowLeft, FileText, Shield, Scale } from "lucide-react";
+import { LegalDocumentShell } from "@/components/marketing/LegalDocumentShell";
 
 export async function generateMetadata() {
   const { t } = await getServerTranslation();
@@ -440,78 +440,9 @@ export default async function TermsPage() {
 
   const currentData = currentDataKey(language, content);
 
-  return (
-    <div className="min-h-screen bg-[#020B14] text-[#AAB3C2] selection:bg-[#FF4A1C]/30 selection:text-white">
-      {/* Background Glows */}
-      <div className="fixed top-0 left-0 w-full h-[500px] bg-gradient-to-b from-[#1E2A38]/30 to-transparent pointer-events-none" />
-      <div className="fixed top-[-20%] left-[-10%] w-[600px] h-[600px] bg-[#FF4A1C]/5 blur-[150px] rounded-full pointer-events-none" />
-      
-      <div className="max-w-7xl mx-auto px-6 py-20 relative z-10 flex flex-col md:flex-row gap-12 lg:gap-24">
-        
-        {/* Sidebar Navigation */}
-        <div className="md:w-1/4 shrink-0">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-white hover:text-[#FF4A1C] transition-colors mb-12">
-            <ArrowLeft className="w-4 h-4" />
-            Retour à l'accueil
-          </Link>
-          
-          <div className="sticky top-24">
-            <h3 className="text-xs font-black text-white uppercase tracking-widest mb-6">Navigation Légale</h3>
-            <nav className="space-y-2">
-              <Link href="/terms" className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#07111F] border border-[#1E2A38] text-white font-bold transition-colors">
-                <Scale className="w-4 h-4 text-[#FF4A1C]" />
-                {language === "en" ? "Terms of Service" : language === "ht" ? "Kondisyon" : "Conditions d'utilisation"}
-              </Link>
-              <Link href="/privacy" className="flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent text-[#AAB3C2] hover:bg-[#07111F] hover:border-[#1E2A38] hover:text-white font-medium transition-colors">
-                <Shield className="w-4 h-4" />
-                {language === "en" ? "Privacy Policy" : language === "ht" ? "Konfidansyalite" : "Politique de confidentialité"}
-              </Link>
-            </nav>
-            
-            <div className="mt-12 p-6 rounded-2xl bg-gradient-to-b from-[#07111F] to-[#020B14] border border-[#1E2A38]">
-              <FileText className="w-8 h-8 text-[#FF4A1C] mb-4" />
-              <h4 className="text-white font-bold mb-2">Besoin d'aide légale ?</h4>
-              <p className="text-xs text-[#AAB3C2] leading-relaxed mb-4">Notre équipe de conformité est disponible pour répondre à vos questions sur ces conditions.</p>
-              <Link href="/contact" className="text-xs font-bold text-[#FF4A1C] hover:text-white transition-colors">Contactez-nous &rarr;</Link>
-            </div>
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="md:w-3/4 max-w-3xl">
-          <header className="mb-16">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#1E2A38]/30 border border-[#1E2A38] text-xs font-bold text-white mb-6">
-              <span className="w-2 h-2 rounded-full bg-[#FF4A1C] animate-pulse"></span>
-              {currentData.lastUpdated}
-            </div>
-            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight mb-6 whitespace-pre-line">
-              {currentData.title}
-            </h1>
-            <p className="text-lg text-[#AAB3C2] leading-relaxed whitespace-pre-line">
-              {currentData.intro}
-            </p>
-          </header>
-
-          <div className="space-y-16">
-            {currentData.sections.map((section: any) => (
-              <section key={section.id} id={section.id} className="scroll-mt-24">
-                <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-4">
-                  {section.title}
-                  <div className="h-[1px] flex-1 bg-gradient-to-r from-[#1E2A38] to-transparent"></div>
-                </h2>
-                <div className="prose prose-invert prose-p:text-[#AAB3C2] prose-p:leading-loose prose-p:text-[15px] prose-a:text-[#FF4A1C] max-w-none">
-                  {section.content}
-                </div>
-              </section>
-            ))}
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
+  return <LegalDocumentShell language={language} activePath="/terms" {...currentData} />;
 }
 
-function currentDataKey(language: string, content: any) {
-  return content[language as keyof typeof content] || content.fr;
+function currentDataKey<T>(language: string, content: Record<string, T>) {
+  return content[language] ?? content.fr;
 }

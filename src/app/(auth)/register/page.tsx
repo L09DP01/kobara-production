@@ -1,9 +1,9 @@
 import { signup } from '../actions'
 import Link from 'next/link'
-import { Mail, Lock, Building2, Eye, ArrowLeft, XCircle } from 'lucide-react'
-import Image from 'next/image'
+import { Mail, Lock, Building2, XCircle } from 'lucide-react'
 import { getServerTranslation } from '@/lib/server/i18n'
 import { TurnstileFormInput } from '@/components/ui/turnstile-form-input'
+import { AuthBackdrop, AuthCardBrand } from '@/components/auth/AuthBackdrop'
 
 export async function generateMetadata() {
   const { t } = await getServerTranslation();
@@ -19,32 +19,25 @@ export default async function RegisterPage(props: { searchParams: Promise<{ erro
   const { t, language } = await getServerTranslation();
 
   return (
-    <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-1000 ease-out">
-      {/* Back to Home & Mobile Logo */}
-      <div className="flex items-center justify-between mb-12">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#020B14] border border-[#1E2A38] flex items-center justify-center shadow-lg">
-            <span className="text-[#FF4A1C] font-black text-sm" style={{ transform: "rotateZ(45deg) rotateX(-60deg)" }}>K</span>
-          </div>
-          <span className="text-white font-bold text-lg tracking-tight">Kobara</span>
-        </div>
-      </div>
-
-      <div className="mb-10">
-        <h1 className="text-4xl font-black text-white tracking-tight mb-3">
+    <AuthBackdrop>
+      <div className="w-full animate-in fade-in slide-in-from-bottom-4 rounded-lg border border-white/80 bg-white p-5 shadow-[0_28px_80px_rgba(16,19,29,0.22)] duration-700">
+      <AuthCardBrand />
+      <div className="mb-3">
+        <p className="mb-2 text-xs font-bold uppercase text-[#F45D2C]">Compte marchand</p>
+        <h1 className="mb-2 text-3xl font-black text-[#10131D] sm:text-4xl">
           {t("auth.registerTitle")}
         </h1>
-        <p className="text-[#AAB3C2] font-medium leading-relaxed">
+        <p className="text-sm font-medium leading-relaxed text-[#5C5E66] sm:text-base">
           {t("auth.registerSubtitle")}
         </p>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-start gap-3 text-rose-400 text-sm font-medium animate-in fade-in slide-in-from-top-2 duration-300">
-          <XCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+        <div className="mb-5 flex items-start gap-3 rounded-md border border-[#E22F23]/20 bg-[#FFF1EF] p-4 text-sm font-medium text-[#7B211A] animate-in fade-in slide-in-from-top-2 duration-300">
+          <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-[#E22F23]" />
           <div>
-            <p className="font-bold text-rose-500 mb-0.5">{language === "fr" ? "Erreur d'inscription" : "Registration error"}</p>
-            <p className="text-rose-400/80 leading-relaxed text-xs">
+            <p className="mb-0.5 font-bold text-[#C52A20]">{language === "fr" ? "Erreur d'inscription" : "Registration error"}</p>
+            <p className="text-xs leading-relaxed text-[#8A3B35]">
               {error === "Please use a professional email (consumer domains like Gmail, Yahoo, or Hotmail are not allowed)." || error.includes("professional") 
                 ? t("auth.invalidDomainError")
                 : error}
@@ -53,14 +46,15 @@ export default async function RegisterPage(props: { searchParams: Promise<{ erro
         </div>
       )}
 
-      <form action={signup} className="space-y-5">
-        <div>
-          <label className="block text-[10px] font-bold text-[#AAB3C2] uppercase tracking-wider mb-2" htmlFor="business_name">
+      <form action={signup} className="space-y-3">
+        <div className="space-y-3">
+        <div className="group">
+          <label className="mb-2 block text-sm font-bold text-[#333847] transition-colors group-focus-within:text-[#F45D2C]" htmlFor="business_name">
             {t("auth.businessNameLabel")}
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Building2 className="h-5 w-5 text-[#AAB3C2]" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[#9D9EA3] transition-colors group-focus-within:text-[#F45D2C]">
+              <Building2 className="h-4.5 w-4.5" />
             </div>
             <input 
               id="business_name"
@@ -68,38 +62,40 @@ export default async function RegisterPage(props: { searchParams: Promise<{ erro
               type="text" 
               required
               maxLength={255}
-              className="w-full pl-11 pr-4 py-3.5 bg-[#020B14]/50 border border-[#1E2A38] rounded-xl font-medium text-white placeholder-[#AAB3C2]/50 focus:outline-none focus:ring-2 focus:ring-[#FF4A1C]/20 focus:border-[#FF4A1C] transition-all shadow-inner"
+              autoComplete="organization"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-4 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder={language === "fr" ? "ex: Acme SARL" : "e.g. Acme Corp"}
             />
           </div>
         </div>
 
-        <div>
-          <label className="block text-[10px] font-bold text-[#AAB3C2] uppercase tracking-wider mb-2" htmlFor="email">
+        <div className="group">
+          <label className="mb-2 block text-sm font-bold text-[#333847] transition-colors group-focus-within:text-[#F45D2C]" htmlFor="email">
             {t("auth.emailLabel")}
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-[#AAB3C2]" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[#9D9EA3] transition-colors group-focus-within:text-[#F45D2C]">
+              <Mail className="h-4.5 w-4.5" />
             </div>
             <input 
               id="email"
               name="email"
               type="email" 
               required
-              className="w-full pl-11 pr-4 py-3.5 bg-[#020B14]/50 border border-[#1E2A38] rounded-xl font-medium text-white placeholder-[#AAB3C2]/50 focus:outline-none focus:ring-2 focus:ring-[#FF4A1C]/20 focus:border-[#FF4A1C] transition-all shadow-inner"
+              autoComplete="email"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-4 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder="you@company.com"
             />
           </div>
         </div>
         
-        <div>
-          <label className="block text-[10px] font-bold text-[#AAB3C2] uppercase tracking-wider mb-2" htmlFor="password">
+        <div className="group">
+          <label className="mb-2 block text-sm font-bold text-[#333847] transition-colors group-focus-within:text-[#F45D2C]" htmlFor="password">
             {t("auth.passwordLabel")}
           </label>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-[#AAB3C2]" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-[#9D9EA3] transition-colors group-focus-within:text-[#F45D2C]">
+              <Lock className="h-4.5 w-4.5" />
             </div>
             <input 
               id="password"
@@ -107,33 +103,34 @@ export default async function RegisterPage(props: { searchParams: Promise<{ erro
               type="password" 
               required
               minLength={8}
-              className="w-full pl-11 pr-12 py-3.5 bg-[#020B14]/50 border border-[#1E2A38] rounded-xl font-medium text-white placeholder-[#AAB3C2]/50 focus:outline-none focus:ring-2 focus:ring-[#FF4A1C]/20 focus:border-[#FF4A1C] transition-all shadow-inner"
+              autoComplete="new-password"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-4 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder={language === "fr" ? "Min. 8 caractères" : "Min. 8 characters"}
             />
-            <button type="button" className="absolute inset-y-0 right-0 pr-4 flex items-center">
-              <Eye className="h-5 w-5 text-[#AAB3C2] hover:text-white transition-colors" />
-            </button>
           </div>
         </div>
+        </div>
 
-        <TurnstileFormInput />
+        <div className="flex min-h-[65px] items-center justify-center overflow-hidden rounded-md bg-[#F7F8FA] px-1">
+          <TurnstileFormInput />
+        </div>
 
         <button 
           type="submit"
-          className="w-full bg-[#FF4A1C] text-white rounded-xl px-4 py-3.5 font-bold text-[15px] hover:bg-[#FF5A2A] transition-all flex items-center justify-center gap-2 mt-6 shadow-[0_0_20px_rgba(255,74,28,0.3)] hover:shadow-[0_0_25px_rgba(255,74,28,0.5)]"
+          className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-md bg-[#F45D2C] px-4 text-[15px] font-bold text-white shadow-[0_10px_24px_rgba(244,93,44,0.24)] transition-all hover:bg-[#E22F23] hover:shadow-[0_12px_28px_rgba(226,47,35,0.28)] active:translate-y-px"
         >
           {t("auth.registerBtn")}
         </button>
 
-        <div className="flex items-center gap-4 my-6">
-          <div className="h-[1px] flex-1 bg-[#1E2A38]"></div>
-          <span className="text-xs font-medium text-[#AAB3C2] uppercase tracking-wider">{language === "fr" ? "Ou continuer avec" : "Or continue with"}</span>
-          <div className="h-[1px] flex-1 bg-[#1E2A38]"></div>
+        <div className="flex items-center gap-3">
+          <div className="h-px flex-1 bg-[#E1E4E8]"></div>
+          <span className="text-xs font-semibold text-[#70727A]">{language === "fr" ? "Ou continuer avec" : "Or continue with"}</span>
+          <div className="h-px flex-1 bg-[#E1E4E8]"></div>
         </div>
 
         <button 
           type="button"
-          className="w-full bg-[#020B14] border border-[#1E2A38] text-white rounded-xl px-4 py-3.5 font-bold text-[14px] hover:bg-[#1E2A38]/50 transition-all flex items-center justify-center gap-3 shadow-sm"
+          className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-[#CCD2DA] bg-white px-4 text-sm font-bold text-[#10131D] transition-all hover:border-[#9D9EA3] hover:bg-[#F7F8FA] active:translate-y-px"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -145,25 +142,26 @@ export default async function RegisterPage(props: { searchParams: Promise<{ erro
         </button>
       </form>
 
-      <div className="mt-8 text-center">
-        <p className="text-xs text-[#AAB3C2] leading-relaxed mb-6">
+      <div className="mt-3 text-center">
+        <p className="mb-3 text-xs leading-relaxed text-[#70727A]">
           {t("auth.iAgreeTo")}{' '}
-          <Link href="/terms" className="font-bold text-white hover:text-[#FF4A1C] transition-colors underline decoration-2 underline-offset-2 decoration-[#1E2A38]">
+          <Link href="/terms" className="font-bold text-[#333847] underline decoration-[#F5B293] underline-offset-2 transition-colors hover:text-[#F45D2C]">
             {t("nav.terms")}
           </Link>
           {' '}{t("auth.andThe")}{' '}
-          <Link href="/privacy" className="font-bold text-white hover:text-[#FF4A1C] transition-colors underline decoration-2 underline-offset-2 decoration-[#1E2A38]">
+          <Link href="/privacy" className="font-bold text-[#333847] underline decoration-[#F5B293] underline-offset-2 transition-colors hover:text-[#F45D2C]">
             {t("nav.privacy")}
           </Link>.
         </p>
 
-        <p className="text-sm font-medium text-[#AAB3C2]">
+        <p className="text-sm font-medium text-[#5C5E66]">
           {t("auth.alreadyHaveAccount")}{' '}
-          <Link href="/login" className="font-bold text-[#FF4A1C] hover:text-[#FF5A2A] transition-colors">
+          <Link href="/login" className="font-bold text-[#10131D] underline decoration-[#F5B293] underline-offset-4 transition-colors hover:text-[#F45D2C] hover:decoration-[#F45D2C]">
             {t("auth.logInNow")}
           </Link>
         </p>
       </div>
-    </div>
+      </div>
+    </AuthBackdrop>
   )
 }

@@ -195,6 +195,16 @@
 }
 
 :root {
+  --public-bg: #FCF7F4;
+  --public-surface: #FFFFFF;
+  --public-surface-soft: #F4F7FA;
+  --public-text: #10131D;
+  --public-muted: #5C5E66;
+  --public-border: #DDD7D3;
+  --public-orange: #F45D2C;
+  --public-orange-soft: #FFF1E9;
+  --public-peach: #FBCDB1;
+  --public-blue: #315FCC;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -237,6 +247,139 @@ html {
 
 body {
   overflow-x: clip;
+}
+
+.kobara-public {
+  min-height: 100dvh;
+  background: var(--public-bg) !important;
+  color: var(--public-text);
+}
+
+.kobara-landing {
+  font-family: var(--font-inter), sans-serif;
+}
+
+.kobara-landing :is(h1, h2, h3, h4) {
+  font-family: var(--font-jakarta), sans-serif;
+  letter-spacing: 0;
+}
+
+.kobara-public .kobara-cta,
+.kobara-public .kobara-cta * {
+  color: #FFFFFF !important;
+}
+
+.kobara-public .public-dark-panel,
+.kobara-public .public-dark-panel * {
+  --public-panel-text: #FFFFFF;
+}
+
+.kobara-public .public-dark-panel {
+  background-color: #10131D !important;
+  color: var(--public-panel-text) !important;
+}
+
+.kobara-public [class*="bg-[#020B14]"]:not(.public-dark-panel *),
+.kobara-public [class*="bg-[#07111F]"]:not(.public-dark-panel *),
+.kobara-public [class*="bg-[#07101d]"]:not(.public-dark-panel *),
+.kobara-public [class*="bg-slate-950"]:not(.public-dark-panel *),
+.kobara-public [class*="bg-slate-900"]:not(.public-dark-panel *) {
+  background-color: var(--public-surface) !important;
+}
+
+.kobara-public [class*="border-[#1E2A38]"]:not(.public-dark-panel *),
+.kobara-public [class*="border-slate-700"]:not(.public-dark-panel *),
+.kobara-public [class*="border-slate-800"]:not(.public-dark-panel *) {
+  border-color: var(--public-border) !important;
+}
+
+.kobara-public [class*="text-[#AAB3C2]"]:not(.public-dark-panel *),
+.kobara-public [class*="text-slate-300"]:not(.public-dark-panel *),
+.kobara-public [class*="text-slate-400"]:not(.public-dark-panel *) {
+  color: var(--public-muted) !important;
+}
+
+.kobara-public :is(h1, h2, h3, h4)[class*="text-white"]:not(.public-dark-panel *),
+.kobara-public :is(h1, h2, h3, h4)[class*="text-slate"]:not(.public-dark-panel *) {
+  color: var(--public-text) !important;
+}
+
+.kobara-public [class*="text-white"]:not(.public-dark-panel):not(.public-dark-panel *):not(.kobara-cta):not(.kobara-cta *) {
+  color: var(--public-text) !important;
+}
+
+.kobara-public [class*="rounded-2xl"]:not(.public-dark-panel *),
+.kobara-public [class*="rounded-3xl"]:not(.public-dark-panel *),
+.kobara-public [class*="rounded-[24px]"]:not(.public-dark-panel *),
+.kobara-public [class*="rounded-[28px]"]:not(.public-dark-panel *),
+.kobara-public [class*="rounded-[40px]"]:not(.public-dark-panel *) {
+  border-radius: 8px !important;
+}
+
+.kobara-public :is(input, textarea, select):not(.public-dark-panel *) {
+  border-color: var(--public-border) !important;
+  background: var(--public-surface) !important;
+  color: var(--public-text) !important;
+  box-shadow: none !important;
+}
+
+.kobara-public :is(input, textarea)::placeholder {
+  color: #9D9EA3 !important;
+}
+
+.kobara-public :is(button, a)[class*="bg-orange"],
+.kobara-public :is(button, a)[class*="bg-[#FF4A1C]"],
+.kobara-public :is(button, a)[class*="bg-[#F45D2C]"] {
+  color: white !important;
+}
+
+.kobara-public :is(button, a)[class*="bg-orange"] *,
+.kobara-public :is(button, a)[class*="bg-[#FF4A1C]"] *,
+.kobara-public :is(button, a)[class*="bg-[#F45D2C]"] * {
+  color: white !important;
+}
+
+.legal-copy :is(p, li, td) {
+  color: #4F5158;
+}
+
+.legal-copy :is(h3, h4, strong) {
+  color: #10131D !important;
+}
+
+.legal-copy a {
+  color: #B63316 !important;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-copy :is(ul, ol) {
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.legal-copy li + li {
+  margin-top: 0.45rem;
+}
+
+.legal-copy table {
+  min-width: 640px;
+  background: #FFFFFF;
+}
+
+.legal-copy :is(th, td) {
+  border-color: #DDD7D3 !important;
+}
+
+.legal-copy th {
+  background: #F7F3F0 !important;
+  color: #10131D !important;
+}
+
+.legal-copy [class*="bg-[#1E2A38]"] {
+  border-color: #F5B293 !important;
+  background: #FFF8F4 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
