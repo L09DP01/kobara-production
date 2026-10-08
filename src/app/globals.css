@@ -419,6 +419,16 @@ body {
   background: #FFF8F4 !important;
 }
 
+.kobara-partner-track {
+  animation: kobara-partner-scroll 38s linear infinite;
+  will-change: transform;
+}
+
+@keyframes kobara-partner-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

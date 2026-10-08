@@ -124,7 +124,6 @@ function TrustStrip() {
 }
 
 function ProductRail() {
-  const reduceMotion = useReducedMotion();
   const partners = [
     { name: "SD Master", logo: "/partners/sd-master.jpg", href: "https://sd-master.com/" },
     { name: "Smartcore Express", logo: "/partners/smartcore-express.png", href: "https://smartcoreexpress.com/" },
@@ -152,14 +151,14 @@ function ProductRail() {
 
   return (
     <div id="partners" aria-label="Partenaires Kobara" className="overflow-hidden border-b border-[#DDD7D3] bg-white py-5">
-      <motion.div initial={false} animate={reduceMotion ? undefined : { x: ["0%", "-50%"] }} transition={{ duration: 38, repeat: Infinity, ease: "linear" }} className="flex w-max">
+      <div className="kobara-partner-track flex w-max">
         {[0, 1].map(group => (
-          <div key={group} className="flex items-center gap-5 pr-5 sm:gap-7 sm:pr-7">
+          <div key={group} className="flex shrink-0 items-center gap-5 pr-5 sm:gap-7 sm:pr-7">
             <span className="w-32 shrink-0 text-center text-[10px] font-bold uppercase text-[#9D9EA3]">Partenaires Kobara</span>
             {partners.map(partner => logo(partner, group))}
           </div>
         ))}
-      </motion.div>
+      </div>
     </div>
   );
 }

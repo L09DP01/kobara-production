@@ -277,7 +277,7 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
   return (
     <>
       {/* --- DESKTOP (Fixe à droite sous le header) --- */}
-      <aside className="public-dark-panel hidden lg:block fixed right-0 top-[136px] sm:top-[152px] bottom-0 w-[450px] z-30 transform transition-transform">
+      <aside className="public-dark-panel hidden lg:block fixed right-0 top-0 bottom-0 w-[450px] z-30 transform transition-transform">
         {chatInterfaceNode}
       </aside>
 
