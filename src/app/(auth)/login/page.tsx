@@ -166,7 +166,7 @@ function LoginContent() {
                   localStorage.setItem('kobara_last_email', val.toLowerCase().trim());
                 }
               }}
-              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-4 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-4 text-base font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder="you@company.com"
             />
           </div>
@@ -192,7 +192,7 @@ function LoginContent() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-12 font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
+              className="min-h-12 w-full rounded-md border border-[#CCD2DA] bg-white py-3 pl-11 pr-12 text-base font-medium text-[#10131D] outline-none transition-all placeholder:text-[#9D9EA3] focus:border-[#F45D2C] focus:ring-4 focus:ring-[#F45D2C]/10"
               placeholder="••••••••"
             />
             <button 
@@ -207,6 +207,8 @@ function LoginContent() {
 
         <div className="flex min-h-[65px] items-center justify-center overflow-hidden rounded-md bg-[#F7F8FA] px-1">
           <TurnstileWidget
+            theme="light"
+            className="flex min-h-[65px] w-full flex-col items-center justify-center"
             onVerify={(token) => setTurnstileToken(token)}
             onExpire={() => setTurnstileToken('')}
             onError={() => setTurnstileToken('')}
@@ -216,7 +218,7 @@ function LoginContent() {
         <button 
           type="submit"
           disabled={loading}
-          className="group/btn mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-md bg-[#F45D2C] text-[15px] font-bold text-white shadow-[0_10px_24px_rgba(244,93,44,0.24)] transition-all hover:bg-[#E22F23] hover:shadow-[0_12px_28px_rgba(226,47,35,0.28)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
+          className="kobara-cta group/btn mt-2 flex h-12 w-full items-center justify-center gap-3 rounded-md bg-[#F45D2C] text-[15px] font-bold text-white shadow-[0_10px_24px_rgba(244,93,44,0.24)] transition-all hover:bg-[#E22F23] hover:shadow-[0_12px_28px_rgba(226,47,35,0.28)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"
         >
           {loading ? (
             <>

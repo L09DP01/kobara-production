@@ -10,7 +10,7 @@ import { PublicHeader } from "@/components/marketing/PublicNavigation";
 export function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  if (pathname === "/login" || pathname === "/register") {
+  if (pathname === "/login" || pathname === "/register" || pathname === "/login/challenge-totp") {
     return <div className="kobara-public min-h-[100dvh] font-sans text-[#10131D]">{children}</div>;
   }
 

@@ -1,8 +1,35 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 export function AuthBackdrop({ children }: { children: ReactNode }) {
+  const frameRef = useRef<HTMLElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    const content = contentRef.current;
+    if (!frame || !content) return;
+
+    // Measure the unscaled content so errors and CAPTCHA updates also fit.
+    const fit = () => {
+      const availableHeight = Math.max(0, frame.clientHeight - 8);
+      setScale(Math.min(1, availableHeight / Math.max(1, content.offsetHeight)));
+    };
+    const observer = new ResizeObserver(fit);
+    observer.observe(frame);
+    observer.observe(content);
+    window.addEventListener("resize", fit);
+    fit();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, []);
+
   return (
     <main className="relative h-[100dvh] overflow-hidden bg-[#E8EDF2] px-4 py-3 selection:bg-[#F45D2C]/20 sm:px-6">
       <div
@@ -19,8 +46,8 @@ export function AuthBackdrop({ children }: { children: ReactNode }) {
         <Link href="/terms" className="transition-colors hover:text-[#F45D2C]">Conditions</Link>
       </div>
 
-      <section className="relative z-10 mx-auto flex h-full w-full max-w-[500px] items-center justify-center">
-        <div className="w-full origin-center [@media(max-width:639px)_and_(max-height:860px)]:scale-[0.94] [@media(max-height:760px)]:scale-[0.9] [@media(max-height:660px)]:scale-[0.8]">
+      <section ref={frameRef} className="relative z-10 mx-auto flex h-full w-full max-w-[500px] items-center justify-center">
+        <div ref={contentRef} className="w-full shrink-0 origin-center" style={{ transform: `scale(${scale})` }}>
           {children}
         </div>
       </section>
