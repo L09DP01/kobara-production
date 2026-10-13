@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createAdminClient } from '@/utils/supabase/admin';
+import { scheduleSupportFirstReply } from './assistant';
 
 export const SUPPORT_RECIPIENTS = new Set([
   'contact@kobara.app',
@@ -100,6 +101,7 @@ export async function createSupportConversation(input: CreateConversationInput) 
       .from('support_tickets')
       .select('id')
       .eq('public_id', ticketReference)
+      .eq('requester_email', requesterEmail)
       .maybeSingle();
 
     if (existingTicket) {
@@ -120,6 +122,7 @@ export async function createSupportConversation(input: CreateConversationInput) 
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingTicket.id);
+      if (input.source !== 'whatsapp') scheduleSupportFirstReply(existingTicket.id);
       return { ticketId: existingTicket.id, duplicate: false };
     }
   }
@@ -158,6 +161,7 @@ export async function createSupportConversation(input: CreateConversationInput) 
     throw new Error(messageError.message);
   }
 
+  if (input.source !== 'whatsapp') scheduleSupportFirstReply(ticket.id);
   return {
     ticketId: ticket.id,
     publicId: ticket.public_id,

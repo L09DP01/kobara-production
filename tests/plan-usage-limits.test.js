@@ -39,7 +39,7 @@ test('API and public payment links return the numbered payment limit error', () 
 test('withdrawal usage excludes subscription charges and avoids counting B2B twice', () => {
   assert.match(migration, /withdrawal\.provider[\s\S]*<> 'system_subscription'/);
   assert.match(migration, /transfer\.withdrawal_id IS NULL/);
-  assert.match(usage, /rpc\('get_daily_plan_withdrawal_total'/);
+  assert.match(usage, /rpc\('get_daily_dashboard_withdrawal_total'/);
 });
 
 test('database quota helpers and triggers are not callable by public roles', () => {
@@ -52,6 +52,6 @@ test('deployment remains compatible until the quota migration is applied', () =>
   assert.match(usage, /isMissingQuotaFunction/);
   assert.match(usage, /PGRST202/);
   assert.match(usage, /payment\.payment_source\?\.toLowerCase\(\) !== 'b2b'/);
-  assert.match(usage, /transfer\.withdrawal_id \? 0/);
+  assert.match(usage, /eq\('request_source', 'dashboard'\)/);
   assert.match(usage, /throw new Error\('payment_usage_unavailable'\)/);
 });

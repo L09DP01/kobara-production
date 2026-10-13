@@ -14,6 +14,7 @@ import {
 import { getWithdrawalUserMessage } from '@/lib/withdrawal-error-message';
 
 export interface ProcessWithdrawalParams {
+  requestSource?: 'dashboard' | 'api';
   merchantId: string;
   merchantEmail?: string;
   amount: number;
@@ -56,6 +57,7 @@ export const WithdrawalService = {
       description = 'Retrait Kobara',
       cryptoCurrency,
       cryptoExtraId,
+      requestSource = 'api',
     } = params;
 
     const normalizedMethod = (method || '').trim().toLowerCase();
@@ -195,7 +197,8 @@ export const WithdrawalService = {
     const adminClient = createAdminClient();
 
     // 6. TRANSACTION ATOMIQUE A : Réservation du solde et création du retrait 'pending'
-    let { data: prepResult, error: prepError } = await adminClient.rpc('prepare_automatic_withdrawal', {
+    const preparationRpc = requestSource === 'dashboard' ? 'prepare_dashboard_withdrawal' : 'prepare_automatic_withdrawal';
+    let { data: prepResult, error: prepError } = await adminClient.rpc(preparationRpc, {
       p_merchant_id: merchantId,
       p_amount: netAmount,
       p_fees: fees,
@@ -217,6 +220,9 @@ export const WithdrawalService = {
     // avant la migration. Les conversions croisées restent bloquées plutôt que
     // de débiter le mauvais compte.
     if (prepError && (prepError.code === 'PGRST202' || prepError.message?.includes('Could not find the function'))) {
+      if (requestSource === 'dashboard') {
+        return { success: false, error: 'Le contrôle des retraits du dashboard est temporairement indisponible. Veuillez réessayer plus tard.', errorCode: 'DASHBOARD_QUOTA_UNAVAILABLE' };
+      }
       if (normalizedSourceCurrency !== payoutCurrency) {
         return { success: false, error: 'La conversion de devise est en cours d’activation. Veuillez réessayer dans quelques minutes.' };
       }

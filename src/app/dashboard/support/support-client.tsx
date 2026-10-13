@@ -25,7 +25,7 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
       toast.error(res.error);
     } else {
       setSuccess(true);
-      toast.success("Votre demande a bien été envoyée. Notre équipe vous répondra sous 24h.");
+      toast.success("Votre ticket a bien été enregistré. Vous recevrez notre réponse par e-mail.");
       setFormData({ subject: '', category: 'Paiements', message: '' });
       
       setTimeout(() => {

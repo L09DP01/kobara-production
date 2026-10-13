@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/utils/supabase/admin";
+import { getWithdrawalDayBounds } from "../withdrawal-day";
 
 type SupabaseRpcError = {
   code?: string;
@@ -57,31 +58,22 @@ export async function getMonthlyPaymentCount(merchantId: string): Promise<number
 
 export async function getDailyWithdrawalTotal(merchantId: string): Promise<number> {
   const supabase = createAdminClient();
-  const { data, error } = await supabase.rpc('get_daily_plan_withdrawal_total', {
+  const { data, error } = await supabase.rpc('get_daily_dashboard_withdrawal_total', {
     p_merchant_id: merchantId,
   });
 
   if (error) {
     if (isMissingQuotaFunction(error)) {
-      const { start, end } = utcBounds('day');
-      const [withdrawalsResult, transfersResult] = await Promise.all([
-        supabase
+      const { start, end } = getWithdrawalDayBounds();
+      const withdrawalsResult = await supabase
           .from('withdrawals')
           .select('total, amount, currency, exchange_rate, status, provider')
           .eq('merchant_id', merchantId)
           .eq('environment', 'live')
+          .eq('request_source', 'dashboard')
           .gte('created_at', start)
-          .lt('created_at', end),
-        supabase
-          .from('b2b_transfers')
-          .select('amount, withdrawal_id')
-          .eq('sender_id', merchantId)
-          .eq('environment', 'live')
-          .eq('status', 'completed')
-          .gte('created_at', start)
-          .lt('created_at', end),
-      ]);
-      if (!withdrawalsResult.error && !transfersResult.error) {
+          .lt('created_at', end);
+      if (!withdrawalsResult.error) {
         const withdrawalsTotal = (withdrawalsResult.data || []).reduce((total, withdrawal) => {
           if (['failed', 'rejected', 'cancelled'].includes(withdrawal.status)
             || withdrawal.provider?.toLowerCase() === 'system_subscription') return total;
@@ -90,13 +82,9 @@ export async function getDailyWithdrawalTotal(merchantId: string): Promise<numbe
             ? amount * Number(withdrawal.exchange_rate || 130)
             : amount);
         }, 0);
-        const legacyB2bTotal = (transfersResult.data || []).reduce(
-          (total, transfer) => total + (transfer.withdrawal_id ? 0 : Number(transfer.amount || 0)),
-          0,
-        );
-        return withdrawalsTotal + legacyB2bTotal;
+        return withdrawalsTotal;
       }
-      console.error("Erreur calcul sorties quotidiennes (fallback):", withdrawalsResult.error || transfersResult.error);
+      console.error("Erreur calcul sorties quotidiennes (fallback):", withdrawalsResult.error);
     }
     console.error("Erreur calcul sorties quotidiennes:", error);
     throw new Error('withdrawal_usage_unavailable');

@@ -4,8 +4,10 @@ import { revalidatePath } from 'next/cache';
 import { ArrowLeft, Send } from 'lucide-react';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { requireAdmin } from '@/lib/auth/require-admin';
+import { isPublicKnowledgeUrl } from '@/lib/support-knowledge-page';
 
 export default async function SupportTicketPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdmin(['super_admin', 'support', 'operations']);
   const { id } = await params;
   const supabase = createAdminClient();
   const { data: ticket } = await supabase
@@ -83,9 +85,17 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
 
       <div className="space-y-3">
         {(messages || []).map((message) => (
-          <div key={message.id} className={`max-w-3xl p-4 rounded border ${message.sender_type === 'admin' ? 'ml-auto bg-red-950/20 border-red-900/40' : 'bg-slate-900 border-slate-800'}`}>
-            <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">{message.sender_type === 'admin' ? 'Administration Kobara' : ticket.merchants?.business_name || ticket.requester_name || message.sender_email || 'Visiteur'}</div>
+          <div key={message.id} className={`max-w-3xl p-4 rounded border ${['admin', 'assistant'].includes(message.sender_type) ? 'ml-auto bg-red-950/20 border-red-900/40' : 'bg-slate-900 border-slate-800'}`}>
+            <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">{message.sender_type === 'assistant' ? 'Assistance automatisée Kobara' : message.sender_type === 'admin' ? 'Administration Kobara' : ticket.merchants?.business_name || ticket.requester_name || message.sender_email || 'Visiteur'}</div>
             <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{message.message}</p>
+            {message.sender_type === 'assistant' && (
+              <div className="mt-3 space-y-1 text-xs text-slate-400">
+                {message.metadata?.handoff && <p>Transmis à l’équipe technique. Aucune nouvelle réponse automatique sur ce ticket.</p>}
+                {(Array.isArray(message.metadata?.references) ? message.metadata.references : []).filter((reference: { url?: string }) => typeof reference?.url === 'string' && isPublicKnowledgeUrl(reference.url)).map((reference: { title: string; url: string }) => (
+                  <a key={reference.url} href={reference.url} target="_blank" rel="noreferrer" className="block underline underline-offset-2">{reference.title}</a>
+                ))}
+              </div>
+            )}
             <div className="text-[10px] text-slate-600 mt-2">{new Date(message.created_at).toLocaleString('fr-FR')}</div>
           </div>
         ))}

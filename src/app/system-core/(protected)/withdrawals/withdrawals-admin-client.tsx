@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { CheckCircle2, XCircle, Banknote, Clock, AlertTriangle, X } from "lucide-react";
+import { WithdrawalFailureInfo } from '@/components/admin/WithdrawalFailureInfo';
 
 interface AdminWithdrawalsClientProps {
   withdrawals: any[];
@@ -135,7 +136,7 @@ export function AdminWithdrawalsClient({
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
-        {['all', 'pending_approval', 'pending', 'completed', 'paid', 'rejected'].map((s) => (
+        {['all', 'pending_approval', 'pending', 'completed', 'paid', 'rejected', 'failed'].map((s) => (
           <button
             key={s}
             onClick={() => setFilterStatus(s)}
@@ -171,7 +172,10 @@ export function AdminWithdrawalsClient({
             {filteredWithdrawals.map((w: any) => (
               <tr key={w.id} className={`hover:bg-slate-800/30 transition-colors ${w.status === 'pending_approval' ? 'bg-red-950/10' : ''}`}>
                 <td className="px-5 py-4">
-                  <div className="font-mono text-slate-200 text-xs">{w.kobara_reference || w.id.split('-')[0] + '...'}</div>
+                  <div className="flex items-center gap-1 font-mono text-slate-200 text-xs">
+                    <span>{w.kobara_reference || w.id.split('-')[0] + '...'}</span>
+                    {w.status === 'failed' && w.failure_details && <WithdrawalFailureInfo reference={w.kobara_reference || w.id} provider={w.provider} details={w.failure_details} />}
+                  </div>
                   <div className="text-[10px] text-slate-500 mt-0.5">{new Date(w.created_at).toLocaleString('fr-FR')}</div>
                 </td>
                 <td className="px-5 py-4">

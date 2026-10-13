@@ -1,8 +1,12 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import Link from "next/link";
 import { LifeBuoy, MessageSquare, Clock } from "lucide-react";
+import { requireAdmin } from '@/lib/auth/require-admin';
+import { schedulePendingSupportReplies } from '@/lib/server/support/assistant';
 
 export default async function AdminSupportPage() {
+  await requireAdmin(['super_admin', 'support', 'operations']);
+  schedulePendingSupportReplies();
   const supabase = createAdminClient();
 
   const { data: tickets } = await supabase

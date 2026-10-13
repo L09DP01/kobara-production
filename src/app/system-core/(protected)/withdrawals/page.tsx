@@ -2,8 +2,10 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { AdminWithdrawalsClient } from "./withdrawals-admin-client";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { getWithdrawalFailureDetails } from '@/lib/withdrawal-failure-details';
 
 export default async function AdminWithdrawalsPage() {
+  await requireAdmin(['super_admin', 'operations', 'support']);
   const supabase = createAdminClient();
 
   const { data: withdrawals } = await supabase
@@ -105,7 +107,10 @@ export default async function AdminWithdrawalsPage() {
 
   return (
     <AdminWithdrawalsClient
-      withdrawals={withdrawals || []}
+      withdrawals={(withdrawals || []).map(({ provider_response, failed_reason, ...withdrawal }) => {
+        const details = getWithdrawalFailureDetails({ ...withdrawal, provider_response, failed_reason });
+        return { ...withdrawal, failed_reason: failed_reason ? details.reason : null, failure_details: withdrawal.status === 'failed' ? details : null };
+      })}
       approveAction={approveManualWithdrawal}
       rejectAction={rejectManualWithdrawal}
       markAsPaidAction={markAsPaid}

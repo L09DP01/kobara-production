@@ -98,7 +98,7 @@ export async function requestWithdrawal(
     ? Number(amount) * Number(providerConfig?.paypal_htg_per_usd || 130)
     : Number(amount);
 
-  const accessCheck = await canCreateWithdrawal(merchant.id, limitAmountHtg);
+  const accessCheck = await canCreateWithdrawal(merchant.id, limitAmountHtg, 'dashboard');
   if (!accessCheck.allowed) {
     if (accessCheck.reason === 'kyc_required') return { error: "Vous devez vérifier votre compte (KYC) pour effectuer des retraits réels." };
     if (accessCheck.reason === 'plan_required') return { error: "Vous devez avoir un plan actif pour retirer des fonds." };
@@ -173,6 +173,7 @@ export async function requestWithdrawal(
 
   // Exécution du retrait via le service unifié (atomique + rollback + idempotence)
   const result = await WithdrawalService.processWithdrawal({
+    requestSource: 'dashboard',
     merchantId: merchant.id,
     merchantEmail: merchant.email,
     amount: Number(amount),

@@ -3,6 +3,7 @@ import 'server-only';
 import { DOC_SLUGS, getDocContent } from '@/content/docs/generated';
 import { helpArticles } from '@/lib/help-center-content';
 import { developerPages, productPages, resourcePages, solutionPages } from '@/lib/public-site-content';
+import { readPublicKnowledgePage } from '@/lib/support-knowledge-page';
 
 export type KnowledgeReference = {
   title: string;
@@ -148,4 +149,18 @@ export function formatKnowledgeContext(references: KnowledgeReference[]) {
   return references
     .map((reference, index) => `[SOURCE ${index + 1}] ${reference.title}\nURL: ${reference.url}\n${reference.excerpt}`)
     .join('\n\n');
+}
+
+export async function searchVerifiedKobaraKnowledge(query: string): Promise<KnowledgeReference[]> {
+  const candidates = searchKobaraKnowledge(query, 5);
+  const verified = await Promise.all(candidates.map(async (reference) => {
+    const text = await readPublicKnowledgePage(reference.url);
+    if (!text) return null;
+    const tokens = normalize(query).split(/[^a-z0-9]+/).filter((token) => token.length > 3 && !stopWords.has(token));
+    const normalized = normalize(text);
+    const position = tokens.map((token) => normalized.indexOf(token)).find((index) => index >= 0) ?? 0;
+    // Preserve a relevant window from the page actually retrieved, not a guessed summary.
+    return { ...reference, excerpt: text.slice(Math.max(0, position - 350), Math.max(0, position - 350) + 3500) };
+  }));
+  return verified.filter((reference): reference is KnowledgeReference => reference !== null);
 }

@@ -29,8 +29,8 @@ export default async function PricingPage() {
       highlight: false,
       badge: null,
       features: isFrench
-        ? ["1 clé API", "Plugin WordPress inclus", "10 paiements / mois", "4% de frais par transaction*", "Retrait jusqu’à 2 500 HTG / jour", "Dashboard de base", "Support communauté"]
-        : ["1 API key", "WordPress plugin included", "10 payments / month", "4% fee per transaction*", "Withdrawal up to 2,500 HTG / day", "Basic dashboard", "Community support"],
+        ? ["1 clé API", "Plugin WordPress inclus", "10 paiements / mois", "4% de frais par transaction*", "Retrait dashboard jusqu’à 2 500 HTG / jour", "Dashboard de base", "Support communauté"]
+        : ["1 API key", "WordPress plugin included", "10 payments / month", "4% fee per transaction*", "Dashboard withdrawal up to 2,500 HTG / day", "Basic dashboard", "Community support"],
       cta: isFrench ? "Commencer gratuitement" : "Start for free",
       ctaHref: "/register",
       feeNote: isFrench ? "* Inclut les frais Kobara et les frais de traitement MonCash/NatCash." : "* Includes Kobara and MonCash/NatCash processing fees.",
@@ -44,8 +44,8 @@ export default async function PricingPage() {
       highlight: false,
       badge: null,
       features: isFrench
-        ? ["Clés API illimitées", "Plugin WordPress inclus", "Paiements illimités", "2,9% de frais par transaction", "Retrait jusqu’à 20 000 HTG / jour", "Webhooks avancés", "Support email prioritaire"]
-        : ["Unlimited API keys", "WordPress plugin included", "Unlimited payments", "2.9% fee per transaction", "Withdrawal up to 20,000 HTG / day", "Advanced webhooks", "Priority email support"],
+        ? ["Clés API illimitées", "Plugin WordPress inclus", "Paiements illimités", "2,9% de frais par transaction", "Retrait dashboard jusqu’à 20 000 HTG / jour", "Webhooks avancés", "Support email prioritaire"]
+        : ["Unlimited API keys", "WordPress plugin included", "Unlimited payments", "2.9% fee per transaction", "Dashboard withdrawal up to 20,000 HTG / day", "Advanced webhooks", "Priority email support"],
       cta: isFrench ? "Choisir Pro" : "Choose Pro",
       ctaHref: "/register?plan=pro",
       feeNote: null,
@@ -59,8 +59,8 @@ export default async function PricingPage() {
       highlight: true,
       badge: isFrench ? "Recommandé" : "Recommended",
       features: isFrench
-        ? ["Clés API illimitées", "Plugin WordPress inclus", "Paiements illimités", "2,9% de frais par transaction", "Retrait jusqu’à 50 000 HTG / jour", "Webhooks et logs avancés", "Analyses et rapports", "Support email et chat"]
-        : ["Unlimited API keys", "WordPress plugin included", "Unlimited payments", "2.9% fee per transaction", "Withdrawal up to 50,000 HTG / day", "Advanced webhooks and logs", "Analytics and reports", "Email and chat support"],
+        ? ["Clés API illimitées", "Plugin WordPress inclus", "Paiements illimités", "2,9% de frais par transaction", "Retrait dashboard jusqu’à 50 000 HTG / jour", "Webhooks et logs avancés", "Analyses et rapports", "Support email et chat"]
+        : ["Unlimited API keys", "WordPress plugin included", "Unlimited payments", "2.9% fee per transaction", "Dashboard withdrawal up to 50,000 HTG / day", "Advanced webhooks and logs", "Analytics and reports", "Email and chat support"],
       cta: isFrench ? "Choisir Premium" : "Choose Premium",
       ctaHref: "/register?plan=premium",
       feeNote: null,
@@ -74,8 +74,8 @@ export default async function PricingPage() {
       highlight: false,
       badge: isFrench ? "Entreprise" : "Enterprise",
       features: isFrench
-        ? ["Tout Premium inclus", "Clés API et paiements illimités", "2,9% de frais par transaction", "Retraits illimités", "Intégration personnalisée", "SLA garanti 99,9%", "Gestionnaire de compte dédié", "Support prioritaire 24/7"]
-        : ["Everything in Premium", "Unlimited API keys and payments", "2.9% fee per transaction", "Unlimited withdrawals", "Custom integration", "99.9% guaranteed SLA", "Dedicated account manager", "24/7 priority support"],
+        ? ["Tout Premium inclus", "Clés API et paiements illimités", "2,9% de frais par transaction", "Retraits dashboard illimités", "Intégration personnalisée", "SLA garanti 99,9%", "Gestionnaire de compte dédié", "Support prioritaire 24/7"]
+        : ["Everything in Premium", "Unlimited API keys and payments", "2.9% fee per transaction", "Unlimited dashboard withdrawals", "Custom integration", "99.9% guaranteed SLA", "Dedicated account manager", "24/7 priority support"],
       cta: isFrench ? "Contacter l’équipe" : "Contact sales",
       ctaHref: "/contact",
       feeNote: null,
@@ -87,7 +87,7 @@ export default async function PricingPage() {
     { label: isFrench ? "Frais par transaction" : "Transaction fee", values: ["4%", "2,9%", "2,9%", "2,9%"] },
     { label: isFrench ? "Clés API" : "API keys", values: ["1", isFrench ? "Illimitées" : "Unlimited", isFrench ? "Illimitées" : "Unlimited", isFrench ? "Illimitées" : "Unlimited"] },
     { label: isFrench ? "Paiements mensuels" : "Monthly payments", values: ["10", isFrench ? "Illimités" : "Unlimited", isFrench ? "Illimités" : "Unlimited", isFrench ? "Illimités" : "Unlimited"] },
-    { label: isFrench ? "Retrait journalier" : "Daily withdrawal", values: ["2 500 HTG", "20 000 HTG", "50 000 HTG", isFrench ? "Illimité" : "Unlimited"] },
+    { label: isFrench ? "Retraits dashboard / jour" : "Dashboard withdrawals / day", values: ["2 500 HTG", "20 000 HTG", "50 000 HTG", isFrench ? "Illimité" : "Unlimited"] },
     { label: "Webhooks", values: [false, true, true, true] },
     { label: isFrench ? "Analyses avancées" : "Advanced analytics", values: [false, false, true, true] },
     { label: isFrench ? "Support" : "Support", values: [isFrench ? "Communauté" : "Community", "Email", "Email + chat", "24/7"] },
@@ -105,7 +105,7 @@ export default async function PricingPage() {
     },
     {
       question: isFrench ? "Quand mon solde devient-il disponible ?" : "When does my balance become available?",
-      answer: isFrench ? "Votre solde est mis à jour après confirmation du paiement. Vous pouvez demander un retrait selon la limite journalière de votre plan." : "Your balance updates after payment confirmation. You can request a withdrawal within your plan’s daily limit.",
+      answer: isFrench ? "Les retraits depuis le dashboard utilisent votre solde disponible, selon le plafond journalier de votre plan : 2 500 HTG pour Gratuit, 20 000 HTG pour Pro et 50 000 HTG pour Premium. Le plafond se renouvelle à minuit, heure d’Haïti ; il ne s’agit pas d’une limite mensuelle. Les retraits API ne sont pas soumis à ce plafond et ne le consomment pas." : "Dashboard withdrawals use your available balance, subject to your plan’s daily limit: HTG 2,500 for Free, HTG 20,000 for Pro and HTG 50,000 for Premium. The limit resets at midnight in Haiti, not monthly. API withdrawals are not subject to this cap and do not consume it.",
     },
     {
       question: isFrench ? "Puis-je changer de plan ?" : "Can I change plans?",

@@ -194,6 +194,7 @@ export function BillingClient() {
   }
 
   const { merchant, plan, subscription, entitlement, usage, businessRequest } = data;
+  const renewalPlan = subscription?.plan || plan;
   const businessRequestPending = businessRequest?.status === 'pending';
   return (
     <div className="space-y-8 max-w-6xl">
@@ -248,9 +249,9 @@ export function BillingClient() {
               <span className="font-bold text-white">{plan ? `${plan.transaction_fee_percent}%` : 'N/A'}</span>
             </div>
           </div>
-          {(entitlement?.isExpired || entitlement?.isGracePeriod || entitlement?.reason === 'expired') && plan && plan.slug !== 'free' && (
+          {(entitlement?.isExpired || entitlement?.isGracePeriod || entitlement?.reason === 'expired') && renewalPlan && renewalPlan.slug !== 'free' && (
             <button
-              onClick={() => handleUpgradeClick(plan)}
+              onClick={() => handleUpgradeClick(renewalPlan)}
               className="mt-4 w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all shadow-md flex items-center justify-center gap-2"
             >
               <Zap className="w-4 h-4 fill-white" />
@@ -261,11 +262,11 @@ export function BillingClient() {
 
         {/* Usage Card */}
         <div className="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Utilisation ce mois</h3>
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Utilisation et limites</h3>
           <div className="space-y-5">
             <div>
               <div className="flex justify-between text-sm mb-1.5">
-                <span className="font-bold text-white">Paiements (Volume)</span>
+                <span className="font-bold text-white">Paiements ce mois</span>
                 <span className="text-slate-400 font-medium">
                   {usage.monthly_payments} / {plan?.monthly_payment_limit === null ? '∞' : plan?.monthly_payment_limit || '0'}
                 </span>
@@ -291,6 +292,15 @@ export function BillingClient() {
                   style={{ width: plan?.api_keys_limit ? `${Math.min(100, (usage.api_keys / plan.api_keys_limit) * 100)}%` : '0%' }}
                 />
               </div>
+            </div>
+            <div>
+              <div className="flex flex-wrap justify-between gap-2 text-sm mb-1.5">
+                <span className="font-bold text-white">Retraits dashboard aujourd’hui</span>
+                <span className="text-slate-400 font-medium">
+                  {Number(usage.daily_withdrawals || 0).toLocaleString('fr-FR')} / {plan?.daily_withdrawal_limit === null ? '∞' : Number(plan?.daily_withdrawal_limit || 0).toLocaleString('fr-FR')} HTG
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">Plafond du dashboard renouvelé à minuit, heure d’Haïti. Les retraits API ne sont pas soumis à ce plafond et ne le consomment pas.</p>
             </div>
           </div>
         </div>
@@ -355,7 +365,7 @@ export function BillingClient() {
                 <ul className="space-y-3 mb-6 flex-1 text-sm text-slate-400 font-medium">
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> {p.transaction_fee_percent}% par transaction</li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> {p.monthly_payment_limit || '∞'} paiements / mois</li>
-                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> Retrait max: {p.daily_withdrawal_limit || '∞'} HTG</li>
+                  <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> Retraits : {p.daily_withdrawal_limit === null ? 'Illimités' : `${Number(p.daily_withdrawal_limit).toLocaleString('fr-FR')} HTG / jour`}</li>
                   <li className="flex items-center gap-2"><Check className="w-4 h-4 text-green-400" /> Clés API: {p.api_keys_limit || '∞'}</li>
                 </ul>
 

@@ -107,10 +107,10 @@ export async function canCreateApiKey(merchantId: string, environment: 'test' | 
   }
 }
 
-export async function canCreateWithdrawal(merchantId: string, amount: number): Promise<AccessCheck> {
+export async function canCreateWithdrawal(merchantId: string, amount: number, source: 'dashboard' | 'api' = 'api'): Promise<AccessCheck> {
   try {
     const access = await ensureCanUseLiveMode(merchantId, 'live');
-    if (access.plan?.daily_withdrawal_limit !== null) {
+    if (source === 'dashboard' && access.plan?.daily_withdrawal_limit !== null) {
       const currentDailyTotal = await getDailyWithdrawalTotal(merchantId);
       if (currentDailyTotal + amount > Number(access.plan?.daily_withdrawal_limit ?? 0)) {
         const limit = Number(access.plan?.daily_withdrawal_limit ?? 0);

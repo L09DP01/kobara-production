@@ -85,8 +85,7 @@ test('Mobile B2B transfers use the same atomic accounting service', () => {
   assert.doesNotMatch(mobileTransferRoute, /\.rpc\('process_b2b_transfer'/);
 });
 
-test('Completed live B2B transfers count toward the daily outgoing limit', () => {
-  assert.match(usage, /from\('b2b_transfers'\)/);
-  assert.match(usage, /eq\('sender_id', merchantId\)/);
-  assert.match(usage, /return withdrawalsTotal \+ b2bTotal/);
+test('B2B transfers do not consume the dashboard-only withdrawal quota', () => {
+  assert.doesNotMatch(usage, /from\('b2b_transfers'\)/);
+  assert.match(usage, /eq\('request_source', 'dashboard'\)/);
 });
