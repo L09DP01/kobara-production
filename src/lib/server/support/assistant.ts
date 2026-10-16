@@ -4,9 +4,9 @@ import { after } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { sendEmail } from '@/lib/server/mail';
-import { answerWhatsAppSupport } from '@/lib/server/whatsapp/assistant';
+import { answerWhatsAppSupport, type AssistantResult } from '@/lib/server/whatsapp/assistant';
 import { containsPotentialSecret, redactSecrets } from '@/lib/server/whatsapp/security';
-import { isSensitiveSupportRequest, sensitiveSupportHandoff, secretSupportWarning, technicalHandoffMessage } from '@/lib/support-assistant-policy';
+import { composeSupportReply, DOCS_ASSISTANT_URL, isSensitiveSupportRequest, needsCodingSupport, sensitiveSupportHandoff, secretSupportWarning, supportIntent } from '@/lib/support-assistant-policy';
 import { aiChatLimiter } from '@/lib/server/security/rate-limit';
 import { createHash } from 'node:crypto';
 
@@ -51,17 +51,22 @@ export async function replyToSupportTicket(ticketId: string) {
   const question = redactSecrets(rawQuestion).slice(0, 9000);
   const identity = createHash('sha256').update(ticket.requester_email || ticketId).digest('hex');
   const budget = await aiChatLimiter.limit(`support-first:${identity}`);
-  const result = budget.success && !sensitiveRequest && !secretDetected ? await answerWhatsAppSupport({
+  const result: AssistantResult = budget.success && !sensitiveRequest && !secretDetected ? await answerWhatsAppSupport({
     channel: 'support', question,
     history: messages.map((message) => ({ sender_type: message.sender_type, body: String(message.message).slice(0, 1500) })),
   }) : { answer: '', references: [], shouldOfferHuman: true, model: null };
-  const handoff = sensitiveRequest || secretDetected || result.shouldOfferHuman || !result.references.length || !result.answer.trim();
-  const answer = `${secretDetected ? secretSupportWarning(question) : ''}${sensitiveRequest ? sensitiveSupportHandoff(question, ticket.public_id || ticket.id) : handoff ? technicalHandoffMessage(question, ticket.public_id || ticket.id) : redactSecrets(result.answer)}`.slice(0, 4000);
+  const reply = composeSupportReply(question, ticket.public_id || ticket.id, result);
+  const handoff = sensitiveRequest || secretDetected || reply.handoff;
+  const answer = `${secretDetected ? secretSupportWarning(question) : ''}${sensitiveRequest ? sensitiveSupportHandoff(question, ticket.public_id || ticket.id) : redactSecrets(reply.answer)}`.slice(0, 4000);
+  const citedReferences = result.answerIsGrounded && !sensitiveRequest && !secretDetected ? result.references : [];
+  const supportReferences = needsCodingSupport(question) && !sensitiveRequest && !secretDetected
+    ? [{ title: 'Kobara AI : aide au code', url: DOCS_ASSISTANT_URL }, ...citedReferences.filter((reference) => reference.url !== DOCS_ASSISTANT_URL)]
+    : citedReferences;
 
   // Atomic persistence prevents duplicate replies and respects a human takeover during generation.
   const { data: messageId, error } = await admin.rpc('record_support_first_reply', {
     p_ticket_id: ticketId, p_message: answer, p_handoff: handoff,
-    p_metadata: { model: result.model, references: result.references.map(({ title, url }) => ({ title, url })), public_sources_checked: !sensitiveRequest && !secretDetected && budget.success, sensitive_request: sensitiveRequest },
+    p_metadata: { model: result.model, intent: supportIntent(question), references: supportReferences.map(({ title, url }) => ({ title, url })), public_sources_checked: !sensitiveRequest && !secretDetected && budget.success, sensitive_request: sensitiveRequest },
   });
   if (error) throw new Error('support_reply_not_saved');
   if (!messageId) return;
@@ -81,10 +86,10 @@ export async function replyToSupportTicket(ticketId: string) {
     }
   }
   if (handoff || clientDeliveryFailed) {
-    const summary = `Ticket ${ticket.public_id} en attente d’un technicien.\n\n${question.slice(0, 1500)}\n\nOuvrir : https://kobara.app/system-core/support/${ticketId}`;
+    const summary = `Demande ${ticket.public_id} en attente de l’équipe Kobara (${supportIntent(question)}).\n\n${question.slice(0, 1500)}\n\nOuvrir : https://kobara.app/system-core/support/${ticketId}`;
     await sendEmail({
       to: process.env.SUPPORT_AI_ALERT_EMAIL || process.env.SUPPORT_EMAIL || 'support@kobara.app',
-      subject: `[${ticket.public_id}] Assistance technique requise`, text: summary, html: htmlText(summary),
+      subject: `[${ticket.public_id}] Suivi humain requis`, text: summary, html: htmlText(summary),
       idempotencyKey: `support-handoff-${messageId}`,
     });
   }

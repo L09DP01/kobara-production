@@ -90,8 +90,8 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
             <p className="text-sm text-slate-200 whitespace-pre-wrap break-words">{message.message}</p>
             {message.sender_type === 'assistant' && (
               <div className="mt-3 space-y-1 text-xs text-slate-400">
-                {message.metadata?.handoff && <p>Transmis à l’équipe technique. Aucune nouvelle réponse automatique sur ce ticket.</p>}
-                {(Array.isArray(message.metadata?.references) ? message.metadata.references : []).filter((reference: { url?: string }) => typeof reference?.url === 'string' && isPublicKnowledgeUrl(reference.url)).map((reference: { title: string; url: string }) => (
+                {message.metadata?.handoff && <p>Suivi transmis à l’équipe Kobara. Réponse humaine attendue.</p>}
+                {(Array.isArray(message.metadata?.references) ? message.metadata.references : []).filter((reference: { url?: string }) => typeof reference?.url === 'string' && isPublicKnowledgeUrl(reference.url)).slice(0, 3).map((reference: { title: string; url: string }) => (
                   <a key={reference.url} href={reference.url} target="_blank" rel="noreferrer" className="block underline underline-offset-2">{reference.title}</a>
                 ))}
               </div>

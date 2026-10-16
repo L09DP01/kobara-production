@@ -4,6 +4,7 @@ import { DOC_SLUGS, getDocContent } from '@/content/docs/generated';
 import { helpArticles } from '@/lib/help-center-content';
 import { developerPages, productPages, resourcePages, solutionPages } from '@/lib/public-site-content';
 import { readPublicKnowledgePage } from '@/lib/support-knowledge-page';
+import { knowledgeSearchQueries, knowledgeTokens, rankKnowledgeDocuments } from '@/lib/support-knowledge-ranking';
 
 export type KnowledgeReference = {
   title: string;
@@ -121,27 +122,16 @@ const legalDocuments: KnowledgeDocument[] = [
   },
 ];
 
-const documents = [...helpDocuments, ...docsDocuments, ...publicDocuments, ...legalDocuments];
-const stopWords = new Set(['avec', 'dans', 'pour', 'quoi', 'comment', 'the', 'and', 'that', 'this', 'yon', 'pou', 'nan', 'kijan', 'mwen', 'vous', 'votre', 'kobara']);
+const documents: KnowledgeDocument[] = [...helpDocuments, ...docsDocuments, ...publicDocuments, ...legalDocuments, {
+  title: 'Tarifs et tarification Kobara',
+  url: 'https://kobara.app/pricing',
+  excerpt: 'Consultez la page de tarification publique pour les frais applicables. Ne supposez aucun taux absent de cette page.',
+  searchText: normalize('tarifs tarification pricing paiements frais fees commissions paiement MonCash NatCash cartes'),
+  kind: 'public',
+}];
 
 export function searchKobaraKnowledge(query: string, limit = 5): KnowledgeReference[] {
-  const normalizedQuery = normalize(query);
-  const tokens = [...new Set(normalizedQuery.split(/[^a-z0-9]+/).filter((token) => token.length > 2 && !stopWords.has(token)))];
-
-  return documents
-    .map((document) => {
-      let score = normalizedQuery.length > 7 && document.searchText.includes(normalizedQuery) ? 30 : 0;
-      for (const token of tokens) {
-        const occurrences = document.searchText.split(token).length - 1;
-        score += Math.min(occurrences, 5) * (token.length >= 7 ? 4 : 2);
-        if (normalize(document.title).includes(token)) score += 7;
-      }
-      if (document.kind === 'help') score += 1;
-      return { ...document, score };
-    })
-    .filter((document) => document.score > 2)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
+  return rankKnowledgeDocuments(documents, query, limit)
     .map(({ searchText: _searchText, ...document }) => document);
 }
 
@@ -152,15 +142,23 @@ export function formatKnowledgeContext(references: KnowledgeReference[]) {
 }
 
 export async function searchVerifiedKobaraKnowledge(query: string): Promise<KnowledgeReference[]> {
-  const candidates = searchKobaraKnowledge(query, 5);
+  const queries = knowledgeSearchQueries(query);
+  const byUrl = new Map<string, KnowledgeReference>();
+  for (const focusedQuery of queries) {
+    for (const reference of searchKobaraKnowledge(focusedQuery, focusedQuery === query ? (queries.length > 1 ? 3 : 5) : 1)) {
+      if (!byUrl.has(reference.url)) byUrl.set(reference.url, reference);
+    }
+  }
+  const candidates = [...byUrl.values()].slice(0, queries.length > 1 ? 10 : 5);
   const verified = await Promise.all(candidates.map(async (reference) => {
     const text = await readPublicKnowledgePage(reference.url);
     if (!text) return null;
-    const tokens = normalize(query).split(/[^a-z0-9]+/).filter((token) => token.length > 3 && !stopWords.has(token));
-    const normalized = normalize(text);
-    const position = tokens.map((token) => normalized.indexOf(token)).find((index) => index >= 0) ?? 0;
-    // Preserve a relevant window from the page actually retrieved, not a guessed summary.
-    return { ...reference, excerpt: text.slice(Math.max(0, position - 350), Math.max(0, position - 350) + 3500) };
+    const tokens = knowledgeTokens(query);
+    const windows = Array.from({ length: Math.ceil(text.length / 2400) }, (_, index) => text.slice(index * 2400, index * 2400 + 3500));
+    const best = windows.map((excerpt) => ({ excerpt, score: tokens.filter((token) => normalize(excerpt).includes(token)).length }))
+      .sort((a, b) => b.score - a.score).slice(0, 2).map(({ excerpt }) => excerpt);
+    // Keep actual fetched passages, including late-page limits and payout details.
+    return { ...reference, excerpt: best.join('\n[...]\n').slice(0, 6500) };
   }));
   return verified.filter((reference): reference is KnowledgeReference => reference !== null);
 }
