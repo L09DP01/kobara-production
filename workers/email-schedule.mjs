@@ -11,7 +11,9 @@ export async function runEmailSchedule(controller, env, ctx, dispatch, logger = 
     throw new Error('Email schedule requires CRON_SECRET');
   }
 
-  const results = await Promise.allSettled(endpoints.map(async (path) => {
+  let failed = false;
+  // Promotions must observe reminders sent earlier in this same invocation.
+  for (const path of endpoints) {
     try {
       // Dispatch inside OpenNext so existing authentication, leases and consent checks apply.
       const response = await dispatch(new Request(`https://kobara.app${path}`, {
@@ -24,11 +26,11 @@ export async function runEmailSchedule(controller, env, ctx, dispatch, logger = 
     } catch {
       // Never log provider responses, credentials or recipient details.
       logger.error(JSON.stringify({ event: 'email_schedule_failed', path }));
-      throw new Error(`Email schedule failed: ${path}`);
+      failed = true;
     }
-  }));
+  }
 
-  if (results.some((result) => result.status === 'rejected')) {
+  if (failed) {
     throw new Error('One or more email schedule jobs failed; inspect Worker logs');
   }
 }

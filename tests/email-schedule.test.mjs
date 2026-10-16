@@ -28,6 +28,19 @@ test('missing credentials and unexpected schedules fail before dispatch', async 
   await assert.rejects(runEmailSchedule({ cron: '* * * * *' }, env, {}, dispatch, logger), /Unexpected/);
 });
 
+test('promotions start only after reminders finish so daily exclusions are current', async () => {
+  let reminderFinished = false;
+  await runEmailSchedule(event, env, {}, async (request) => {
+    if (request.url.endsWith('/merchant-activation')) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      reminderFinished = true;
+    } else {
+      assert.equal(reminderFinished, true);
+    }
+    return new Response('{}');
+  }, logger);
+});
+
 test('failure of one job does not skip the other or leak response details', async () => {
   const calls = [];
   const logs = [];
