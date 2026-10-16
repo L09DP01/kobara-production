@@ -45,7 +45,7 @@ test('withdrawal usage excludes subscription charges and avoids counting B2B twi
 test('database quota helpers and triggers are not callable by public roles', () => {
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.get_effective_plan_limits\(UUID\) FROM PUBLIC, anon, authenticated/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.enforce_payment_plan_limit\(\) FROM PUBLIC, anon, authenticated/);
-  assert.match(access, /remaining: Math\.max\(0, limit - currentCount\)/);
+  assert.match(access, /remaining: Math\.max\(0, limit - used\)/);
 });
 
 test('deployment remains compatible until the quota migration is applied', () => {

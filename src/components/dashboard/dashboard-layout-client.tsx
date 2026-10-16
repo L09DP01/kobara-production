@@ -7,9 +7,7 @@ import { KycRequiredBanner } from "@/components/dashboard/kyc-banner";
 import { siteConfig } from "@/config/site";
 
 import { PasskeyPromptModal } from "@/components/dashboard/passkey-prompt-modal";
-import { SubscriptionStatusPopup } from '@/components/dashboard/subscription-status-popup';
 import { TelegramConnectBanner } from '@/components/dashboard/telegram-connect-banner';
-import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
 import type { MerchantReferralSummary } from '@/components/dashboard/merchant-referral-dialog';
 
 export default function DashboardLayoutClient({
@@ -21,7 +19,6 @@ export default function DashboardLayoutClient({
   accessibleMerchants = [],
   userRole = 'owner',
   hasPasskey = false,
-  subscriptionEntitlement = null,
   isTelegramLinked = false,
   kycApproved,
   referralSummary = null,
@@ -34,7 +31,6 @@ export default function DashboardLayoutClient({
   accessibleMerchants?: any[];
   userRole?: string;
   hasPasskey?: boolean;
-  subscriptionEntitlement?: SubscriptionEntitlement | null;
   isTelegramLinked?: boolean;
   kycApproved?: boolean;
   referralSummary?: MerchantReferralSummary | null;
@@ -103,7 +99,6 @@ export default function DashboardLayoutClient({
         {merchant && merchant.kyc_status !== 'approved' && (
           <KycRequiredBanner />
         )}
-        {hasKycAccess && <SubscriptionStatusPopup entitlement={subscriptionEntitlement} />}
         <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>

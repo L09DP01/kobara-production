@@ -8,7 +8,7 @@ import { NotificationSettings } from './components/NotificationSettings';
 import { TeamSettings } from './components/TeamSettings';
 import { PayoutSettings } from './components/PayoutSettings';
 import { PaymentMethodsSettings } from './components/PaymentMethodsSettings';
-import { Store, CreditCard, Shield, Bell, Users, Settings as SettingsIcon, WalletCards, ReceiptText, BadgeCheck } from 'lucide-react';
+import { Store, CreditCard, Shield, Bell, Users, Settings as SettingsIcon, WalletCards, BadgeCheck } from 'lucide-react';
 import type { MerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
 
 type Tab = 'profile' | 'paymentMethods' | 'payouts' | 'security' | 'notifications' | 'team';
@@ -27,7 +27,7 @@ export function SettingsClient({ user, merchant, settings, members, paymentMetho
     { id: 'team', label: "Membres d'équipe", icon: Users, desc: 'Rôles et accès' },
   ];
 
-  const visibleTabs = tabs.filter(t => t.id === 'profile' || (kycApproved && (!t.ownerOnly || userRole === 'owner')));
+  const visibleTabs = tabs.filter(t => t.id === 'profile' || (t.id === 'notifications' && userRole === 'owner') || (kycApproved && (!t.ownerOnly || userRole === 'owner')));
 
   return (
     <div className="max-w-7xl mx-auto w-full space-y-8 pb-16 animate-in fade-in duration-300">
@@ -50,9 +50,6 @@ export function SettingsClient({ user, merchant, settings, members, paymentMetho
         <div className="flex flex-wrap items-center gap-2 self-start sm:justify-end">
           {userRole === 'owner' && (
             <>
-              <Link href="/billing" className="flex min-h-9 items-center gap-2 rounded-lg border border-[#1E2A38] bg-[#07111F] px-3 text-xs font-semibold text-slate-300 hover:border-slate-600 hover:text-white">
-                <ReceiptText className="h-4 w-4" /> Abonnement
-              </Link>
               <Link href="/kyc" className="flex min-h-9 items-center gap-2 rounded-lg border border-[#1E2A38] bg-[#07111F] px-3 text-xs font-semibold text-slate-300 hover:border-slate-600 hover:text-white">
                 <BadgeCheck className="h-4 w-4" /> Vérification
               </Link>

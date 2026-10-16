@@ -51,7 +51,7 @@ test('dashboard quota is explicit and never applied to public API requests', () 
   const api = read('../src/app/api/v1/withdrawals/route.ts');
   const service = read('../src/lib/server/withdrawals/withdrawal.service.ts');
   assert.match(access, /source: 'dashboard' \| 'api' = 'api'/);
-  assert.match(access, /source === 'dashboard' && access\.plan/);
+  assert.match(access, /source !== 'dashboard'/);
   assert.match(dashboard, /canCreateWithdrawal\(merchant\.id, limitAmountHtg, 'dashboard'\)/);
   assert.match(dashboard, /requestSource: 'dashboard'/);
   assert.doesNotMatch(api, /requestSource: 'dashboard'/);
@@ -59,10 +59,9 @@ test('dashboard quota is explicit and never applied to public API requests', () 
   assert.match(service, /DASHBOARD_QUOTA_UNAVAILABLE/);
 });
 
-test('expired subscriptions can renew their previous paid plan', () => {
-  const billing = readFileSync(new URL('../src/app/dashboard/billing/billing-client.tsx', import.meta.url), 'utf8');
-  assert.match(billing, /renewalPlan = subscription\?\.plan \|\| plan/);
-  assert.match(billing, /handleUpgradeClick\(renewalPlan\)/);
+test('retired billing page redirects instead of offering subscription renewal', () => {
+  const billing = readFileSync(new URL('../src/app/dashboard/billing/page.tsx', import.meta.url), 'utf8');
+  assert.match(billing, /redirect\('\/dashboard'\)/);
 });
 
 test('subscription cron fails closed when its secret is missing', () => {

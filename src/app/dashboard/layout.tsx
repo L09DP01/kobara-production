@@ -6,7 +6,6 @@ import { headers } from "next/headers";
 import { auth } from "@/auth";
 import { ensureCurrentSessionIsAllowed } from "@/app/dashboard/settings/sessions-actions";
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
-import type { SubscriptionEntitlement } from '@/lib/server/subscription-entitlement';
 import { SessionInactivityGuard } from '@/components/dashboard/session-inactivity-guard';
 import type { MerchantReferralSummary } from '@/components/dashboard/merchant-referral-dialog';
 
@@ -43,7 +42,6 @@ export default async function DashboardLayout({
 
   let accessibleMerchants: any[] = [];
   let userRole = 'owner';
-  let subscriptionEntitlement: SubscriptionEntitlement | null = null;
   let isTelegramLinked = false;
   let referralSummary: MerchantReferralSummary | null = null;
 
@@ -110,7 +108,6 @@ export default async function DashboardLayout({
       // Financial data, notifications and integrations are loaded only after KYC.
       if (isKycApproved) {
         const subscriptionAccess = await getMerchantSubscriptionEntitlement(merchant.id);
-        subscriptionEntitlement = subscriptionAccess.entitlement;
         merchant = { ...merchant, ...subscriptionAccess.merchant, current_environment: 'live' };
 
         const { data: notifs } = await supabase
@@ -310,7 +307,6 @@ export default async function DashboardLayout({
         accessibleMerchants={accessibleMerchants}
         userRole={userRole}
         hasPasskey={hasPasskey}
-        subscriptionEntitlement={subscriptionEntitlement}
         isTelegramLinked={isTelegramLinked}
         kycApproved={isKycApproved}
         referralSummary={referralSummary}

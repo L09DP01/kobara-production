@@ -1,10 +1,10 @@
 import 'server-only';
+import { LOCAL_PAYMENT_FEE_PERCENT, DASHBOARD_DAILY_WITHDRAWAL_LIMIT_HTG, MERCHANT_ACCESS } from '@/lib/merchant-pricing';
 
 import { randomUUID } from 'crypto';
 import { createAdminClient } from '@/utils/supabase/admin';
 import {
   evaluateSubscriptionEntitlement,
-  pickSubscriptionForEntitlement,
   type SubscriptionEntitlement,
   type SubscriptionPlan,
   type SubscriptionRecord,
@@ -64,32 +64,22 @@ export async function getPlanBySlug(slug: string): Promise<Plan | null> {
 
 export async function getMerchantSubscriptionEntitlement(merchantId: string) {
   const supabase = createAdminClient();
-  const [{ data: merchant, error: merchantError }, { data: subscriptions, error: subscriptionError }, freePlan] = await Promise.all([
+  const [{ data: merchant, error: merchantError }, freePlan] = await Promise.all([
     supabase
       .from('merchants')
       .select('id, email, plan_slug, plan_status, account_access, kyc_status, available_balance')
       .eq('id', merchantId)
       .single(),
-    supabase
-      .from('subscriptions')
-      .select('*, plan:plans(*)')
-      .eq('merchant_id', merchantId)
-      .order('created_at', { ascending: false }),
     getPlanBySlug('free'),
   ]);
 
   if (merchantError || !merchant) throw new Error('Marchand introuvable');
-  if (subscriptionError) throw new Error(`Impossible de vérifier l'abonnement: ${subscriptionError.message}`);
-
-  const records = (subscriptions ?? []) as SubscriptionRecord[];
-  const selectedSubscription = pickSubscriptionForEntitlement(records);
-  const entitlement = evaluateSubscriptionEntitlement(selectedSubscription);
-  const isTestOnly = merchant.plan_slug === 'test_only' && !selectedSubscription;
-  const effectivePlan = isTestOnly
-    ? null
-    : entitlement.canUsePaidFeatures
-      ? selectedSubscription?.plan ?? freePlan
-      : freePlan;
+  const selectedSubscription = null as SubscriptionRecord | null;
+  const entitlement: SubscriptionEntitlement = { ...MERCHANT_ACCESS };
+  const isTestOnly = merchant.kyc_status !== 'approved';
+  const effectivePlan = freePlan ? { ...freePlan, price_htg: 0, transaction_fee_percent: LOCAL_PAYMENT_FEE_PERCENT,
+    monthly_payment_limit: null, api_keys_limit: null, daily_withdrawal_limit: DASHBOARD_DAILY_WITHDRAWAL_LIMIT_HTG,
+    wordpress_plugin: true, webhooks_level: 'advanced', analytics_level: 'advanced' } : null;
 
   if (!effectivePlan && merchant.plan_slug !== 'test_only') {
     throw new Error('Plan gratuit introuvable');
@@ -99,11 +89,7 @@ export async function getMerchantSubscriptionEntitlement(merchantId: string) {
     merchant: {
       ...merchant,
       plan_slug: isTestOnly ? 'test_only' : entitlement.effectivePlan,
-      plan_status: isTestOnly
-        ? merchant.plan_status
-        : entitlement.canUsePaidFeatures || entitlement.reason === 'free' || entitlement.reason === 'none'
-          ? 'active'
-          : 'expired',
+      plan_status: isTestOnly ? merchant.plan_status : 'active',
     },
     plan: effectivePlan ?? null,
     subscription: selectedSubscription,
@@ -117,7 +103,6 @@ export async function getMerchantCurrentPlan(merchantId: string) {
 
 export async function requireActiveSubscription(merchantId: string): Promise<SubscriptionEntitlement> {
   const { entitlement } = await getMerchantSubscriptionEntitlement(merchantId);
-  if (!entitlement.canUsePaidFeatures) throw new SubscriptionRequiredError();
   return entitlement;
 }
 
@@ -132,13 +117,6 @@ export async function activateFreePlanAfterKyc(merchantId: string) {
   if (error || !merchant) throw new Error('Marchand introuvable');
   if (merchant.kyc_status !== 'approved') throw new Error('Le KYC doit être approuvé pour activer le mode Live.');
 
-  await upgradeMerchantPlan(merchantId, 'free', {
-    amountHTG: 0,
-    paymentStatus: 'not_required',
-    source: 'free',
-    billingCycle: 'monthly',
-  });
-
   return { success: true };
 }
 
@@ -147,6 +125,8 @@ export async function upgradeMerchantPlan(
   planSlug: string,
   activation: SubscriptionActivation,
 ) {
+  // Keep settlement of already-paid historical invoices possible, without selling new subscriptions.
+  if (planSlug !== 'free' && !(activation.source === 'provider' && activation.paymentStatus === 'paid' && activation.paymentId)) throw new Error('Les abonnements ne sont plus proposés.');
   const supabase = createAdminClient();
   const plan = await getPlanBySlug(planSlug);
   if (!plan) throw new Error('Plan introuvable');
@@ -270,6 +250,7 @@ export async function cancelSubscription(merchantId: string) {
 }
 
 export async function syncSubscriptionLifecycle(targetMerchantId?: string) {
+  if (MERCHANT_ACCESS.isActive) return { processed: 0, reconciliation: null, expirationEmails: null };
   const supabase = createAdminClient();
   let query = supabase
     .from('subscriptions')

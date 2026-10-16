@@ -1,10 +1,2 @@
-import { BillingClient } from "./billing-client";
-
-export const metadata = {
-  title: 'Facturation & Plans - Dashboard Kobara',
-  description: 'Gérez votre abonnement et vos factures',
-};
-
-export default function BillingPage() {
-  return <BillingClient />;
-}
+import { redirect } from 'next/navigation';
+export default function BillingPage() { redirect('/dashboard'); }

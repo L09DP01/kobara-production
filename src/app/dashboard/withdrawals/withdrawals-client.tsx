@@ -121,6 +121,10 @@ export function WithdrawalsClient({
     const grossLocalAmountHtg = accountCurrency === 'HTG'
       ? Number(amount)
       : Number(amount) * exchangeRate;
+    if (grossLocalAmountHtg > 75000) {
+      setErrorMsg('Le montant maximal par retrait est de 75 000 HTG ou son équivalent en USD.');
+      return;
+    }
     if (method !== 'B2B' && !isCryptoMethod && payoutCurrency === 'USD' && estimatedPayout < 10) {
       setErrorMsg('Le montant net reçu doit être d’au moins 10 USD.');
       return;
@@ -260,7 +264,7 @@ export function WithdrawalsClient({
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Retraits & Solde</h1>
-          <p className="text-sm text-slate-400 mt-1">Gérez vos retraits et suivez votre solde en temps réel.</p>
+          <p className="text-sm text-slate-400 mt-1">Dashboard : 50 000 HTG par jour, renouvelés à minuit en Haïti. Chaque retrait est plafonné à 75 000 HTG ou son équivalent USD ; aucun plafond journalier commercial sur l’API.</p>
         </div>
         <div className="flex items-center gap-3">
           <button

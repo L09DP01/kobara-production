@@ -262,19 +262,6 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                     <span className="material-symbols-outlined text-[18px]">account_circle</span>
                     Mon profil
                   </Link>
-                  <Link href="/billing" className="px-3 py-2 text-body-sm text-text-primary hover:bg-surface-container-low rounded-lg transition-colors flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px]">credit_card</span>
-                      Plan Actuel
-                    </div>
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase">
-                      {merchant?.plan_slug || 'FREE'}
-                    </span>
-                  </Link>
-                  <Link href="/billing" className="px-3 py-2 text-xs text-primary hover:bg-primary/5 rounded-lg transition-colors flex items-center gap-2 font-medium">
-                    <span className="material-symbols-outlined text-[16px]">upgrade</span>
-                    Upgrade / Voir les plans
-                  </Link>
                   <div className="h-px bg-border-subtle my-2 mx-1"></div>
                   <button 
                     onClick={handleLogout}

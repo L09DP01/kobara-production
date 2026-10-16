@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { syncSubscriptionLifecycle } from '@/lib/server/plans';
 import { reconcilePendingSubscriptionPayments } from '@/lib/server/payments/reconcile-subscriptions';
 
 // Protect this endpoint from unauthorized access
@@ -11,13 +10,11 @@ export async function GET(request: Request) {
     }
 
     const reconciliation = await reconcilePendingSubscriptionPayments();
-    const result = await syncSubscriptionLifecycle();
 
     return NextResponse.json({
       success: true,
-      processed: result?.processed || 0,
-      reconciliation: result?.reconciliation || null,
-      expirationEmails: result?.expirationEmails || null,
+      processed: 0,
+      subscriptionsRetired: true,
       paymentsChecked: reconciliation.checked,
       plansActivated: reconciliation.activated,
     });

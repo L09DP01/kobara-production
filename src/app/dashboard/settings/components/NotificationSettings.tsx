@@ -16,12 +16,12 @@ type BrowserNotificationPermission = NotificationPermission | 'unsupported';
 export function NotificationSettings({ settings }: { settings: any }) {
   const [loading, setLoading] = useState(false);
   const [permission, setPermission] = useState<BrowserNotificationPermission>('unsupported');
-  const [notifications, setNotifications] = useState(settings?.notifications_json || {
+  const [notifications, setNotifications] = useState({ activation_reminders: true, marketing_promotions: false, ...(settings?.notifications_json || {
     payment_success: true,
     payment_failed: true,
     withdrawal_success: true,
     security_alerts: true
-  });
+  }) });
 
   // Telegram State
   const [telegramStatus, setTelegramStatus] = useState<{
@@ -291,7 +291,9 @@ export function NotificationSettings({ settings }: { settings: any }) {
             { key: 'payment_success', label: 'Paiements réussis', desc: 'Recevoir un email lorsqu\'un client paie avec succès.' },
             { key: 'payment_failed', label: 'Paiements échoués', desc: 'Être alerté lors d\'un échec de paiement.' },
             { key: 'withdrawal_success', label: 'Retraits traités', desc: 'Notification quand un retrait arrive sur votre compte.' },
-            { key: 'security_alerts', label: 'Alertes de sécurité', desc: 'Connexions inhabituelles ou changements importants.' }
+            { key: 'security_alerts', label: 'Alertes de sécurité', desc: 'Connexions inhabituelles ou changements importants.' },
+            { key: 'activation_reminders', label: 'Rappels de démarrage', desc: 'Un rappel tous les trois jours pour finaliser le KYC ou recevoir votre premier paiement. Arrêt après votre premier paiement réussi.' },
+            { key: 'marketing_promotions', label: 'Conseils et promotions Kobara', desc: 'J’accepte de recevoir des conseils et messages promotionnels adaptés à mon utilisation. Au plus un message tous les quatorze jours ; désabonnement à tout moment.' }
           ].map((item) => (
             <div key={item.key} className="flex items-center justify-between py-3 border-b border-white/10 last:border-0">
               <div>
@@ -301,6 +303,7 @@ export function NotificationSettings({ settings }: { settings: any }) {
               <label className="relative inline-flex items-center cursor-pointer">
                 <input 
                   type="checkbox" 
+                  aria-label={item.label}
                   className="sr-only peer" 
                   checked={notifications[item.key]} 
                   onChange={() => handleToggle(item.key)} 

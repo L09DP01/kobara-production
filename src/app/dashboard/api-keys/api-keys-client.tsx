@@ -377,11 +377,6 @@ export function ApiKeysClient({
                   <span className="material-symbols-outlined text-red-400 text-[20px] shrink-0 mt-0.5">error</span>
                   <div className="flex-1">
                     <p className="text-xs text-red-400 font-medium leading-relaxed">{error}</p>
-                    {error.includes("limite") && (
-                      <Link href="/dashboard/billing" className="inline-block mt-2 text-xs font-bold text-orange-400 hover:text-orange-300 underline">
-                        Passer au plan supérieur &rarr;
-                      </Link>
-                    )}
                   </div>
                 </div>
               )}

@@ -100,7 +100,7 @@ export async function updatePayoutSettings(savedMoncashNumber: string) {
         merchant_id: merchant.id,
         settings_json: generalSettings,
         security_json: { two_factor_method: 'none' },
-        transaction_fee_percent: 2.9,
+        transaction_fee_percent: 3.9,
         settlement_method: 'manual'
       });
 
@@ -172,13 +172,25 @@ export async function updateMerchantProfile(formData: {
 }
 
 export async function updateNotificationSettings(notificationsJson: any) {
-  const { merchant } = await getAuthUserAndMerchant();
+  const { merchant, userRole } = await getAuthUserAndMerchant();
+  if (userRole !== 'owner') throw new Error('Seul le propriétaire peut modifier les notifications.');
+  if (!notificationsJson || typeof notificationsJson !== 'object' || Array.isArray(notificationsJson)
+    || Object.values(notificationsJson).some(value => typeof value !== 'boolean')) throw new Error('Préférences invalides.');
+  const admin = createAdminClient();
+  await getOrCreateSettings(admin, merchant.id);
 
-  const { error } = await createAdminClient().from('settings')
+  const { error } = await admin.from('settings')
     .update({ notifications_json: notificationsJson })
     .eq('merchant_id', merchant.id);
 
   if (error) throw new Error("Failed to update notification settings");
+  if (typeof notificationsJson.marketing_promotions === 'boolean') {
+    const email = String(merchant.email || '').toLowerCase();
+    const result = notificationsJson.marketing_promotions
+      ? await admin.from('promotion_suppressions').delete().eq('email', email)
+      : await admin.from('promotion_suppressions').upsert({ email }, { onConflict: 'email' });
+    if (result.error) throw new Error('Préférences promotionnelles indisponibles. Vérifiez la configuration.');
+  }
   revalidatePath('/dashboard/settings');
 }
 
@@ -456,7 +468,7 @@ async function getOrCreateSettings(supabase: any, merchantId: string) {
   const { data: inserted, error: insertError } = await adminClient.from('settings')
     .insert({
       merchant_id: merchantId,
-      transaction_fee_percent: 2.9,
+      transaction_fee_percent: 3.9,
       settlement_method: 'manual',
       security_json: { two_factor_method: 'none' }
     })

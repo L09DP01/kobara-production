@@ -1,0 +1,35 @@
+name: Merchant activation reminders
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+concurrency:
+  group: merchant-activation-reminders
+  cancel-in-progress: false
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Process due reminders
+        env:
+          CRON_SECRET: ${{ secrets.KOBARA_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo 'Configure the KOBARA_CRON_SECRET repository secret to match the production CRON_SECRET.'
+            exit 1
+          fi
+          curl --silent --show-error --fail --max-time 180 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            https://kobara.app/api/cron/merchant-activation
+      - name: Process approved promotions
+        env:
+          CRON_SECRET: ${{ secrets.KOBARA_CRON_SECRET }}
+        run: |
+          curl --silent --show-error --fail --max-time 180 \
+            --header "Authorization: Bearer $CRON_SECRET" \
+            https://kobara.app/api/cron/smart-promotions

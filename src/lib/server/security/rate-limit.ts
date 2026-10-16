@@ -198,17 +198,12 @@ export function rateLimitResponse(reset: number) {
 // Helper: Dynamic Rate Limiter based on Merchant Plan
 // ─────────────────────────────────────────────────────────────────────
 
-const PLAN_LIMITS: Record<string, number> = {
-  free: 60,
-  pro: 300,
-  premium: 1000,
-  business: 3000,
-};
-
 const planLimitersCache = new Map<string, SafeRateLimiter | MemoryRateLimiter>();
 
 export async function checkPlanRateLimit(merchantId: string, planSlug: string = 'free') {
-  const maxLimit = PLAN_LIMITS[planSlug] || 60;
+  // A shared anti-abuse ceiling, not a commercial subscription quota.
+  planSlug = 'merchant';
+  const maxLimit = 3000;
   
   let limiter = planLimitersCache.get(planSlug);
   if (!limiter) {

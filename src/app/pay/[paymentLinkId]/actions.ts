@@ -139,7 +139,7 @@ export async function processPayment(formData: FormData) {
   }
   
   const { plan } = await getMerchantCurrentPlan(merchantId);
-  const feePercent = isCrypto ? 0.03 : plan ? (plan.transaction_fee_percent / 100) : 0.04;
+  const feePercent = isCrypto ? 0.03 : 0.039;
   
   const passFeesToCustomer = linkInfo.metadata?.pass_fees_to_customer === true;
 

@@ -85,24 +85,6 @@ export async function getCurrentUserAndMerchant() {
   // Auto-expire pending payments older than 24 hours
   await expireMerchantOldPayments(merchant.id);
 
-  // Sync subscription lifecycle with immediate effect for this merchant
-  try {
-    const { syncSubscriptionLifecycle } = await import("@/lib/server/plans");
-    await syncSubscriptionLifecycle(merchant.id);
-
-    // The lifecycle sync may have downgraded or reactivated this account.
-    // Refresh the row so the current request immediately sees the effective plan.
-    const { data: refreshedMerchant, error: refreshError } = await supabaseAdmin
-      .from('merchants')
-      .select('*')
-      .eq('id', merchant.id)
-      .maybeSingle();
-    if (refreshError) console.error('Merchant refresh after subscription sync failed:', refreshError.message);
-    else if (refreshedMerchant) merchant = refreshedMerchant;
-  } catch (e) {
-    console.error("Subscription sync failed:", e);
-  }
-
   // Create an RLS-enabled client for the current user
   const supabase = createClient(cookieStore, session?.supabaseAccessToken);
 

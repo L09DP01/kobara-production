@@ -41,7 +41,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { name: "MERCHANTS", href: "/system-core/merchants", icon: Users },
     { name: "KYC REVIEW", href: "/system-core/kyc", icon: ShieldAlert },
     { name: "TRANSACTIONS", href: "/system-core/transactions", icon: CreditCard },
-    { name: "SUBSCRIPTIONS", href: "/system-core/subscriptions", icon: ReceiptText },
     { name: "BUSINESS REQUESTS", href: "/system-core/business-requests", icon: BriefcaseBusiness },
     { name: "PARTNERS", href: "/system-core/partners", icon: Handshake },
     { name: "REPORTS", href: "/system-core/reports", icon: FileBarChart },
@@ -57,6 +56,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { name: "SYSTEM HEALTH", href: "/system-core/health", icon: HeartPulse },
     { name: "ALERTS & MAINTENANCE", href: "/system-core/alerts", icon: BellRing },
     { name: "MESSAGING", href: "/system-core/messaging", icon: Mail },
+    { name: "PROMOTIONS IA", href: "/system-core/smart-promotions", icon: Mail },
     { name: "PROMO CODES", href: "/system-core/promo-codes", icon: Tag },
     { name: "SMS GATEWAY", href: "/system-core/sms-gateway", icon: Terminal },
   ];

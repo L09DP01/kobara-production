@@ -12,6 +12,7 @@ import {
   quoteNowPaymentsPayout,
 } from '@/lib/server/payments/nowpayments';
 import { getWithdrawalUserMessage } from '@/lib/withdrawal-error-message';
+import { isWithdrawalAmountAllowed } from '@/lib/merchant-pricing';
 
 export interface ProcessWithdrawalParams {
   requestSource?: 'dashboard' | 'api';
@@ -148,6 +149,9 @@ export const WithdrawalService = {
     const exchangeRate = Number(config.paypal_htg_per_usd || 130);
     if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
       return { success: false, error: 'Le taux de conversion HTG/USD est indisponible.' };
+    }
+    if (!isWithdrawalAmountAllowed(amount, normalizedSourceCurrency, exchangeRate)) {
+      return { success: false, error: 'Le montant maximal par retrait est de 75 000 HTG ou son équivalent en USD.', errorCode: 'WITHDRAWAL_TRANSACTION_LIMIT' };
     }
 
     let cryptoQuote = null;

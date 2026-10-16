@@ -342,7 +342,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Save pending payment to DB
-    const feePercent = isCrypto ? 0.03 : plan ? (plan.transaction_fee_percent / 100) : 0.04;
+    const feePercent = isCrypto ? 0.03 : 0.039;
     
     const feeAmount = parseFloat((paymentAmount * feePercent).toFixed(2));
     const netAmount = parseFloat((paymentAmount - feeAmount).toFixed(2));

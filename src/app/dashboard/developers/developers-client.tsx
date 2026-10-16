@@ -299,9 +299,9 @@ export function DevelopersClient({
           )}
         </div>
         <div className="bg-white/5 rounded-3xl border border-white/10 p-6 shadow-sm flex flex-col justify-between">
-          <p className="text-sm font-medium text-slate-400">Plan actuel</p>
+          <p className="text-sm font-medium text-slate-400">Accès à la plateforme</p>
           <div className="mt-2">
-            <p className="text-xl font-bold text-white">{subscription.plan}</p>
+            <p className="text-xl font-bold text-white">Sans abonnement</p>
             <p className="text-xs font-bold text-green-400 mt-1 flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-status-success"></span>
               {subscription.status}

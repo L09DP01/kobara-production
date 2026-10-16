@@ -1,212 +1,53 @@
 import Link from "next/link";
-import { ArrowRight, Check, CircleHelp, Code2, CreditCard, ShieldCheck, WalletCards } from "lucide-react";
-
+import { ArrowRight, Building2, Check, CreditCard, Smartphone } from "lucide-react";
 import { Footer } from "@/components/landing/Footer";
 import { PublicHeader } from "@/components/marketing/PublicNavigation";
 import { getServerTranslation } from "@/lib/server/i18n";
+import { getPaymentProviderConfig } from "@/lib/server/payments/gateway";
 
-import { PricingClient, type PricingPlan } from "./PricingClient";
-
-export async function generateMetadata() {
-  const { t } = await getServerTranslation();
-  return {
-    title: `${t("nav.pricing")} — Kobara`,
-    description: "Plans simples et transparents pour chaque étape de votre croissance. Commencez gratuitement. / Simple and transparent plans for every stage of your growth. Start for free.",
-  };
-}
+export const metadata = { title: "Tarifs | Kobara", description: "Tarifs Kobara pour MonCash, NatCash, les cartes bancaires et les entreprises." };
 
 export default async function PricingPage() {
   const { language } = await getServerTranslation();
-  const isFrench = language === "fr";
-
-  const plans: PricingPlan[] = [
-    {
-      name: "Free",
-      price: null,
-      priceLabel: isFrench ? "Gratuit" : "Free",
-      period: null,
-      description: isFrench ? "Pour tester Kobara et lancer votre premier flux de paiement." : "For testing Kobara and launching your first payment flow.",
-      highlight: false,
-      badge: null,
-      features: isFrench
-        ? ["1 clé API", "Plugin WordPress inclus", "10 paiements / mois", "4% de frais par transaction*", "Retrait dashboard jusqu’à 2 500 HTG / jour", "Dashboard de base", "Support communauté"]
-        : ["1 API key", "WordPress plugin included", "10 payments / month", "4% fee per transaction*", "Dashboard withdrawal up to 2,500 HTG / day", "Basic dashboard", "Community support"],
-      cta: isFrench ? "Commencer gratuitement" : "Start for free",
-      ctaHref: "/register",
-      feeNote: isFrench ? "* Inclut les frais Kobara et les frais de traitement MonCash/NatCash." : "* Includes Kobara and MonCash/NatCash processing fees.",
-    },
-    {
-      name: "Pro",
-      price: 1750,
-      priceLabel: "1 750",
-      period: isFrench ? "HTG / mois" : "HTG / month",
-      description: isFrench ? "Pour les marchands qui encaissent régulièrement et veulent automatiser." : "For merchants collecting regularly who want to automate.",
-      highlight: false,
-      badge: null,
-      features: isFrench
-        ? ["Clés API illimitées", "Plugin WordPress inclus", "Paiements illimités", "2,9% de frais par transaction", "Retrait dashboard jusqu’à 20 000 HTG / jour", "Webhooks avancés", "Support email prioritaire"]
-        : ["Unlimited API keys", "WordPress plugin included", "Unlimited payments", "2.9% fee per transaction", "Dashboard withdrawal up to 20,000 HTG / day", "Advanced webhooks", "Priority email support"],
-      cta: isFrench ? "Choisir Pro" : "Choose Pro",
-      ctaHref: "/register?plan=pro",
-      feeNote: null,
-    },
-    {
-      name: "Premium",
-      price: 5000,
-      priceLabel: "5 000",
-      period: isFrench ? "HTG / mois" : "HTG / month",
-      description: isFrench ? "Pour les entreprises qui pilotent un volume élevé avec plus de contrôle." : "For businesses managing higher volume with more control.",
-      highlight: true,
-      badge: isFrench ? "Recommandé" : "Recommended",
-      features: isFrench
-        ? ["Clés API illimitées", "Plugin WordPress inclus", "Paiements illimités", "2,9% de frais par transaction", "Retrait dashboard jusqu’à 50 000 HTG / jour", "Webhooks et logs avancés", "Analyses et rapports", "Support email et chat"]
-        : ["Unlimited API keys", "WordPress plugin included", "Unlimited payments", "2.9% fee per transaction", "Dashboard withdrawal up to 50,000 HTG / day", "Advanced webhooks and logs", "Analytics and reports", "Email and chat support"],
-      cta: isFrench ? "Choisir Premium" : "Choose Premium",
-      ctaHref: "/register?plan=premium",
-      feeNote: null,
-    },
-    {
-      name: "Business",
-      price: 12500,
-      priceLabel: "12 500",
-      period: isFrench ? "HTG / mois" : "HTG / month",
-      description: isFrench ? "Pour les organisations qui demandent accompagnement, SLA et intégration dédiée." : "For organizations requiring guidance, SLA, and dedicated integration.",
-      highlight: false,
-      badge: isFrench ? "Entreprise" : "Enterprise",
-      features: isFrench
-        ? ["Tout Premium inclus", "Clés API et paiements illimités", "2,9% de frais par transaction", "Retraits dashboard illimités", "Intégration personnalisée", "SLA garanti 99,9%", "Gestionnaire de compte dédié", "Support prioritaire 24/7"]
-        : ["Everything in Premium", "Unlimited API keys and payments", "2.9% fee per transaction", "Unlimited dashboard withdrawals", "Custom integration", "99.9% guaranteed SLA", "Dedicated account manager", "24/7 priority support"],
-      cta: isFrench ? "Contacter l’équipe" : "Contact sales",
-      ctaHref: "/contact",
-      feeNote: null,
-    },
-  ];
-
-  const comparison = [
-    { label: isFrench ? "Prix mensuel" : "Monthly price", values: [isFrench ? "Gratuit" : "Free", "1 750 HTG", "5 000 HTG", "12 500 HTG"] },
-    { label: isFrench ? "Frais par transaction" : "Transaction fee", values: ["4%", "2,9%", "2,9%", "2,9%"] },
-    { label: isFrench ? "Clés API" : "API keys", values: ["1", isFrench ? "Illimitées" : "Unlimited", isFrench ? "Illimitées" : "Unlimited", isFrench ? "Illimitées" : "Unlimited"] },
-    { label: isFrench ? "Paiements mensuels" : "Monthly payments", values: ["10", isFrench ? "Illimités" : "Unlimited", isFrench ? "Illimités" : "Unlimited", isFrench ? "Illimités" : "Unlimited"] },
-    { label: isFrench ? "Retraits dashboard / jour" : "Dashboard withdrawals / day", values: ["2 500 HTG", "20 000 HTG", "50 000 HTG", isFrench ? "Illimité" : "Unlimited"] },
-    { label: "Webhooks", values: [false, true, true, true] },
-    { label: isFrench ? "Analyses avancées" : "Advanced analytics", values: [false, false, true, true] },
-    { label: isFrench ? "Support" : "Support", values: [isFrench ? "Communauté" : "Community", "Email", "Email + chat", "24/7"] },
-    { label: "SLA 99,9%", values: [false, false, false, true] },
-  ];
-
-  const faqItems = [
-    {
-      question: isFrench ? "Comment les frais de transaction sont-ils calculés ?" : "How are transaction fees calculated?",
-      answer: isFrench ? "Les frais sont automatiquement déduits de chaque paiement confirmé. Pour 1 000 HTG reçus, le plan Free crédite 960 HTG et un plan payant crédite 971 HTG." : "Fees are automatically deducted from each confirmed payment. For 1,000 HTG received, Free credits 960 HTG and a paid plan credits 971 HTG.",
-    },
-    {
-      question: isFrench ? "Que couvrent les 4% du plan Free ?" : "What does the 4% Free fee cover?",
-      answer: isFrench ? "Ils incluent les frais de la plateforme Kobara et les frais d’infrastructure de traitement MonCash/NatCash. Les plans payants profitent d’un taux réduit à 2,9%." : "They include Kobara platform and MonCash/NatCash processing infrastructure fees. Paid plans receive the reduced 2.9% rate.",
-    },
-    {
-      question: isFrench ? "Quand mon solde devient-il disponible ?" : "When does my balance become available?",
-      answer: isFrench ? "Les retraits depuis le dashboard utilisent votre solde disponible, selon le plafond journalier de votre plan : 2 500 HTG pour Gratuit, 20 000 HTG pour Pro et 50 000 HTG pour Premium. Le plafond se renouvelle à minuit, heure d’Haïti ; il ne s’agit pas d’une limite mensuelle. Les retraits API ne sont pas soumis à ce plafond et ne le consomment pas." : "Dashboard withdrawals use your available balance, subject to your plan’s daily limit: HTG 2,500 for Free, HTG 20,000 for Pro and HTG 50,000 for Premium. The limit resets at midnight in Haiti, not monthly. API withdrawals are not subject to this cap and do not consume it.",
-    },
-    {
-      question: isFrench ? "Puis-je changer de plan ?" : "Can I change plans?",
-      answer: isFrench ? "Oui. Vous pouvez passer à un plan supérieur ou inférieur depuis votre dashboard. Le nouveau niveau d’accès prend effet immédiatement." : "Yes. You can upgrade or downgrade from your dashboard. Your new access level takes effect immediately.",
-    },
-    {
-      question: isFrench ? "Y a-t-il des frais cachés ?" : "Are there hidden fees?",
-      answer: isFrench ? "Non. Vous payez le prix mensuel affiché et les frais de transaction correspondant à votre plan." : "No. You pay the displayed monthly price and the transaction fee for your plan.",
-    },
-  ];
-
-  const assurances = [
-    { icon: CreditCard, title: isFrench ? "Paiements locaux" : "Local payments", text: "MonCash et NatCash" },
-    { icon: Code2, title: "API & Webhooks", text: isFrench ? "Testez avant la production" : "Test before production" },
-    { icon: ShieldCheck, title: isFrench ? "Contrôle du compte" : "Account control", text: isFrench ? "KYC, rôles et journaux" : "KYC, roles, and logs" },
-    { icon: WalletCards, title: isFrench ? "Retraits adaptés" : "Flexible withdrawals", text: isFrench ? "Limites selon le plan" : "Limits based on plan" },
+  const fr = language === "fr";
+  const config = await getPaymentProviderConfig();
+  const format = new Intl.NumberFormat(fr ? "fr-FR" : "en-US", { maximumFractionDigits: 2 });
+  const cardPrice = `${format.format(config.paypal_fee_percent)}% + ${format.format(config.paypal_fee_fixed_usd)} USD`;
+  const localFeatures = fr ? ["Checkout Kobara", "Liens de paiement et QR codes", "API et confirmations par webhook"] : ["Kobara Checkout", "Payment links and QR codes", "API and webhook confirmations"];
+  const cards = [
+    { name: "MonCash", icon: Smartphone, dark: false, description: fr ? "Paiements mobiles en gourdes" : "Mobile payments in Haitian gourdes", price: fr ? "3,9%" : "3.9%", rate: true, features: localFeatures, href: "/register" },
+    { name: "NatCash", icon: Smartphone, dark: false, description: fr ? "Paiements mobiles en gourdes" : "Mobile payments in Haitian gourdes", price: fr ? "3,9%" : "3.9%", rate: true, features: localFeatures, href: "/register" },
+    { name: fr ? "Cartes bancaires" : "Card payments", icon: CreditCard, dark: true, description: fr ? "Selon disponibilité et activation du compte" : "Subject to availability and account activation", price: cardPrice, rate: false, features: fr ? ["Tarif par transaction réussie", "Règlement sur le compte USD", "Conditions selon le moyen activé"] : ["Per successful transaction", "Settlement to the USD account", "Terms depend on the enabled method"], href: "/contact" },
+    { name: fr ? "Entreprise" : "Enterprise", icon: Building2, dark: false, description: fr ? "Pour vos volumes et besoins particuliers" : "For your volume and specific requirements", price: fr ? "Parlons de votre projet" : "Let's discuss your project", rate: false, features: fr ? ["Étude de vos besoins", "Échange sur vos volumes de paiement", "Accompagnement à l’intégration"] : ["Review of your requirements", "Discuss your payment volumes", "Integration guidance"], href: "/contact" },
   ];
 
   return (
-    <main className="kobara-public min-h-[100dvh] bg-[#FCF7F4] font-sans text-[#10131D] selection:bg-[#F45D2C] selection:text-white">
+    <main className="kobara-public min-h-[100dvh] bg-[#F4F6F8] font-sans text-[#10131D]">
       <PublicHeader />
-
-      <PricingClient language={language} plans={plans} />
-
-      <section aria-label={isFrench ? "Inclus avec Kobara" : "Included with Kobara"} className="border-b border-[#DDD7D3] bg-white">
-        <div className="mx-auto grid max-w-[1240px] sm:grid-cols-2 lg:grid-cols-4">
-          {assurances.map(({ icon: Icon, title, text }) => (
-            <div key={title} className="flex items-center gap-4 border-b border-r border-[#DDD7D3] px-5 py-6 sm:px-7">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-[#FFF1E9] text-[#F45D2C]"><Icon className="h-5 w-5" /></span>
-              <span><strong className="block text-sm text-[#10131D]">{title}</strong><span className="mt-1 block text-xs text-[#5C5E66]">{text}</span></span>
-            </div>
+      <section aria-labelledby="pricing-title" className="mx-auto max-w-[1280px] px-5 py-12 sm:px-8 sm:py-16">
+        <div className="mx-auto mb-10 max-w-2xl text-center sm:mb-12">
+          <h1 id="pricing-title" className="text-3xl font-extrabold leading-tight sm:text-4xl">{fr ? "Des tarifs adaptés à vos paiements." : "Pricing for the way you get paid."}</h1>
+          <p className="mt-4 text-base leading-7 text-[#5C5E66]">{fr ? "Sans abonnement mensuel. Retrouvez le tarif de chaque moyen de paiement, par transaction réussie." : "No monthly subscription. Find the rate for each payment method, per successful transaction."}</p>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {cards.map(({ name, icon: Icon, dark, description, price, rate, features, href }) => (
+            <article key={name} className={`flex min-w-0 flex-col rounded-lg border p-6 sm:p-8 xl:p-6 ${dark ? "public-dark-panel border-[#10131D] bg-[#10131D] text-white" : "border-[#E2E5E9] bg-white text-[#10131D]"}`}>
+              <span className={`mb-7 grid h-12 w-12 place-items-center rounded-lg ${dark ? "bg-white/10 text-white" : "bg-[#FFF0E8] text-[#E74E20]"}`}><Icon aria-hidden className="h-6 w-6" /></span>
+              <h2 className="text-xl font-bold">{name}</h2>
+              <p className={`mt-2 min-h-12 text-sm leading-6 ${dark ? "text-white/70" : "text-[#5C5E66]"}`}>{description}</p>
+              <div className="mt-7 flex min-h-20 flex-col justify-center">
+                <p className={rate ? "text-5xl font-extrabold leading-none" : "text-2xl font-bold leading-8"}>{price}</p>
+                {rate && <p className="mt-2 text-sm text-[#5C5E66]">{fr ? "par transaction réussie" : "per successful transaction"}</p>}
+              </div>
+              <ul className="mb-8 mt-7 space-y-4 text-sm leading-6">
+                {features.map(feature => <li key={feature} className="flex items-start gap-3"><span className={`mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full ${dark ? "bg-white/10 text-[#FFAB85]" : "bg-[#FFF0E8] text-[#C6411E]"}`}><Check aria-hidden className="h-3 w-3" /></span><span>{feature}</span></li>)}
+              </ul>
+              <Link href={href} className={`mt-auto inline-flex min-h-12 items-center justify-center gap-2 rounded-md border px-3 text-sm font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#F45D2C] ${dark ? "kobara-cta border-[#F45D2C] bg-[#F45D2C] text-white hover:bg-[#D94318]" : "border-[#D7DCE2] bg-white text-[#10131D] hover:border-[#F45D2C] hover:bg-[#FFF7F2]"}`}>{href === "/register" ? (fr ? "Commencer" : "Get started") : (fr ? "Nous contacter" : "Contact us")}<ArrowRight aria-hidden className="h-4 w-4 shrink-0" /></Link>
+            </article>
           ))}
         </div>
+        <p className="mt-6 text-sm leading-6 text-[#5C5E66]">{fr ? "Les frais de retrait sont distincts des frais de paiement. Consultez les conditions applicables à votre compte avant toute opération." : "Withdrawal fees are separate from payment fees. Check the terms applicable to your account before making a transaction."} <Link href="/contact" className="font-semibold text-[#B83B19] underline underline-offset-4">{fr ? "Une question ?" : "Questions?"}</Link></p>
       </section>
-
-      <section className="border-b border-[#DDD7D3] py-16 sm:py-20">
-        <div className="mx-auto max-w-[1120px] px-5 sm:px-8">
-          <div className="max-w-2xl">
-            <p className="text-sm font-bold text-[#F45D2C]">{isFrench ? "Comparaison" : "Comparison"}</p>
-            <h2 className="mt-2 text-3xl font-extrabold text-[#10131D] sm:text-4xl">{isFrench ? "Comparez les plans en détail." : "Compare plans in detail."}</h2>
-            <p className="mt-3 text-base leading-7 text-[#5C5E66]">{isFrench ? "Retrouvez les limites et fonctionnalités essentielles avant de faire votre choix." : "Review the essential limits and features before choosing."}</p>
-          </div>
-
-          <div className="mt-10 overflow-x-auto rounded-md border border-[#DDD7D3] bg-white">
-            <table className="w-full min-w-[820px] border-collapse text-sm">
-              <thead>
-                <tr className="bg-[#F7F3F0]">
-                  <th scope="col" className="sticky left-0 z-10 w-[230px] border-b border-r border-[#DDD7D3] bg-[#F7F3F0] px-5 py-5 text-left font-bold text-[#5C5E66]">{isFrench ? "Fonctionnalité" : "Feature"}</th>
-                  {plans.map((plan) => <th scope="col" key={plan.name} className={`border-b border-[#DDD7D3] px-5 py-5 text-center font-extrabold ${plan.highlight ? "text-[#F45D2C]" : "text-[#10131D]"}`}>{plan.name}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {comparison.map((row) => (
-                  <tr key={row.label} className="border-b border-[#E8E3DF] last:border-b-0">
-                    <th scope="row" className="sticky left-0 z-10 border-r border-[#E8E3DF] bg-white px-5 py-4 text-left font-semibold text-[#333847]">{row.label}</th>
-                    {row.values.map((value, index) => (
-                      <td key={`${row.label}-${plans[index].name}`} className={`px-5 py-4 text-center ${index === 2 ? "bg-[#FFF8F4]" : ""}`}>
-                        {typeof value === "boolean" ? (value ? <Check className="mx-auto h-5 w-5 text-[#39715B]" /> : <span className="text-[#B5B0AD]">—</span>) : <span className="font-medium text-[#5C5E66]">{value}</span>}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      <section className="border-b border-[#DDD7D3] bg-white py-16 sm:py-20">
-        <div className="mx-auto grid max-w-[1120px] gap-10 px-5 sm:px-8 lg:grid-cols-[0.7fr_1.3fr] lg:gap-16">
-          <div>
-            <span className="grid h-11 w-11 place-items-center rounded-md bg-[#FFF1E9] text-[#F45D2C]"><CircleHelp className="h-5 w-5" /></span>
-            <h2 className="mt-5 text-3xl font-extrabold text-[#10131D]">{isFrench ? "Questions fréquentes" : "Frequently asked questions"}</h2>
-            <p className="mt-3 leading-7 text-[#5C5E66]">{isFrench ? "Une question sur votre cas particulier ? Notre équipe peut vous aider à choisir." : "Have a question about your specific case? Our team can help you choose."}</p>
-            <Link href="/contact" className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-[#C64120] hover:text-[#E22F23]">{isFrench ? "Parler à notre équipe" : "Talk to our team"}<ArrowRight className="h-4 w-4" /></Link>
-          </div>
-
-          <div className="divide-y divide-[#DDD7D3] border-y border-[#DDD7D3]">
-            {faqItems.map((item, index) => (
-              <details key={item.question} className="group py-1" open={index === 0}>
-                <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-5 py-4 font-bold text-[#10131D] marker:hidden">
-                  {item.question}<span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[#D8D3CF] text-lg font-normal text-[#F45D2C] group-open:rotate-45">+</span>
-                </summary>
-                <p className="max-w-2xl pb-6 pr-10 text-sm leading-7 text-[#5C5E66]">{item.answer}</p>
-              </details>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="public-dark-panel bg-[#10131D] py-16 text-white sm:py-20">
-        <div className="mx-auto flex max-w-[1120px] flex-col gap-8 px-5 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-sm font-bold text-[#FC9A65]">{isFrench ? "Prêt à commencer ?" : "Ready to start?"}</p>
-            <h2 className="mt-3 text-3xl font-extrabold text-white sm:text-4xl">{isFrench ? "Acceptez votre premier paiement avec Kobara." : "Accept your first payment with Kobara."}</h2>
-            <p className="mt-3 leading-7 text-white/65">{isFrench ? "Créez gratuitement votre compte et configurez vos premiers moyens de paiement." : "Create your account for free and configure your first payment methods."}</p>
-          </div>
-          <Link href="/register" className="kobara-cta inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-md bg-[#F45D2C] px-6 text-sm font-extrabold text-white hover:bg-[#E22F23]">{isFrench ? "Créer un compte" : "Create an account"}<ArrowRight className="h-4 w-4" /></Link>
-        </div>
-      </section>
-
       <Footer />
     </main>
   );

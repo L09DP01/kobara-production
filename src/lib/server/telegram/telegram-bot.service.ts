@@ -29,7 +29,7 @@ export class TelegramBotService {
       keyboard: [
         [{ text: '💰 Mon Solde (Live)' }, { text: '🔗 Créer un Lien' }],
         [{ text: '🏦 Transfert B2B' }, { text: '💸 Demander un Retrait' }],
-        [{ text: '⭐ Mon Abonnement' }, { text: '🎁 Recevez 675 Gdes' }],
+        [{ text: '🎁 Recevez 675 Gdes' }],
         [{ text: '🔔 Statut & Paramètres' }, { text: '❓ Aide' }],
       ],
       resize_keyboard: true,
@@ -123,7 +123,7 @@ export class TelegramBotService {
     }
 
     if (text === '⭐ Mon Abonnement' || text === '/abonnement' || text === '/plan') {
-      return this.handleSubscription(chatId, merchant);
+      return TelegramClient.sendMessage(chatId, 'Les abonnements ne sont plus proposés. Tarifs : https://kobara.app/pricing');
     }
 
     if (text === '🎁 Recevez 675 Gdes' || text === '/parrainage' || text === '/invite') {
@@ -1138,6 +1138,11 @@ L'équipe de sécurité Kobara — https://kobara.app
           },
         }
       );
+      return { success: true };
+    }
+
+    if (data === 'action:subscription' || data.startsWith('sub:')) {
+      await TelegramClient.sendMessage(chatId, 'Les abonnements ne sont plus proposés. Les tarifs sont disponibles sur https://kobara.app/pricing.');
       return { success: true };
     }
 

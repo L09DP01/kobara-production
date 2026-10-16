@@ -52,7 +52,7 @@ export default async function PublicPaymentPage({
 
   const providerConfig = await getPaymentProviderConfig();
   const { plan } = await getMerchantCurrentPlan(link.merchant_id);
-  const transactionFeePercent = plan ? plan.transaction_fee_percent / 100 : 0.04;
+  const transactionFeePercent = 0.039;
   const [usdAccount, paymentMethods] = await Promise.all([
     PayPalService.getMerchantUsdAccountState(link.merchants || { id: link.merchant_id }),
     getMerchantPaymentMethodState(link.merchant_id),
@@ -193,7 +193,7 @@ export default async function PublicPaymentPage({
                   Frais de transaction
                   <span className="material-symbols-outlined text-[14px]">info</span>
                 </span>
-                <span className="font-medium text-slate-300">+2.9%</span>
+                <span className="font-medium text-slate-300">3,9%</span>
                 
                 <div className="absolute left-0 bottom-6 w-48 bg-black/90 text-xs text-slate-300 p-2 rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
                   Les frais de réseau sont à votre charge sur cette transaction.
