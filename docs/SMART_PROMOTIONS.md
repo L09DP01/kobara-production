@@ -22,6 +22,6 @@ Every email has a signed unsubscribe link. Opening the link only shows confirmat
 
 Apply `20261015152938_smart_promotions.sql` after `20261015150245_merchant_activation_email_cycle.sql`. Deploy code with the existing Gemini and Resend credentials. Configure a stable server-only `PROMOTION_UNSUBSCRIBE_SECRET` of at least thirty-two characters, or an existing stable AUTH_SECRET/NEXTAUTH_SECRET. Changing it invalidates existing unsubscribe links; prefer a dedicated stable secret.
 
-The existing activation-reminder workflow now also calls `/api/cron/smart-promotions`, using the same `KOBARA_CRON_SECRET` GitHub secret and production CRON_SECRET. `SMART_PROMOTIONS_ENABLED=false` pauses sending. Migration and deployment are separate from local implementation.
+The Cloudflare Worker scheduler also dispatches `/api/cron/smart-promotions` hourly, using the existing production `CRON_SECRET`. It only processes approved campaigns and never generates or approves one. GitHub automatic scheduling is disabled. `SMART_PROMOTIONS_ENABLED=false` pauses sending. Migration and deployment are separate from local implementation.
 
 No real promotional email was sent during development. SQL tests used rollback-only synthetic accounts with example.invalid addresses. Review deferred sending rows before manually retrying after an uncertain provider response.

@@ -21,9 +21,9 @@ Users can disable reminders in Settings > Notifications, including before KYC ap
 
 1. Apply `supabase/migrations/20261015150245_merchant_activation_email_cycle.sql` to the confirmed production database.
 2. Deploy the code with the existing Resend configuration and a nonempty `CRON_SECRET`.
-3. Set the GitHub repository secret `KOBARA_CRON_SECRET` to the exact same production `CRON_SECRET`, using the secret UI or secure stdin, never committed code.
-4. Push the workflow to the default branch. It calls the protected endpoint hourly; database timestamps determine each merchant's three-day interval. GitHub scheduled runs can be delayed.
-5. Inspect workflow results and queued state. `ACTIVATION_REMINDERS_ENABLED=false` pauses delivery. The former `/api/cron/kyc-reminders` route uses this same queue, so overlapping scheduler calls do not create an independent daily campaign.
+3. Deploy with `npm run cf:deploy`. The custom OpenNext Worker in `cloudflare-worker.mjs` uses the existing Cloudflare `CRON_SECRET`; no copied GitHub secret is needed for automatic scheduling.
+4. The Cloudflare Cron Trigger runs hourly at minute 17 UTC. Database timestamps determine each merchant's three-day interval. Trigger changes can take up to fifteen minutes to propagate. GitHub automatic scheduling is disabled; its workflow is manual-only as a fallback.
+5. Inspect Cloudflare Worker Cron Events and structured `email_schedule` logs. Failures mark the scheduled event as failed, without logging email bodies, recipient addresses or secrets. `ACTIVATION_REMINDERS_ENABLED=false` pauses delivery. The former `/api/cron/kyc-reminders` route uses this same queue, so overlapping scheduler calls do not create an independent daily campaign.
 
 The endpoint rejects missing credentials and fails closed if the migration is unavailable. Do not trigger a live test against real customers without checking recipients. No production migration or customer email was sent during implementation.
 

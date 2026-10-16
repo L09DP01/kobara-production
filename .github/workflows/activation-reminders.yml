@@ -1,8 +1,7 @@
 name: Merchant activation reminders
 
 on:
-  schedule:
-    - cron: '17 * * * *'
+  # Automatic scheduling is managed by the Cloudflare Worker, not GitHub billing.
   workflow_dispatch:
 
 permissions: {}
