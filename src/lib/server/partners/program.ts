@@ -242,7 +242,7 @@ async function refreshMerchantReferral(referralId: string) {
   const [{ data: referral, error: referralError }, { data: credits, error: creditsError }] = await Promise.all([
     supabase
       .from('merchant_referrals')
-      .select('id, referrer_merchant_id, invited_merchant_id, status, reward_currency, pro_activated_at')
+      .select('id, referrer_merchant_id, invited_merchant_id, status, reward_currency')
       .eq('id', referralId)
       .maybeSingle(),
     supabase
@@ -260,9 +260,7 @@ async function refreshMerchantReferral(referralId: string) {
     if (currency === 'HTG' || currency === 'USD') sum[currency] += Number(credit.amount);
     return sum;
   }, { HTG: 0, USD: 0 });
-  const proActive = await hasActiveProPlan(referral.invited_merchant_id);
   const qualified = isMerchantReferralQualified({
-    hasActiveProPlan: proActive,
     htgTotal: totals.HTG,
     usdTotal: totals.USD,
   });
@@ -275,13 +273,12 @@ async function refreshMerchantReferral(referralId: string) {
   });
 
   const now = new Date().toISOString();
-  const nextStatus = qualified ? 'qualified' : proActive ? 'volume_pending' : 'account_created';
+  const nextStatus = qualified ? 'qualified' : 'volume_pending';
   const { error: updateError } = await supabase
     .from('merchant_referrals')
     .update({
       qualifying_htg_total: totals.HTG,
       qualifying_usd_total: totals.USD,
-      pro_activated_at: proActive ? referral.pro_activated_at ?? now : referral.pro_activated_at,
       qualified_at: qualified ? now : null,
       status: nextStatus,
     })
@@ -508,8 +505,7 @@ export async function processPartnerPaymentReversal(paymentId: string) {
         if (currency === 'HTG' || currency === 'USD') sum[currency] += Number(item.amount);
         return sum;
       }, { HTG: 0, USD: 0 });
-      const proActive = await hasActiveProPlan(referral.invited_merchant_id);
-      const stillQualified = isMerchantReferralQualified({ hasActiveProPlan: proActive, htgTotal: totals.HTG, usdTotal: totals.USD });
+      const stillQualified = isMerchantReferralQualified({ htgTotal: totals.HTG, usdTotal: totals.USD });
       if (!stillQualified && referral.status === 'rewarded') {
         const { data: reward } = await supabase.from('partner_commission_ledger')
           .select('id, status, beneficiary_type, merchant_id, amount, currency')
@@ -525,7 +521,7 @@ export async function processPartnerPaymentReversal(paymentId: string) {
           });
         }
         await supabase.from('merchant_referrals').update({
-          status: proActive ? 'volume_pending' : 'account_created', rewarded_at: null, qualified_at: null,
+          status: 'volume_pending', rewarded_at: null, qualified_at: null,
           qualifying_htg_total: totals.HTG, qualifying_usd_total: totals.USD,
         }).eq('id', referral.id);
       } else {

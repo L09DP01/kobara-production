@@ -85,13 +85,6 @@ export async function onPaymentSucceeded(paymentId: string) {
           ? 'MonCash'
           : 'paiement mobile',
     });
-    // Notifier immédiatement le marchand sur Telegram
-    try {
-      const { TelegramNotifierService } = await import("@/lib/server/telegram/telegram-notifier.service");
-      await TelegramNotifierService.notifySubscriptionActivated(merchantId, metadata.plan_slug, payment.id);
-    } catch (telErr) {
-      console.error("Telegram subscription notification failed:", telErr);
-    }
 
     // Don't send merchant webhooks for internal subscription payments
     return;

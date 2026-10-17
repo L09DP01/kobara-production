@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
 
-test('Telegram AI Assistant: Live Documentation Loading Invariants', async (t) => {
+test('Telegram public documentation assets', async (t) => {
   await t.test('Docs directory contains core integration markdown files', () => {
     const docsDir = path.join(process.cwd(), 'src/content/docs');
     assert.ok(fs.existsSync(docsDir), 'Docs directory src/content/docs must exist');
@@ -33,12 +33,12 @@ test('Telegram AI Assistant: Live Documentation Loading Invariants', async (t) =
     const docsDir = path.join(process.cwd(), 'src/content/docs');
     const files = fs.readdirSync(docsDir).filter((f) => f.endsWith('.md'));
 
-    const generatedUrls = files.map((f) => `https://kobara.app/docs/${f.replace('.md', '')}`);
+    const generatedUrls = files.map((f) => `https://docs.kobara.app/docs/${f.replace('.md', '')}`);
 
-    assert.ok(generatedUrls.includes('https://kobara.app/docs/payments'));
-    assert.ok(generatedUrls.includes('https://kobara.app/docs/webhooks'));
-    assert.ok(generatedUrls.includes('https://kobara.app/docs/wordpress-plugin'));
-    assert.ok(generatedUrls.includes('https://kobara.app/docs/quickstart'));
+    assert.ok(generatedUrls.includes('https://docs.kobara.app/docs/payments'));
+    assert.ok(generatedUrls.includes('https://docs.kobara.app/docs/webhooks'));
+    assert.ok(generatedUrls.includes('https://docs.kobara.app/docs/wordpress-plugin'));
+    assert.ok(generatedUrls.includes('https://docs.kobara.app/docs/quickstart'));
   });
 
   await t.test('OpenAPI v1 specification exists and is accessible', () => {
@@ -47,6 +47,7 @@ test('Telegram AI Assistant: Live Documentation Loading Invariants', async (t) =
 
     const content = JSON.parse(fs.readFileSync(openapiPath, 'utf8'));
     assert.ok(content.paths, 'OpenAPI spec must contain paths');
-    assert.ok(content.paths['/api/v1/payments'], 'OpenAPI spec must define /api/v1/payments');
+    assert.ok(content.paths['/v1/payments'], 'OpenAPI spec must define /v1/payments');
+    assert.equal(content.servers[0].url, 'https://api.kobara.app');
   });
 });

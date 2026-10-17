@@ -19,6 +19,11 @@ import {
   getKobaraCryptoCurrency,
 } from '@/lib/nowpayments';
 import { getWithdrawalUserMessage } from '@/lib/withdrawal-error-message';
+import { DOCS_ASSISTANT_URL, isSensitiveSupportRequest } from '@/lib/support-assistant-policy';
+import { safeTelegramHistory } from '@/lib/telegram-support-policy';
+import { containsPotentialSecret, redactSecrets } from '@/lib/sensitive-text';
+import { isPrivateTelegramSender } from '@/lib/telegram-webhook-security';
+import { isRetiredTelegramSubscriptionCallback, isRetiredTelegramSubscriptionCommand, isRetiredTelegramSubscriptionState, TELEGRAM_RETIRED_SUBSCRIPTION_MESSAGE } from '@/lib/telegram-retired-subscriptions';
 
 export class TelegramBotService {
   /**
@@ -64,6 +69,7 @@ export class TelegramBotService {
 
     const message = update.message;
     if (!message || !message.text) return { success: true };
+    if (!isPrivateTelegramSender(message.chat, message.from)) return { success: true };
 
     const chatId = message.chat.id;
     const text = message.text.trim();
@@ -100,8 +106,12 @@ export class TelegramBotService {
       return { success: true };
     }
 
+    if (isRetiredTelegramSubscriptionCommand(text) || isRetiredTelegramSubscriptionState(sessionState.step)) {
+      return this.showUsagePricing(chatId);
+    }
+
     // 4. Gestion des étapes conversationnelles (State Machine)
-    if (sessionState.step) {
+    if (sessionState.step && sessionState.step !== 'ai_question') {
       return this.handleConversationStep(chatId, text, sessionState, merchant);
     }
 
@@ -122,10 +132,6 @@ export class TelegramBotService {
       return this.startB2BTransferFlow(chatId, merchant);
     }
 
-    if (text === '⭐ Mon Abonnement' || text === '/abonnement' || text === '/plan') {
-      return TelegramClient.sendMessage(chatId, 'Les abonnements ne sont plus proposés. Tarifs : https://kobara.app/pricing');
-    }
-
     if (text === '🎁 Recevez 675 Gdes' || text === '/parrainage' || text === '/invite') {
       return this.handleMerchantReferral(chatId, merchant);
     }
@@ -138,7 +144,11 @@ export class TelegramBotService {
       return this.handleHelp(chatId, merchant);
     }
 
-    // Commande non reconnue -> Réafficher le menu
+    if (!text.startsWith('/')) {
+      return this.handleConversationStep(chatId, text, { step: 'ai_question', ai_history: sessionState.ai_history }, merchant);
+    }
+
+    // Unknown slash commands do not trigger an AI request.
     await TelegramClient.sendMessage(
       chatId,
       `👋 Bonjour <b>${merchant.business_name}</b> !\n\nChoisissez une action ci-dessous :`,
@@ -718,7 +728,7 @@ L'équipe de sécurité Kobara — https://kobara.app
       }
 
       await this.updateSessionState(chatId, { step: 'link_title', amount });
-      await TelegramClient.sendMessage(chatId, `Montant : <b>${amount.toLocaleString('fr-HT')} HTG</b>\n\nSaisissez maintenant le <b>titre ou la description</b> du paiement (ex: <code>Abonnement Mensuel</code> ou <code>Commande #402</code>) :`, { parse_mode: 'HTML' });
+      await TelegramClient.sendMessage(chatId, `Montant : <b>${amount.toLocaleString('fr-HT')} HTG</b>\n\nSaisissez maintenant le <b>titre ou la description</b> du paiement (ex: <code>Commande #402</code>) :`, { parse_mode: 'HTML' });
       return { success: true };
     }
 
@@ -965,9 +975,13 @@ L'équipe de sécurité Kobara — https://kobara.app
       
       try {
         const { TelegramAiAssistant } = await import('./telegram-ai-assistant');
-        const aiResponse = await TelegramAiAssistant.answerMerchantQuery(text, merchant.business_name);
-
-        await this.updateSessionState(chatId, {});
+        const history = safeTelegramHistory(state.ai_history);
+        const aiResponse = await TelegramAiAssistant.answerMerchantQuery(text, merchant.id, history);
+        const keepQuestion = !containsPotentialSecret(text) && !isSensitiveSupportRequest(text);
+        const nextState = {
+          step: 'ai_question',
+          ai_history: safeTelegramHistory(keepQuestion ? [...history, { sender_type: 'merchant', body: redactSecrets(text) }, { sender_type: 'assistant', body: aiResponse }] : history),
+        };
 
         // Format Markdown to Telegram HTML safely
         const formattedAiResponse = this.formatMarkdownForTelegram(aiResponse);
@@ -980,14 +994,18 @@ L'équipe de sécurité Kobara — https://kobara.app
             reply_markup: {
               inline_keyboard: [
                 [{ text: '💬 Poser une autre question', callback_data: 'action:ask_ai' }],
+                [{ text: 'Kobara AI : aide au code', url: DOCS_ASSISTANT_URL }],
+                [{ text: 'Support Kobara', url: 'https://kobara.app/dashboard/support' }],
+                [{ text: 'Menu principal', callback_data: 'action:main_menu' }],
                 [{ text: '🟢 Contacter le Support WhatsApp', url: 'https://wa.me/50940035664?text=Bonjour,%20j%27ai%20besoin%20d%27assistance%20avec%20Kobara' }],
                 [{ text: '📢 Rejoindre le Forum / Canal', url: 'https://t.me/KobaraCommunity' }],
               ],
             },
           }
         );
+        await this.updateSessionState(chatId, nextState);
       } catch (aiErr: any) {
-        console.error('[TelegramBotService] AI answer error:', aiErr);
+        console.error('[TelegramBotService] AI answer unavailable.');
         await this.updateSessionState(chatId, {});
         await TelegramClient.sendMessage(
           chatId,
@@ -1016,6 +1034,9 @@ L'équipe de sécurité Kobara — https://kobara.app
   private static formatMarkdownForTelegram(text: string): string {
     if (!text) return '';
     return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
       // Convert code blocks ```lang ... ``` -> <pre><code>...</code></pre>
       .replace(/```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
       // Convert inline code `code` -> <code>code</code>
@@ -1030,8 +1051,10 @@ L'équipe de sécurité Kobara — https://kobara.app
    * Traitement des clics sur les boutons inline
    */
   private static async handleCallbackQuery(callbackQuery: any) {
+    if (!isPrivateTelegramSender(callbackQuery.message?.chat, callbackQuery.from)) return { success: true };
     const chatId = callbackQuery.message?.chat?.id;
     const data = callbackQuery.data;
+    if (typeof data !== 'string') return { success: true };
 
     await TelegramClient.answerCallbackQuery(callbackQuery.id);
 
@@ -1041,6 +1064,7 @@ L'équipe de sécurité Kobara — https://kobara.app
     const { merchant } = account;
 
     const messageId = callbackQuery.message?.message_id;
+    if (isRetiredTelegramSubscriptionCallback(data)) return this.showUsagePricing(chatId);
 
     if (data === 'action:main_menu') {
       await this.updateSessionState(chatId, {});
@@ -1122,7 +1146,7 @@ L'équipe de sécurité Kobara — https://kobara.app
     }
 
     if (data === 'action:ask_ai') {
-      await this.updateSessionState(chatId, { step: 'ai_question' });
+      await this.updateSessionState(chatId, { step: 'ai_question', ai_history: safeTelegramHistory(account.link.session_state?.ai_history) });
       if (messageId) {
         await TelegramClient.deleteMessage(chatId, messageId);
       }
@@ -1139,52 +1163,6 @@ L'équipe de sécurité Kobara — https://kobara.app
         }
       );
       return { success: true };
-    }
-
-    if (data === 'action:subscription' || data.startsWith('sub:')) {
-      await TelegramClient.sendMessage(chatId, 'Les abonnements ne sont plus proposés. Les tarifs sont disponibles sur https://kobara.app/pricing.');
-      return { success: true };
-    }
-
-    if (data === 'action:subscription') {
-      return this.handleSubscription(chatId, merchant, messageId);
-    }
-
-    if (data === 'sub:upgrade') {
-      return this.showPlanUpgradeList(chatId, merchant, messageId);
-    }
-
-    if (data === 'sub:renew') {
-      const { getMerchantSubscriptionEntitlement } = await import('@/lib/server/plans');
-      const entitlementData = await getMerchantSubscriptionEntitlement(merchant.id);
-      const planSlug = entitlementData.plan?.slug && entitlementData.plan.slug !== 'free'
-        ? entitlementData.plan.slug
-        : 'pro';
-      return this.showPlanCycleSelection(chatId, planSlug, true, messageId);
-    }
-
-    if (data.startsWith('sub_select:')) {
-      const planSlug = data.split(':')[1];
-      return this.showPlanCycleSelection(chatId, planSlug, false, messageId);
-    }
-
-    if (data.startsWith('sub_cycle:')) {
-      const parts = data.split(':');
-      const planSlug = parts[1];
-      const cycle = parts[2] === 'yearly' ? 'yearly' : 'monthly';
-      const isRenew = parts[3] === 'renew';
-      return this.showPlanMethodSelection(chatId, planSlug, cycle, isRenew, messageId);
-    }
-
-    if (data.startsWith('sub_pay:')) {
-      const parts = data.split(':');
-      const planSlug = parts[1];
-      const cycle = parts[2] === 'yearly' ? 'yearly' : 'monthly';
-      if (parts[3] === 'balance') {
-        return this.purchaseSubscriptionWithBalance(chatId, merchant, planSlug, cycle, messageId);
-      }
-      const method = parts[3] === 'natcash' ? 'natcash' : 'moncash';
-      return this.generateSubscriptionPaymentLink(chatId, merchant, planSlug, cycle, method, messageId);
     }
 
     if (data.startsWith('withdraw_method:')) {
@@ -1293,527 +1271,17 @@ L'équipe de sécurité Kobara — https://kobara.app
   }
 
   /**
-   * Consultation du plan / abonnement réel du compte marchand
-   */
-  private static async handleSubscription(chatId: string | number, merchant: any, messageId?: number) {
-    try {
-      const { getMerchantSubscriptionEntitlement } = await import('@/lib/server/plans');
-      const entitlementData = await getMerchantSubscriptionEntitlement(merchant.id);
-
-      const plan = entitlementData.plan;
-      const entitlement = entitlementData.entitlement;
-      const sub = entitlementData.subscription;
-
-      const planName = plan?.name || 'Starter (Gratuit)';
-      const isPaidPlan = plan && plan.slug !== 'free' && Number(plan.price_htg) > 0;
-
-      let statusLabel = '⚪ Gratuit / Starter';
-      if (entitlement.status === 'active') {
-        statusLabel = '🟢 Actif';
-      } else if (entitlement.status === 'grace_period') {
-        statusLabel = '🟡 Période de Grâce (Renouvellement requis)';
-      } else if (entitlement.status === 'expired') {
-        statusLabel = '🔴 Expiré';
-      }
-
-      const cycleLabel = sub?.billing_cycle === 'yearly' ? 'Annuel' : 'Mensuel';
-      const expiresAt = sub?.current_period_end
-        ? new Date(sub.current_period_end).toLocaleDateString('fr-HT')
-        : 'Sans date d\'expiration';
-
-      const buttons: any[] = [];
-
-      if (isPaidPlan) {
-        buttons.push([{ text: '⬆️ Changer de Plan (Upgrade)', callback_data: 'sub:upgrade' }]);
-        // Le bouton renouveler s'affiche pour le plan actif ou s'il est expiré
-        buttons.push([{ text: '🔄 Renouveler mon Plan Actif', callback_data: 'sub:renew' }]);
-      } else {
-        buttons.push([{ text: '⭐ Choisir un Plan Pro ou Business', callback_data: 'sub:upgrade' }]);
-      }
-      buttons.push([{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }]);
-
-      await this.sendOrEditMessage(
-        chatId,
-        `
-⭐ <b>MON ABONNEMENT KOBARA</b>
-
-🏢 <b>Marchand :</b> ${merchant.business_name}
-📦 <b>Plan Actif :</b> <b>${planName}</b>
-🆔 <b>Statut :</b> ${statusLabel}
-${isPaidPlan ? `📅 <b>Date de fin :</b> ${expiresAt}\n💳 <b>Facturation :</b> ${cycleLabel}\n` : ''}
-<i>Vous pouvez changer de plan ou le renouveler directement depuis ce bot.</i>
-        `.trim(),
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: buttons },
-        },
-        messageId
-      );
-    } catch (err: any) {
-      console.error('[TelegramBotService] handleSubscription error:', err);
-      await TelegramClient.sendMessage(chatId, "Erreur lors de la récupération de votre abonnement.");
-    }
-  }
-
-  /**
-   * Affiche la liste des plans disponibles pour Upgrade
-   */
-  private static async showPlanUpgradeList(chatId: string | number, merchant: any, messageId?: number) {
-    try {
-      const { getPlans } = await import('@/lib/server/plans');
-      const allPlans = await getPlans();
-      const paidPlans = allPlans.filter((p: any) => p.slug !== 'free' && Number(p.price_htg) > 0);
-
-      const buttons = paidPlans.map((p: any) => [
-        {
-          text: `🚀 ${p.name} — ${Number(p.price_htg).toLocaleString('fr-HT')} HTG/mois`,
-          callback_data: `sub_select:${p.slug}`,
-        },
-      ]);
-
-      buttons.push([
-        { text: '🔙 Retour à mon abonnement', callback_data: 'action:subscription' },
-        { text: '🏠 Menu Principal', callback_data: 'action:main_menu' },
-      ]);
-
-      await this.sendOrEditMessage(
-        chatId,
-        `
-🚀 <b>CHOISIR UN PLAN KOBARA</b>
-
-Sélectionnez le plan adapté à vos besoins d'encaissement et de gestion :
-        `.trim(),
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: buttons },
-        },
-        messageId
-      );
-    } catch (err: any) {
-      console.error('[TelegramBotService] showPlanUpgradeList error:', err);
-      await TelegramClient.sendMessage(chatId, "Impossible de charger la liste des plans.");
-    }
-  }
-
-  /**
-   * Affiche le choix du cycle de facturation (Mensuel ou Annuel)
-   */
-  private static async showPlanCycleSelection(
-    chatId: string | number,
-    planSlug: string,
-    isRenew = false,
-    messageId?: number
-  ) {
-    try {
-      const { getPlanBySlug } = await import('@/lib/server/plans');
-      const plan = await getPlanBySlug(planSlug);
-
-      if (!plan) {
-        await TelegramClient.sendMessage(chatId, "Plan introuvable.");
-        return;
-      }
-
-      const monthlyPrice = Number(plan.price_htg);
-      const yearlyPrice = Math.round(monthlyPrice * 0.8 * 12); // -20% discount
-
-      const buttons = [
-        [
-          {
-            text: `📅 Mensuel : ${monthlyPrice.toLocaleString('fr-HT')} HTG/mois`,
-            callback_data: `sub_cycle:${plan.slug}:monthly:${isRenew ? 'renew' : 'upgrade'}`,
-          },
-        ],
-        [
-          {
-            text: `📆 Annuel : ${yearlyPrice.toLocaleString('fr-HT')} HTG/an (-20%)`,
-            callback_data: `sub_cycle:${plan.slug}:yearly:${isRenew ? 'renew' : 'upgrade'}`,
-          },
-        ],
-        [
-          { text: '🔙 Retour', callback_data: isRenew ? 'action:subscription' : 'sub:upgrade' },
-          { text: '🏠 Menu Principal', callback_data: 'action:main_menu' },
-        ],
-      ];
-
-      await this.sendOrEditMessage(
-        chatId,
-        `
-⭐ <b>${isRenew ? 'RENOUVELLEMENT' : 'PASSAGE AU'} ${plan.name.toUpperCase()}</b>
-
-Choisissez votre période de facturation :
-• <b>Mensuel :</b> <code>${monthlyPrice.toLocaleString('fr-HT')} HTG</code> / mois
-• <b>Annuel :</b> <code>${yearlyPrice.toLocaleString('fr-HT')} HTG</code> / an <i>(2 mois offerts)</i>
-        `.trim(),
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: buttons },
-        },
-        messageId
-      );
-    } catch (err: any) {
-      console.error('[TelegramBotService] showPlanCycleSelection error:', err);
-      await TelegramClient.sendMessage(chatId, "Erreur lors du choix de cycle.");
-    }
-  }
-
-  /**
-   * Affiche le choix de la méthode de paiement (MonCash ou NatCash)
-   */
-  private static async showPlanMethodSelection(
-    chatId: string | number,
-    planSlug: string,
-    billingCycle: 'monthly' | 'yearly',
-    isRenew = false,
-    messageId?: number
-  ) {
-    try {
-      const { getPlanBySlug } = await import('@/lib/server/plans');
-      const plan = await getPlanBySlug(planSlug);
-
-      if (!plan) {
-        await TelegramClient.sendMessage(chatId, "Plan introuvable.");
-        return;
-      }
-
-      const monthlyPrice = Number(plan.price_htg);
-      const amount = billingCycle === 'yearly' ? Math.round(monthlyPrice * 0.8 * 12) : monthlyPrice;
-
-      const supabase = createAdminClient();
-      const linkedAccount = await this.getLinkedMerchant(chatId);
-      if (!linkedAccount) {
-        await TelegramClient.sendMessage(chatId, '❌ Compte marchand non associé.');
-        return;
-      }
-      const { data: freshMerchant } = await supabase
-        .from('merchants')
-        .select('available_balance')
-        .eq('id', linkedAccount.merchant.id)
-        .maybeSingle();
-      const accountBalance = Number(freshMerchant?.available_balance || 0);
-
-      const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
-      if (accountBalance >= amount) {
-        buttons.push([
-          {
-            text: `💰 Payer avec mon solde (${amount.toLocaleString('fr-HT')} HTG)`,
-            callback_data: `sub_pay:${plan.slug}:${billingCycle}:balance`,
-          },
-        ]);
-      }
-      buttons.push(
-        [
-          {
-            text: `📱 Payer avec MonCash (${amount.toLocaleString('fr-HT')} HTG)`,
-            callback_data: `sub_pay:${plan.slug}:${billingCycle}:moncash`,
-          },
-        ],
-        [
-          {
-            text: `📲 Payer avec NatCash (${amount.toLocaleString('fr-HT')} HTG)`,
-            callback_data: `sub_pay:${plan.slug}:${billingCycle}:natcash`,
-          },
-        ],
-        [
-          { text: '🔙 Changer de période', callback_data: `sub_select:${plan.slug}` },
-          { text: '🏠 Menu Principal', callback_data: 'action:main_menu' },
-        ],
-      );
-
-      await this.sendOrEditMessage(
-        chatId,
-        `
-💳 <b>MÉTHODE DE PAIEMENT POUR ${plan.name.toUpperCase()}</b>
-
-📦 <b>Plan :</b> ${plan.name} (${billingCycle === 'yearly' ? 'Annuel' : 'Mensuel'})
-💰 <b>Montant :</b> <code>${amount.toLocaleString('fr-HT')} HTG</code>
-
-Choisissez comment vous souhaitez effectuer votre paiement :
-        `.trim(),
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: buttons },
-        },
-        messageId
-      );
-    } catch (err: any) {
-      console.error('[TelegramBotService] showPlanMethodSelection error:', err);
-      await TelegramClient.sendMessage(chatId, "Erreur lors du choix de méthode.");
-    }
-  }
-
-  /** Débite atomiquement le solde Kobara et active le plan. */
-  private static async purchaseSubscriptionWithBalance(
-    chatId: string | number,
-    merchant: any,
-    planSlug: string,
-    billingCycle: 'monthly' | 'yearly',
-    messageId?: number
-  ) {
-    try {
-      const { getPlanBySlug, notifyMerchantPlanTransition } = await import('@/lib/server/plans');
-      const plan = await getPlanBySlug(planSlug);
-      if (!plan || plan.slug === 'free' || Number(plan.price_htg) <= 0) {
-        await TelegramClient.sendMessage(chatId, '❌ Ce plan ne peut pas être acheté avec le solde.');
-        return;
-      }
-
-      const amount = billingCycle === 'yearly'
-        ? Math.round(Number(plan.price_htg) * 0.8 * 12)
-        : Number(plan.price_htg);
-      const supabase = createAdminClient();
-      const { data: freshMerchant } = await supabase
-        .from('merchants')
-        .select('email, plan_slug, available_balance')
-        .eq('id', merchant.id)
-        .maybeSingle();
-
-      if (Number(freshMerchant?.available_balance || 0) < amount) {
-        await TelegramClient.sendMessage(
-          chatId,
-          '⚠️ Votre solde n’est plus suffisant. Choisissez MonCash ou NatCash.',
-          { reply_markup: { inline_keyboard: [[{ text: '🔄 Choisir un moyen', callback_data: `sub_cycle:${plan.slug}:${billingCycle}:upgrade` }]] } },
-        );
-        return;
-      }
-
-      const { data: subscriptionId, error } = await supabase.rpc('purchase_subscription_from_balance', {
-        p_merchant_id: merchant.id,
-        p_plan_id: plan.id,
-        p_billing_cycle: billingCycle,
-        p_amount_htg: amount,
-        p_activation_source: 'balance',
-      });
-      if (error) {
-        const message = error.message.includes('insufficient_balance')
-          ? '⚠️ Votre solde n’est plus suffisant. Choisissez un autre moyen de paiement.'
-          : '❌ Impossible d’activer le plan avec votre solde. Veuillez réessayer.';
-        await TelegramClient.sendMessage(chatId, message);
-        return;
-      }
-
-      try {
-        await notifyMerchantPlanTransition({
-          merchantId: merchant.id,
-          email: freshMerchant?.email || merchant.email || '',
-          previousPlanSlug: freshMerchant?.plan_slug || merchant.plan_slug || null,
-          newPlan: plan,
-          source: 'balance',
-          resourceId: String(subscriptionId),
-        });
-      } catch (notificationError) {
-        console.error('[TelegramBotService] Balance plan notification failed:', notificationError);
-      }
-
-      try {
-        const { processPartnerPlanActivation } = await import('@/lib/server/partners/program');
-        await processPartnerPlanActivation({
-          merchantId: merchant.id,
-          subscriptionId: String(subscriptionId),
-          planSlug: plan.slug,
-          promoCodeId: null,
-        });
-      } catch (partnerError) {
-        console.error('[TelegramBotService] Balance partner activation failed:', partnerError);
-      }
-
-      await this.sendOrEditMessage(
-        chatId,
-        `✅ <b>PLAN ACTIVÉ AVEC SUCCÈS</b>\n\n⭐ <b>Plan :</b> ${plan.name}\n💰 <b>Payé avec votre solde :</b> ${amount.toLocaleString('fr-HT')} HTG\n📅 <b>Période :</b> ${billingCycle === 'yearly' ? 'Annuelle' : 'Mensuelle'}`,
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[{ text: '⭐ Voir mon abonnement', callback_data: 'action:subscription' }], [{ text: '🏠 Menu principal', callback_data: 'action:main_menu' }]] },
-        },
-        messageId,
-      );
-    } catch (error) {
-      console.error('[TelegramBotService] purchaseSubscriptionWithBalance error:', error);
-      await TelegramClient.sendMessage(chatId, '❌ Impossible d’activer le plan avec votre solde.');
-    }
-  }
-
-  /**
-   * Génère le lien de paiement sécurisé MonCash ou NatCash pour l'abonnement
-   */
-  private static async generateSubscriptionPaymentLink(
-    chatId: string | number,
-    merchant: any,
-    planSlug: string,
-    billingCycle: 'monthly' | 'yearly',
-    method: 'moncash' | 'natcash' = 'moncash',
-    messageId?: number
-  ) {
-    try {
-      const { getPlanBySlug } = await import('@/lib/server/plans');
-      const plan = await getPlanBySlug(planSlug);
-
-      if (!plan) {
-        await TelegramClient.sendMessage(chatId, "Plan introuvable.");
-        return;
-      }
-
-      const monthlyPrice = Number(plan.price_htg);
-      const amount = billingCycle === 'yearly' ? Math.round(monthlyPrice * 0.8 * 12) : monthlyPrice;
-
-      const { getPaymentProviderConfig, createPaymentGateway } = await import('@/lib/server/payments/gateway');
-      const {
-        createPaymReference,
-        normalizePaymAmount,
-        withPaymentRoutingMetadata,
-      } = await import('@/lib/payment-routing');
-
-      const providerConfig = await getPaymentProviderConfig();
-      let finalAmount = amount;
-
-      // Normalisation du montant pour NatCash si Pay'm est le fournisseur actif
-      if (method === 'natcash' && providerConfig.active_provider === 'paym') {
-        finalAmount = normalizePaymAmount('natcash', finalAmount);
-      }
-
-      const supabase = createAdminClient();
-      const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'KobaraPayBot';
-      const telegramReturnUrl = `https://t.me/${botUsername}`;
-
-      const subscriptionMetadata = {
-        is_subscription_upgrade: true,
-        plan_slug: planSlug,
-        billing_cycle: billingCycle,
-        merchant_id: merchant.id,
-        initiated_from: 'telegram_bot',
-        telegram_chat_id: String(chatId),
-        expected_amount: finalAmount,
-        success_url: telegramReturnUrl,
-        cancel_url: telegramReturnUrl,
-      };
-
-      // Une nouvelle tentative doit avoir sa propre référence fournisseur. Réutiliser
-      // une ancienne référence peut laisser le nouveau paiement bloqué en attente.
-      await supabase
-        .from('payments')
-        .update({ status: 'expired' })
-        .eq('merchant_id', merchant.id)
-        .eq('status', 'pending')
-        .filter('metadata->is_subscription_upgrade', 'eq', true)
-        .filter('metadata->initiated_from', 'eq', 'telegram_bot');
-
-      const reference = createPaymReference('SUB');
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-      const { data: payment, error } = await supabase
-        .from('payments')
-        .insert({
-          merchant_id: merchant.id,
-          amount: finalAmount,
-          net_amount: finalAmount,
-          fee_amount: 0,
-          currency: 'HTG',
-          status: 'pending',
-          environment: 'live',
-          provider: method,
-          payment_method: method,
-          kobara_reference: reference,
-          expires_at: expiresAt,
-          success_url: telegramReturnUrl,
-          error_url: telegramReturnUrl,
-          metadata: subscriptionMetadata,
-        })
-        .select('*')
-        .single();
-
-      if (error || !payment) {
-        console.error('[TelegramBotService] Failed to create subscription payment:', error);
-        await TelegramClient.sendMessage(chatId, `❌ Erreur lors de l'initialisation du paiement : ${error?.message || 'Erreur backend'}`);
-        return;
-      }
-
-      // 2. Initialiser la passerelle de paiement unique (MonCash ou NatCash via Pay'm/Bazik)
-      let gatewayPaymentUrl: string | null = null;
-      try {
-        const gatewayRes = await createPaymentGateway({
-          amount: finalAmount,
-          reference,
-          provider: method,
-          description: `Abonnement Kobara - Plan ${plan.name} (${billingCycle === 'yearly' ? 'Annuel' : 'Mensuel'})`,
-          environment: 'live',
-          successUrl: telegramReturnUrl,
-          cancelUrl: telegramReturnUrl,
-          errorUrl: telegramReturnUrl,
-        });
-
-        if (gatewayRes?.paymentUrl) {
-          const directPaymentUrl = new URL(gatewayRes.paymentUrl);
-          if (directPaymentUrl.protocol !== 'https:') {
-            throw new Error("L’URL directe de paiement n’est pas sécurisée.");
-          }
-          gatewayPaymentUrl = directPaymentUrl.toString();
-        }
-
-        const { error: routingError } = await supabase
-          .from('payments')
-          .update({
-            provider: method,
-            payment_method: gatewayRes.paymentMethod,
-            bazik_order_id: gatewayRes.processor === 'bazik' ? gatewayRes.orderId : null,
-            bazik_transaction_id: gatewayRes.transactionId,
-            metadata: {
-              ...withPaymentRoutingMetadata(
-                subscriptionMetadata,
-                gatewayRes.route,
-                gatewayRes.transactionId,
-              ),
-              ...(gatewayRes.processor === 'paym' && gatewayRes.paymentUrl
-                ? { provider_checkout_url: gatewayRes.paymentUrl }
-                : {}),
-            },
-          })
-          .eq('id', payment.id);
-        if (routingError) throw routingError;
-
-      } catch (gwErr: any) {
-        console.warn('[TelegramBotService] Direct gateway initialization note:', gwErr?.message);
-        await supabase.from('payments').update({ status: 'failed' }).eq('id', payment.id).eq('status', 'pending');
-        throw gwErr;
-      }
-
-      // 3. Déterminer l'URL finale de paiement (Passerelle directe ou Page de paiement sécurisée)
-      const finalCheckoutUrl = gatewayPaymentUrl || (method === 'natcash'
-        ? `https://kobara.app/pay/checkout/${payment.id}/natcash`
-        : `https://kobara.app/pay/checkout/${payment.id}`);
-
-      const methodIcon = method === 'natcash' ? '📲' : '📱';
-      const methodName = method === 'natcash' ? 'NatCash' : 'MonCash';
-
-      await this.sendOrEditMessage(
-        chatId,
-        `
-${methodIcon} <b>PAIEMENT ${methodName.toUpperCase()} PRÊT</b>
-
-📦 <b>Plan :</b> ${plan.name} (${billingCycle === 'yearly' ? 'Annuel' : 'Mensuel'})
-💰 <b>Montant :</b> <code>${finalAmount.toLocaleString('fr-HT')} HTG</code>
-🆔 <b>Réf :</b> <code>${reference}</code>
-💳 <b>Mode :</b> ${methodName}
-
-Cliquez ci-dessous pour effectuer votre paiement sur <b>${methodName}</b>. Dès confirmation, votre plan sera mis à niveau instantanément et vous recevrez votre confirmation directement ici !
-        `.trim(),
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: `${methodIcon} Payer avec ${methodName} (${finalAmount.toLocaleString('fr-HT')} HTG)`, url: finalCheckoutUrl }],
-              [{ text: '🔄 Choisir un autre moyen', callback_data: `sub_cycle:${plan.slug}:${billingCycle}:upgrade` }],
-              [{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }],
-            ],
-          },
-        },
-        messageId
-      );
-    } catch (err: any) {
-      console.error('[TelegramBotService] generateSubscriptionPaymentLink error:', err);
-      await TelegramClient.sendMessage(chatId, "Erreur lors de la préparation du paiement.");
-    }
-  }
-
-  /**
    * Paramètres & statut
    */
+  private static async showUsagePricing(chatId: string | number) {
+    await this.updateSessionState(chatId, {});
+    return TelegramClient.sendMessage(chatId, TELEGRAM_RETIRED_SUBSCRIPTION_MESSAGE, {
+      reply_markup: { inline_keyboard: [
+        [{ text: 'Menu principal', callback_data: 'action:main_menu' }],
+      ] },
+    });
+  }
+
   private static async handleSettings(chatId: string | number, link: any, merchant: any, messageId?: number) {
     await this.sendOrEditMessage(
       chatId,
@@ -1910,7 +1378,7 @@ Cliquez ci-dessous pour effectuer votre paiement sur <b>${methodName}</b>. Dès 
       '<b>Questions fréquentes</b>',
       '',
       '<b>Quand les 675 Gdes sont-ils versés ?</b>',
-      "Après l'activation du plan Pro de votre invité et la réception de 10 000 HTG ou 50 USD de paiements. Votre entreprise doit aussi avoir reçu au moins 1 500 HTG.",
+      'Votre invité doit atteindre 10 000 HTG ou 50 USD de paiements confirmés. Votre entreprise doit aussi avoir encaissé au moins 1 500 HTG via ses propres liens ou clés API. Aucun abonnement Pro requis. Conditions : https://kobara.app/dashboard/referrals.',
       '',
       '<b>Quels paiements comptent pour vos 1 500 HTG ?</b>',
       'Vos paiements réussis reçus via vos propres liens ou clés API. Les transactions créées avec une clé Developer sont exclues.',

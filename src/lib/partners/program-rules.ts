@@ -43,11 +43,9 @@ export function calculateDeveloperCommission(
 }
 
 export function isMerchantReferralQualified(input: {
-  hasActiveProPlan: boolean;
   htgTotal: number;
   usdTotal: number;
 }): boolean {
-  if (!input.hasActiveProPlan) return false;
   return input.htgTotal >= MERCHANT_REFERRAL_THRESHOLDS.HTG
     || input.usdTotal >= MERCHANT_REFERRAL_THRESHOLDS.USD;
 }

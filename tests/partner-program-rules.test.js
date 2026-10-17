@@ -30,11 +30,12 @@ test('developer commission uses only the Kobara one-percent revenue', () => {
   assert.equal(calculateDeveloperCommission(10_000, 50), 50);
 });
 
-test('merchant referral needs Pro and one independent currency threshold', () => {
-  assert.equal(isMerchantReferralQualified({ hasActiveProPlan: false, htgTotal: 20_000, usdTotal: 100 }), false);
-  assert.equal(isMerchantReferralQualified({ hasActiveProPlan: true, htgTotal: 9_999, usdTotal: 49.99 }), false);
-  assert.equal(isMerchantReferralQualified({ hasActiveProPlan: true, htgTotal: 10_000, usdTotal: 0 }), true);
-  assert.equal(isMerchantReferralQualified({ hasActiveProPlan: true, htgTotal: 0, usdTotal: 50 }), true);
+test('merchant referral needs only one independent currency threshold, without a plan', () => {
+  assert.equal(isMerchantReferralQualified({ htgTotal: 20_000, usdTotal: 100 }), true);
+  assert.equal(isMerchantReferralQualified({ htgTotal: 9_999, usdTotal: 49.99 }), false);
+  assert.equal(isMerchantReferralQualified({ htgTotal: 10_000, usdTotal: 0 }), true);
+  assert.equal(isMerchantReferralQualified({ htgTotal: 0, usdTotal: 50 }), true);
+  assert.equal(isMerchantReferralQualified({ htgTotal: 0, usdTotal: 0 }), false);
 });
 
 test('merchant referral reward also requires 1500 HTG of referrer payment volume', () => {

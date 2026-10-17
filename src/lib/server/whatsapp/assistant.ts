@@ -8,7 +8,7 @@ import { containsPotentialSecret, isSupportRelated, redactSecrets } from './secu
 import { DOCS_ASSISTANT_URL, explicitlyRequestsHuman, parseSupportAnswer, requiresBusinessReview, supportIntent } from '@/lib/support-assistant-policy';
 
 type AssistantInput = {
-  channel?: 'whatsapp' | 'support';
+  channel?: 'whatsapp' | 'support' | 'telegram';
   question: string;
   history: Array<{ sender_type: string; body: string | null }>;
   memorySummary?: string | null;
@@ -56,14 +56,15 @@ export async function buildSafeMerchantDiagnostic(merchantId: string) {
 }
 
 export async function answerWhatsAppSupport(input: AssistantInput): Promise<AssistantResult> {
+  const supportChannel = input.channel === 'support' || input.channel === 'telegram';
   if (explicitlyRequestsHuman(input.question)) {
     return { answer: '', references: [], shouldOfferHuman: true, model: null };
   }
 
-  const references = input.channel === 'support'
+  const references = supportChannel
     ? await searchVerifiedKobaraKnowledge(input.question)
     : searchKobaraKnowledge(input.question, 5);
-  const hasSupportContext = input.channel === 'support' || isSupportRelated(input.question) || references.length > 0 || Boolean(input.accountContext) || Boolean(input.image);
+  const hasSupportContext = supportChannel || isSupportRelated(input.question) || references.length > 0 || Boolean(input.accountContext) || Boolean(input.image);
   if (!hasSupportContext) {
     return {
       answer: "Je peux vous aider uniquement avec Kobara, ses paiements, votre compte ou son intégration. Avez-vous une question liée au support Kobara ?",
@@ -92,11 +93,10 @@ export async function answerWhatsAppSupport(input: AssistantInput): Promise<Assi
     };
   }
 
-  const modelName = (input.channel === 'support' ? process.env.SUPPORT_AI_MODEL : undefined) || process.env.WHATSAPP_AI_MODEL || 'gemini-2.5-flash';
+  const modelName = (input.channel === 'telegram' ? process.env.TELEGRAM_AI_MODEL : undefined) || (supportChannel ? process.env.SUPPORT_AI_MODEL : undefined) || process.env.WHATSAPP_AI_MODEL || 'gemini-2.5-flash';
   const google = createGoogleGenerativeAI({ apiKey });
   const history = input.history.slice(-10).map((message) => `${message.sender_type}: ${redactSecrets(message.body || '')}`).join('\n');
-  const supportChannel = input.channel === 'support';
-  const system = `Tu es l'assistante automatisée de support Kobara sur ${supportChannel ? 'le centre de support' : 'WhatsApp'}. Ton ton est naturel, poli, calme et bienveillant. Ne prétends jamais être humaine ; si on te demande, indique honnêtement ton rôle automatisé, sans le répéter inutilement.
+  const system = `Tu es l'assistante automatisée de support Kobara sur ${input.channel === 'telegram' ? 'Telegram' : supportChannel ? 'le centre de support' : 'WhatsApp'}. Ton ton est naturel, poli, calme et bienveillant. Ne prétends jamais être humaine ; si on te demande, indique honnêtement ton rôle automatisé, sans le répéter inutilement.
 
 RÈGLES STRICTES:
 - Réponds dans la langue du dernier message: français, kreyòl ayisyen ou anglais. Adapte naturellement le ton et le vocabulaire.
@@ -109,6 +109,7 @@ RÈGLES STRICTES:
 - Pour une marketplace, distingue les paiements acheteurs, le ledger et les commissions de la plateforme, les retraits vendeurs, la vérification des bénéficiaires et la validation du modèle avant production. N'annonce pas de split natif ni d'escrow sans source explicite.
 - Une règle générale sur la vérification des vendeurs ne prouve PAS qu'un bénéficiaire est dispensé de compte Kobara ou de KYC. Ne réponds jamais par une exemption ou une autorisation d'encaisser pour tiers déduite d'un exemple technique. Ces points nécessitent une validation humaine. Validation commerciale requise pour cette demande: ${requiresBusinessReview(input.question)}; si true, marque SUPPORT_ESCALATION_REQUIRED: true et précise quels points restent à confirmer.
 - Pour un taux de frais, la page https://kobara.app/pricing fait référence. Si elle ne permet pas de confirmer le tarif, ou si les pages se contredisent, ne choisis aucun pourcentage: indique que les frais doivent être confirmés. Ne reprends pas un ancien exemple de taux comme un tarif actuel.
+- Les abonnements commerciaux Kobara (plans Pro et Business payants) ne sont plus proposés. Ne propose aucun achat ou renouvellement de ces plans. Distingue cette ancienne offre des abonnements que les propres clients du marchand pourraient lui payer; n'invente pas de fonctionnalité récurrente.
 - L'assistant « Kobara AI » existe dans la documentation (${DOCS_ASSISTANT_URL}) et aide à écrire et comprendre du code. Pour l'implémentation, oriente le client vers cet assistant en complément de ta réponse. Ce lien n'est pas un transfert automatique de la conversation; il ne remplace pas une validation humaine de conformité. Ne demande jamais de secrets pour l'utiliser.
 - Une page de succès navigateur n'est pas une preuve serveur; respecte la documentation des webhooks.
 - Ne demande jamais une clé API, un mot de passe, un OTP, un PIN ou un secret webhook.

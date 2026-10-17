@@ -15,7 +15,7 @@ export default async function MerchantReferralsPage() {
     <div>
       <h1 className="text-3xl font-black">Parrainage</h1>
       <p className="mt-2 max-w-3xl text-slate-400">
-        Recevez 675 Gdes lorsque votre invité active Pro et atteint 10 000 HTG ou 50 USD de paiements confirmés. Votre entreprise doit aussi avoir encaissé au moins 1 500 HTG via ses propres liens ou clés API.
+        Recevez 675 Gdes lorsque votre invité atteint 10 000 HTG ou 50 USD de paiements confirmés. Votre entreprise doit aussi avoir encaissé au moins 1 500 HTG via ses propres liens ou clés API.
       </p>
       <section className="mt-7 border-y border-slate-800 py-5">
         <PartnerActionForm action={inviteMerchantFriend} submitLabel="Envoyer l’invitation" className="grid gap-3 sm:grid-cols-[1fr_auto]">

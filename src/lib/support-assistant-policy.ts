@@ -48,13 +48,18 @@ export function composeSupportReply(question: string, reference: string, result:
   const handoff = result.shouldOfferHuman || !grounded;
   const parts = grounded ? [result.answer.trim()] : [];
   if (handoff) parts.push(technicalHandoffMessage(question, reference));
+  return { handoff, answer: appendCodingAssistantGuidance(question, parts.join('\n\n')) };
+}
+
+export function appendCodingAssistantGuidance(question: string, answer: string) {
+  const parts = [answer];
   if (needsCodingSupport(question) && !(/Kobara AI/i.test(parts.join('\n')) && parts.join('\n').includes(DOCS_ASSISTANT_URL))) {
     const language = supportLanguage(question);
     parts.push(language === 'ht' ? `Pou ede w ekri kòd, ouvri asistan "Kobara AI" nan dokiman yo : ${DOCS_ASSISTANT_URL}. Pa pataje kle sekrè w.`
       : language === 'en' ? `For coding help, open "Kobara AI" in the documentation: ${DOCS_ASSISTANT_URL}. Do not share secret keys.`
       : `Pour l’aide au code, ouvrez l’assistant « Kobara AI » dans la documentation : ${DOCS_ASSISTANT_URL}. Ne partagez pas vos clés secrètes.`);
   }
-  return { handoff, answer: parts.join('\n\n') };
+  return parts.filter(Boolean).join('\n\n');
 }
 
 export function isSensitiveSupportRequest(question: string): boolean {
