@@ -132,8 +132,9 @@ export async function GET(request: NextRequest) {
 
     return dashboardRedirect('/integrations/shopify?connected=1');
   } catch (error) {
-    const knownCodes = ['invalid_hmac', 'missing_oauth_parameters', 'shop_mismatch', 'oauth_session_not_found', 'state_replayed', 'kyc_required', 'missing_scopes'];
-    const code = error instanceof Error && knownCodes.includes(error.message) ? error.message : stage;
+    const knownCodes = ['invalid_hmac', 'missing_oauth_parameters', 'shop_mismatch', 'oauth_session_not_found', 'state_replayed', 'kyc_required', 'missing_scopes', 'oauth_token_missing'];
+    const code = error instanceof Error && (knownCodes.includes(error.message) || /^oauth_token_http_[1-5]\d{2}$/.test(error.message))
+      ? error.message : error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name) ? 'oauth_timeout' : stage;
     // Never log OAuth codes, state, access tokens, raw upstream errors or URLs.
     console.error('[Shopify] OAuth callback failed.', { stage, code });
     if (pendingId) {

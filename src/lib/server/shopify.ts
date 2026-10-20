@@ -245,9 +245,8 @@ export async function exchangeShopifyAuthorizationCode(shopDomain: string, code:
     signal: AbortSignal.timeout(10_000),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || typeof payload.access_token !== 'string') {
-    throw new Error(`Shopify a refusé l'échange OAuth (${response.status}).`);
-  }
+  if (!response.ok) throw new Error(`oauth_token_http_${response.status}`);
+  if (typeof payload.access_token !== 'string') throw new Error('oauth_token_missing');
   const scopes = String(payload.scope || '').split(',').map((scope) => scope.trim()).filter(Boolean);
   if (!hasRequiredShopifyScopes(scopes)) throw new Error('missing_scopes');
   return {

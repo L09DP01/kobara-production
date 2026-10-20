@@ -122,6 +122,8 @@ test('Shopify write_orders includes read_orders in both scope validation and tok
   assert.deepEqual((await api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code')).scopes, ['write_orders']);
   global.fetch = async () => Response.json({ access_token: 'fake-unit-test-access', scope: 'read_orders' });
   await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /missing_scopes/);
+  global.fetch = async () => Response.json({ error: 'sensitive-upstream-description' }, { status: 401 });
+  await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /^Error: oauth_token_http_401$/);
 });
 
 test('duplicate order webhooks reuse the stored link and do not email twice', async () => {
