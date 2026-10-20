@@ -6,10 +6,10 @@ import {
   getShopifyConfig,
   getShopifyShopIdentity,
   hashShopifyOAuthNonce,
+  hasRequiredShopifyScopes,
   normalizeShopDomain,
   parseShopifyNumericId,
   registerShopifyWebhooks,
-  SHOPIFY_SCOPES,
   verifyShopifyOAuthHmac,
   verifyShopifyOAuthState,
 } from '@/lib/server/shopify';
@@ -31,6 +31,8 @@ function escapeTelegramHtml(value: string) {
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
+  let stage = 'verify_signature';
+  let pendingId: string | null = null;
   try {
     if (!verifyShopifyOAuthHmac(params)) throw new Error('invalid_hmac');
     const code = params.get('code');
@@ -38,9 +40,11 @@ export async function GET(request: NextRequest) {
     const requestedShop = normalizeShopDomain(params.get('shop') || '');
     if (!code || !stateRaw) throw new Error('missing_oauth_parameters');
 
+    stage = 'verify_state';
     const state = await verifyShopifyOAuthState(stateRaw);
     if (state.shopDomain !== requestedShop) throw new Error('shop_mismatch');
 
+    stage = 'load_session';
     const supabase = createAdminClient();
     const { data: pending, error: pendingError } = await supabase
       .from('shopify_installations')
@@ -51,15 +55,20 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
     if (pendingError || !pending) throw new Error('oauth_session_not_found');
     if (pending.oauth_state_hash !== hashShopifyOAuthNonce(state.nonce)) throw new Error('state_replayed');
+    pendingId = pending.id;
 
     const { data: merchant } = await supabase.from('merchants').select('kyc_status')
       .eq('id', state.merchantId).maybeSingle();
     if (merchant?.kyc_status !== 'approved') throw new Error('kyc_required');
 
+    stage = 'exchange_token';
     const token = await exchangeShopifyAuthorizationCode(requestedShop, code);
-    if (!SHOPIFY_SCOPES.every(scope => token.scopes.includes(scope))) throw new Error('missing_scopes');
+    if (!hasRequiredShopifyScopes(token.scopes)) throw new Error('missing_scopes');
+    stage = 'read_shop';
     const shop = await getShopifyShopIdentity(requestedShop, token.accessToken);
+    stage = 'register_webhooks';
     const webhooks = await registerShopifyWebhooks(requestedShop, token.accessToken);
+    stage = 'save_installation';
     const now = new Date().toISOString();
     const { error: updateError } = await supabase.from('shopify_installations').update({
       shop_domain: normalizeShopDomain(shop.myshopifyDomain),
@@ -122,8 +131,17 @@ export async function GET(request: NextRequest) {
     }
 
     return dashboardRedirect('/integrations/shopify?connected=1');
-  } catch {
-    console.error('[Shopify] OAuth callback failed.');
+  } catch (error) {
+    const knownCodes = ['invalid_hmac', 'missing_oauth_parameters', 'shop_mismatch', 'oauth_session_not_found', 'state_replayed', 'kyc_required', 'missing_scopes'];
+    const code = error instanceof Error && knownCodes.includes(error.message) ? error.message : stage;
+    // Never log OAuth codes, state, access tokens, raw upstream errors or URLs.
+    console.error('[Shopify] OAuth callback failed.', { stage, code });
+    if (pendingId) {
+      try {
+        await createAdminClient().from('shopify_installations').update({ last_error: `oauth:${code}` })
+          .eq('id', pendingId).eq('status', 'pending');
+      } catch { /* Diagnostics must not break the safe redirect. */ }
+    }
     return dashboardRedirect('/integrations/shopify?error=callback_failed');
   }
 }

@@ -69,6 +69,24 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
         <p className="mt-3 text-xs leading-5 text-slate-400">L&apos;autorisation se fait sur Shopify. Ne partagez jamais votre mot de passe ou vos clés dans une conversation.</p>
       </form>}
     </section>
+    {connected && <section aria-labelledby="shopify-setup-title" className="border-b border-[#27364B] pb-6">
+      <details open className="group">
+        <summary id="shopify-setup-title" className="cursor-pointer text-lg font-semibold text-white focus-visible:outline-2 focus-visible:outline-orange-500">Finaliser la configuration dans Shopify</summary>
+        <p className="mt-2 text-sm leading-6 text-slate-300">La boutique est connectée. Activez maintenant le moyen de paiement pour vos clients.</p>
+        <ol className="mt-4 list-decimal space-y-4 pl-5 text-sm leading-6 text-slate-300 marker:font-bold marker:text-orange-400">
+          <li>Ouvrez <a href={`https://${installation.shop_domain}/admin/settings/payments`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-orange-300 underline underline-offset-4 hover:text-orange-200">Paramètres → Paiements <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" /><span className="sr-only"> dans un nouvel onglet Shopify</span></a>.</li>
+          <li>Dans <strong className="text-white">Moyens de paiement manuels</strong>, choisissez <strong className="text-white">Créer un moyen de paiement personnalisé</strong>. Saisissez exactement <code className="rounded bg-white/10 px-1.5 py-1 text-white">Kobara</code> comme nom, sans ajouter MonCash ou NatCash au nom.</li>
+          <li>Dans <strong className="text-white">Instructions de paiement</strong>, vous pouvez saisir :
+            <blockquote className="mt-2 border-l-2 border-orange-500 pl-3 text-slate-200">Après validation de votre commande, consultez votre e-mail pour recevoir votre lien de paiement sécurisé Kobara. Ce lien est valable 24 heures.</blockquote>
+            <p className="mt-2">Cliquez ensuite sur <strong className="text-white">Activer</strong>. Le client choisira son moyen disponible sur le checkout Kobara.</p>
+          </li>
+          <li>Vérifiez que la commande est en <strong className="text-white">HTG</strong> et que le client renseigne son <strong className="text-white">e-mail</strong>. La collecte nécessite un compte Kobara vérifié et une commande Live ; les commandes Test ne génèrent pas de lien.</li>
+          <li>Lors de votre première commande réelle, vérifiez l&apos;arrivée du lien puis la mise à jour automatique vers <strong className="text-white">Payée</strong> après confirmation du paiement. Ne marquez pas la commande payée avant cette confirmation.</li>
+        </ol>
+        <p className="mt-4 text-xs leading-5 text-slate-400">Aucune clé API à coller dans Shopify. Ce parcours envoie un lien par e-mail après la commande, sans redirection automatique depuis le checkout Shopify.</p>
+        <a href="https://help.shopify.com/fr/manual/payments/manual-payments" target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm text-slate-300 underline underline-offset-4 hover:text-white">Guide officiel Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /><span className="sr-only"> (nouvel onglet)</span></a>
+      </details>
+    </section>}
     <section className="border-b border-[#27364B] pb-6"><h2 className="text-lg font-semibold text-white">Paiement manuel Kobara</h2>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Dans les paramètres de paiement Shopify, ajoutez une méthode manuelle nommée « Kobara ». Les commandes Live impayées en HTG ayant choisi cette méthode recevront un lien sécurisé, valable 24 heures, si l&apos;e-mail du client est renseigné. La commande est marquée payée après confirmation réelle.</p>
       <p className="mt-3 text-sm leading-6 text-slate-400">Les commandes Test et les commandes en devises autres que HTG ne déclenchent pas de collecte. Ce connecteur n&apos;est pas une passerelle native dans le checkout Shopify.</p>

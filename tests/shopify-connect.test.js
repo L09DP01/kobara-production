@@ -111,6 +111,19 @@ test('a working connection is not destroyed when a new OAuth connection is reque
   assert.equal(db.tables.shopify_installations[0].access_token_ciphertext, 'retained');
 });
 
+test('Shopify write_orders includes read_orders in both scope validation and token exchange', async t => {
+  const { api } = service(database());
+  assert.equal(api.hasRequiredShopifyScopes(['write_orders']), true);
+  assert.equal(api.hasRequiredShopifyScopes(['read_orders']), false);
+  assert.equal(api.hasRequiredShopifyScopes(['write_products']), false);
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async () => Response.json({ access_token: 'fake-unit-test-access', scope: 'write_orders' });
+  assert.deepEqual((await api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code')).scopes, ['write_orders']);
+  global.fetch = async () => Response.json({ access_token: 'fake-unit-test-access', scope: 'read_orders' });
+  await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /missing_scopes/);
+});
+
 test('duplicate order webhooks reuse the stored link and do not email twice', async () => {
   const db = database();
   const { api, emails } = service(db);
@@ -305,7 +318,7 @@ test('OAuth callback requires a verified merchant, validates scopes and consumes
   const route = load('src/app/api/integrations/shopify/callback/route.ts', {
     'next/server': { NextResponse: nextResponse }, '@/utils/supabase/admin': { createAdminClient: () => db },
     '@/lib/server/shopify': { ...api,
-      exchangeShopifyAuthorizationCode: async () => { exchanged++; return { accessToken: 'fake-unit-test-access', scopes: ['read_orders', 'write_orders'] }; },
+      exchangeShopifyAuthorizationCode: async () => { exchanged++; return { accessToken: 'fake-unit-test-access', scopes: ['write_orders'] }; },
       getShopifyShopIdentity: async () => ({ id: 'gid://shopify/Shop/1', name: 'Unit test', email: null, myshopifyDomain: installation.shop_domain }),
       registerShopifyWebhooks: async () => [],
     },
@@ -324,6 +337,22 @@ test('OAuth callback requires a verified merchant, validates scopes and consumes
   assert.equal(exchanged, 1);
 });
 
+test('Shopify callback defaults never inherit the unrelated NEXTAUTH_URL', () => {
+  const original = process.env.SHOPIFY_APP_URL;
+  const authUrl = process.env.NEXTAUTH_URL;
+  try {
+    delete process.env.SHOPIFY_APP_URL;
+    process.env.NEXTAUTH_URL = 'http://kobara.app';
+    const { api } = service(database());
+    assert.equal(api.getShopifyConfig().redirectUrl, 'https://dashboard.kobara.app/api/integrations/shopify/callback');
+  } finally {
+    if (original === undefined) delete process.env.SHOPIFY_APP_URL;
+    else process.env.SHOPIFY_APP_URL = original;
+    if (authUrl === undefined) delete process.env.NEXTAUTH_URL;
+    else process.env.NEXTAUTH_URL = authUrl;
+  }
+});
+
 test('merchant Shopify screen renders connected, disconnected and KYC-blocked states without subscriptions', async () => {
   for (const connected of [false, true]) {
     const db = database({ shopify_installations: connected ? [{ ...installation, shop_name: 'Unit test shop', granted_scopes: ['read_orders', 'write_orders'] }] : [] });
@@ -336,8 +365,17 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
     const html = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));
     assert.match(html, /Dernières commandes/);
     assert.doesNotMatch(html, /Pro offert|Premium|abonnement/i);
-    if (connected) assert.match(html, /Déconnecter/);
+    if (connected) {
+      assert.match(html, /Déconnecter/);
+      assert.match(html, /<details\b[^>]*\bopen=""/);
+      assert.match(html, /Finaliser la configuration dans Shopify/);
+      assert.match(html, /\/admin\/settings\/payments/);
+      assert.match(html, /saisissez exactement|Saisissez exactement/);
+      assert.match(html, /sans redirection automatique/);
+      assert.match(html, /help.shopify.com\/fr\/manual\/payments\/manual-payments/);
+    }
     else {
+      assert.doesNotMatch(html, /Finaliser la configuration dans Shopify/);
       assert.match(html, /name="shop"/);
       db.tables.merchants[0].kyc_status = 'pending';
       const blocked = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));

@@ -16,6 +16,11 @@ import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, s
 
 export const SHOPIFY_SCOPES = ['read_orders', 'write_orders'] as const;
 
+export function hasRequiredShopifyScopes(granted: string[]): boolean {
+  return SHOPIFY_SCOPES.every(scope => granted.includes(scope)
+    || (scope.startsWith('read_') && granted.includes(`write_${scope.slice(5)}`)));
+}
+
 type ShopifyConfig = {
   clientId: string;
   clientSecret: string;
@@ -66,7 +71,7 @@ function requiredEnv(name: string): string {
 }
 
 export function getShopifyConfig(): ShopifyConfig {
-  const appUrl = (process.env.SHOPIFY_APP_URL || process.env.NEXTAUTH_URL || 'https://dashboard.kobara.app')
+  const appUrl = (process.env.SHOPIFY_APP_URL || 'https://dashboard.kobara.app')
     .trim()
     .replace(/\/$/, '');
   const apiVersion = process.env.SHOPIFY_API_VERSION?.trim() || '2026-07';
@@ -244,7 +249,7 @@ export async function exchangeShopifyAuthorizationCode(shopDomain: string, code:
     throw new Error(`Shopify a refusé l'échange OAuth (${response.status}).`);
   }
   const scopes = String(payload.scope || '').split(',').map((scope) => scope.trim()).filter(Boolean);
-  if (!SHOPIFY_SCOPES.every(scope => scopes.includes(scope))) throw new Error('missing_scopes');
+  if (!hasRequiredShopifyScopes(scopes)) throw new Error('missing_scopes');
   return {
     accessToken: payload.access_token as string,
     scopes,
