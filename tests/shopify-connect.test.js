@@ -126,6 +126,15 @@ test('Shopify write_orders includes read_orders in both scope validation and tok
   await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /^Error: oauth_token_http_401$/);
 });
 
+test('OAuth diagnostic preserves runtime errors but redacts secrets, callback values and URLs', () => {
+  const { api } = service(database());
+  const sensitiveCode = 'single-use-unit-code';
+  const detail = api.safeShopifyOAuthFailure(new TypeError(`fetch failed ${process.env.SHOPIFY_CLIENT_SECRET} ${sensitiveCode} https://example.com/token?code=private`), [sensitiveCode]);
+  assert.match(detail, /TypeError: fetch failed/);
+  assert.doesNotMatch(detail, /shopify-test-placeholder|single-use-unit-code|example.com|code=private/);
+  assert.ok(detail.length <= 200);
+});
+
 test('duplicate order webhooks reuse the stored link and do not email twice', async () => {
   const db = database();
   const { api, emails } = service(db);
@@ -255,6 +264,33 @@ function webhookRequest(id, payload = sample, topic = 'orders/create', signed = 
       'x-shopify-hmac-sha256': signed ? createHmac('sha256', process.env.SHOPIFY_CLIENT_SECRET).update(raw).digest('base64') : 'invalid' },
   });
 }
+
+test('all compliance topics reject invalid HMAC before accessing the database', async () => {
+  const { api } = service(database());
+  const route = load('src/app/api/integrations/shopify/webhooks/route.ts', {
+    'next/server': { NextResponse: nextResponse },
+    '@/utils/supabase/admin': { createAdminClient: () => { throw new Error('Database must not be accessed'); } },
+    '@/lib/server/shopify': api,
+  });
+  for (const topic of ['customers/data_request', 'customers/redact', 'shop/redact']) {
+    const request = webhookRequest(`invalid-${topic}`, {}, topic, false);
+    assert.equal((await route.POST(request)).status, 401);
+    const missing = webhookRequest(`missing-${topic}`, {}, topic);
+    missing.headers.delete('x-shopify-hmac-sha256');
+    assert.equal((await route.POST(missing)).status, 401);
+    const changed = webhookRequest(`changed-${topic}`, { changed: true }, topic);
+    changed.headers.set('x-shopify-hmac-sha256', createHmac('sha256', process.env.SHOPIFY_CLIENT_SECRET).update('{}').digest('base64'));
+    assert.equal((await route.POST(changed)).status, 401);
+  }
+});
+
+test('Shopify app configuration declares all mandatory privacy topics without changing access scopes', () => {
+  const config = read('shopify.app.toml');
+  assert.match(config, /scopes = "read_orders,write_orders"/);
+  assert.match(config, /compliance_topics = \["customers\/data_request", "customers\/redact", "shop\/redact"\]/);
+  assert.match(config, /uri = "https:\/\/dashboard.kobara.app\/api\/integrations\/shopify\/webhooks"/);
+  assert.doesNotMatch(config, /client_secret|encryption_key|access_token/i);
+});
 
 test('the real webhook route authenticates, deduplicates and retries a failed delivery', async () => {
   const db = database({ shopify_installations: [installation] });

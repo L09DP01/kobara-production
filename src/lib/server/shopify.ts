@@ -21,6 +21,21 @@ export function hasRequiredShopifyScopes(granted: string[]): boolean {
     || (scope.startsWith('read_') && granted.includes(`write_${scope.slice(5)}`)));
 }
 
+export function safeShopifyOAuthFailure(error: unknown, sensitiveValues: string[] = []): string {
+  if (!(error instanceof Error)) return 'Unknown error';
+  let message = `${error.name}: ${error.message}`;
+  const secrets = Object.entries(process.env)
+    .filter(([key, value]) => /SECRET|TOKEN|PASSWORD|PRIVATE_KEY|SERVICE_ROLE|API_KEY/.test(key) && value && value.length > 3)
+    .map(([, value]) => value as string);
+  for (const secret of [...secrets, ...sensitiveValues].filter(Boolean).sort((a, b) => b.length - a.length)) {
+    message = message.split(secret).join('[redacted]');
+  }
+  return message.replace(/https?:\/\/[^\s"'<>]+/gi, '[url]')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]')
+    .replace(/[A-Za-z0-9_+/=-]{24,}/g, '[redacted]')
+    .replace(/[\r\n\t]/g, ' ').slice(0, 200);
+}
+
 type ShopifyConfig = {
   clientId: string;
   clientSecret: string;

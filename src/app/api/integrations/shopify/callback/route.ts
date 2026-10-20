@@ -10,6 +10,7 @@ import {
   normalizeShopDomain,
   parseShopifyNumericId,
   registerShopifyWebhooks,
+  safeShopifyOAuthFailure,
   verifyShopifyOAuthHmac,
   verifyShopifyOAuthState,
 } from '@/lib/server/shopify';
@@ -136,7 +137,10 @@ export async function GET(request: NextRequest) {
     const code = error instanceof Error && (knownCodes.includes(error.message) || /^oauth_token_http_[1-5]\d{2}$/.test(error.message))
       ? error.message : error instanceof Error && ['AbortError', 'TimeoutError'].includes(error.name) ? 'oauth_timeout' : stage;
     // Never log OAuth codes, state, access tokens, raw upstream errors or URLs.
-    console.error('[Shopify] OAuth callback failed.', { stage, code });
+    console.error('[Shopify] OAuth callback failed.', {
+      stage, code,
+      ...(stage === 'exchange_token' ? { detail: safeShopifyOAuthFailure(error, [...params.values()]) } : {}),
+    });
     if (pendingId) {
       try {
         await createAdminClient().from('shopify_installations').update({ last_error: `oauth:${code}` })

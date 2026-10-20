@@ -52,6 +52,24 @@ Dans Shopify Admin, ouvrir **Settings > Payments > Manual payment methods**, cr�
 - Les erreurs de confirmation sont inscrites dans l'audit Core (`shopify.order_confirmation_failed`). Une intervention peut être nécessaire si la commande change après émission du lien.
 - Les webhooks de conformité doivent être configurés dans Shopify. Les demandes d'accès aux données doivent être traitées par l'équipe ; ce connecteur ne prétend pas générer un export RGPD automatique.
 
+### Déclaration des webhooks de conformité
+
+Les abonnements créés à l'installation pour les commandes ne remplacent pas la déclaration des webhooks de confidentialité au niveau de l'application. Récupérer d'abord la configuration active avec le CLI Shopify officiel, sans écraser une configuration locale existante :
+
+```powershell
+shopify app config link --client-id 5efa53e98042062a106f28d8df18b059
+```
+
+Ajouter ensuite à la configuration TOML récupérée, en conservant les autres paramètres et abonnements :
+
+```toml
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request", "customers/redact", "shop/redact"]
+uri = "https://dashboard.kobara.app/api/integrations/shopify/webhooks"
+```
+
+Créer et vérifier une version de configuration Shopify avant de la publier. Cela ne déploie pas le serveur Kobara et ne soumet pas l'application à la review. Relancer ensuite les contrôles dans Shopify Partners : une réponse HTTP 401 à une signature invalide ne prouve pas, à elle seule, que les trois abonnements sont déclarés.
+
 ## Vérifications après migration
 
 ```sql
@@ -69,4 +87,4 @@ ORDER BY table_name, grantee;
 
 Les trois tables doivent avoir RLS activé et aucun accès `anon`/`authenticated`. Ne pas supprimer les tables pour réexécuter la migration si elles existent déjà.
 
-Test réel final : connecter une boutique de développement autorisée, refuser puis accepter OAuth, créer une commande manuelle Kobara, rejouer le même webhook, vérifier le paiement Live contrôlé, puis déconnecter et désinstaller. Ne pas utiliser une commande de production pour un paiement simulé.
+Tests sur boutique de développement : vérifier OAuth, les signatures des webhooks, les doublons, la déconnexion et la désinstallation. Les boutiques de développement ne doivent pas traiter de transactions réelles. Le connecteur actuel ignore les commandes Shopify Test ; le parcours complet Shopify vers Kobara Test reste à implémenter avant de pouvoir valider une simulation de paiement de bout en bout. Ne jamais désactiver l'isolation Test/Live pour contourner cette limite.
