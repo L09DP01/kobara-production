@@ -122,6 +122,20 @@ export async function onPaymentSucceeded(paymentId: string) {
   const settledAmounts = getSettlementAmounts(settledPayment);
   const paymentMethodLabel = getPaymentMethodLabel(settledPayment);
 
+  if (settledPayment.environment === 'live' && settledPayment.payment_link_id) {
+    try {
+      const { reconcileShopifyPayment } = await import('@/lib/server/shopify');
+      await reconcileShopifyPayment(settledPayment.id, settledPayment.payment_link_id);
+    } catch {
+      console.error('[Shopify] Order payment reconciliation failed.', { paymentId });
+      await supabase.from('audit_logs').insert({
+        merchant_id: merchantId, action: 'shopify.order_confirmation_failed',
+        entity_type: 'payment', entity_id: paymentId,
+        metadata: { payment_link_id: settledPayment.payment_link_id },
+      });
+    }
+  }
+
   try {
     const { processPartnerPaymentSuccess } = await import('@/lib/server/partners/program');
     await processPartnerPaymentSuccess(settledPayment);

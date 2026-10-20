@@ -1,0 +1,586 @@
+import 'server-only';
+
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'crypto';
+import { SignJWT, jwtVerify } from 'jose';
+import { createAdminClient } from '@/utils/supabase/admin';
+import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
+import { PayPalService } from '@/lib/server/payments/paypal';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId } from '@/lib/shopify-policy';
+
+export const SHOPIFY_SCOPES = ['read_orders', 'write_orders'] as const;
+
+type ShopifyConfig = {
+  clientId: string;
+  clientSecret: string;
+  apiVersion: string;
+  appUrl: string;
+  redirectUrl: string;
+};
+
+type ShopifyInstallation = {
+  id: string;
+  merchant_id: string;
+  shop_domain: string;
+  status: string;
+  access_token_ciphertext: string | null;
+};
+
+type ShopifyOrderPayload = {
+  id?: string | number;
+  admin_graphql_api_id?: string;
+  order_status_url?: string;
+  name?: string;
+  order_number?: string | number;
+  currency?: string;
+  presentment_currency?: string;
+  total_price?: string | number;
+  current_total_price?: string | number;
+  financial_status?: string;
+  payment_gateway_names?: string[];
+  cancelled_at?: string | null;
+  test?: boolean;
+  fulfillment_status?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  customer?: {
+    id?: string | number;
+    email?: string | null;
+    phone?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  } | null;
+  [key: string]: unknown;
+};
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} est manquant.`);
+  return value;
+}
+
+export function getShopifyConfig(): ShopifyConfig {
+  const appUrl = (process.env.SHOPIFY_APP_URL || process.env.NEXTAUTH_URL || 'https://dashboard.kobara.app')
+    .trim()
+    .replace(/\/$/, '');
+  const apiVersion = process.env.SHOPIFY_API_VERSION?.trim() || '2026-07';
+  return {
+    clientId: requiredEnv('SHOPIFY_CLIENT_ID'),
+    clientSecret: requiredEnv('SHOPIFY_CLIENT_SECRET'),
+    apiVersion,
+    appUrl,
+    redirectUrl: `${appUrl}/api/integrations/shopify/callback`,
+  };
+}
+
+export function normalizeShopDomain(input: string): string {
+  let value = input.trim().toLowerCase();
+  value = value.replace(/^https?:\/\//, '').split('/')[0].replace(/\.$/, '');
+  if (!value.includes('.')) value = `${value}.myshopify.com`;
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(value)) {
+    throw new Error('Utilisez le domaine permanent de la boutique, par exemple ma-boutique.myshopify.com.');
+  }
+  return value;
+}
+
+function stateSecret(): Uint8Array {
+  return new TextEncoder().encode(requiredEnv('SHOPIFY_CLIENT_SECRET'));
+}
+
+export async function createShopifyOAuthState(input: {
+  merchantId: string;
+  shopDomain: string;
+  nonce: string;
+  source?: 'dashboard' | 'telegram';
+  telegramChatId?: string;
+}): Promise<string> {
+  return new SignJWT({
+    shop: input.shopDomain,
+    nonce: input.nonce,
+    source: input.source || 'dashboard',
+    telegram_chat_id: input.telegramChatId,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(input.merchantId)
+    .setAudience('kobara-shopify-oauth')
+    .setIssuedAt()
+    .setExpirationTime('10m')
+    .sign(stateSecret());
+}
+
+export async function verifyShopifyOAuthState(state: string) {
+  const { payload } = await jwtVerify(state, stateSecret(), {
+    audience: 'kobara-shopify-oauth',
+  });
+  if (!payload.sub || typeof payload.shop !== 'string' || typeof payload.nonce !== 'string') {
+    throw new Error('État OAuth Shopify invalide.');
+  }
+  return {
+    merchantId: payload.sub,
+    shopDomain: payload.shop,
+    nonce: payload.nonce,
+    source: payload.source === 'telegram' ? 'telegram' as const : 'dashboard' as const,
+    telegramChatId: typeof payload.telegram_chat_id === 'string' ? payload.telegram_chat_id : null,
+  };
+}
+
+export function hashShopifyOAuthNonce(nonce: string): string {
+  return createHash('sha256').update(nonce).digest('hex');
+}
+
+export function verifyShopifyOAuthHmac(searchParams: URLSearchParams): boolean {
+  const received = searchParams.get('hmac');
+  if (!received || !/^[a-f0-9]{64}$/i.test(received)) return false;
+  const message = [...searchParams.entries()]
+    .filter(([key]) => key !== 'hmac' && key !== 'signature')
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('&');
+  const expected = createHmac('sha256', getShopifyConfig().clientSecret).update(message).digest('hex');
+  return timingSafeEqual(Buffer.from(received, 'hex'), Buffer.from(expected, 'hex'));
+}
+
+export function verifyShopifyWebhookHmac(rawBody: string, receivedHmac: string | null): boolean {
+  if (!receivedHmac) return false;
+  const expected = createHmac('sha256', getShopifyConfig().clientSecret)
+    .update(rawBody, 'utf8')
+    .digest('base64');
+  const received = Buffer.from(receivedHmac, 'base64');
+  const expectedBuffer = Buffer.from(expected, 'base64');
+  return received.length === expectedBuffer.length && timingSafeEqual(received, expectedBuffer);
+}
+
+function tokenEncryptionKey(): Buffer {
+  return createHash('sha256').update(requiredEnv('SHOPIFY_TOKEN_ENCRYPTION_KEY')).digest();
+}
+
+export function encryptShopifyAccessToken(accessToken: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', tokenEncryptionKey(), iv);
+  const ciphertext = Buffer.concat([cipher.update(accessToken, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [iv, tag, ciphertext].map((part) => part.toString('base64url')).join('.');
+}
+
+export function decryptShopifyAccessToken(payload: string): string {
+  const [ivRaw, tagRaw, ciphertextRaw] = payload.split('.');
+  if (!ivRaw || !tagRaw || !ciphertextRaw) throw new Error('Jeton Shopify chiffré invalide.');
+  const decipher = createDecipheriv('aes-256-gcm', tokenEncryptionKey(), Buffer.from(ivRaw, 'base64url'));
+  decipher.setAuthTag(Buffer.from(tagRaw, 'base64url'));
+  return Buffer.concat([
+    decipher.update(Buffer.from(ciphertextRaw, 'base64url')),
+    decipher.final(),
+  ]).toString('utf8');
+}
+
+export function buildShopifyAuthorizationUrl(shopDomain: string, state: string): string {
+  const config = getShopifyConfig();
+  const url = new URL(`https://${shopDomain}/admin/oauth/authorize`);
+  url.searchParams.set('client_id', config.clientId);
+  url.searchParams.set('scope', SHOPIFY_SCOPES.join(','));
+  url.searchParams.set('redirect_uri', config.redirectUrl);
+  url.searchParams.set('state', state);
+  return url.toString();
+}
+
+export async function prepareShopifyOAuthConnection(input: {
+  merchantId: string;
+  shopDomain: string;
+  source?: 'dashboard' | 'telegram';
+  telegramChatId?: string;
+}): Promise<string> {
+  getShopifyConfig();
+  tokenEncryptionKey();
+  const shopDomain = normalizeShopDomain(input.shopDomain);
+  const nonce = randomBytes(24).toString('base64url');
+  const state = await createShopifyOAuthState({
+    merchantId: input.merchantId,
+    shopDomain,
+    nonce,
+    source: input.source,
+    telegramChatId: input.telegramChatId,
+  });
+  const now = new Date().toISOString();
+  const supabase = createAdminClient();
+  // Keep a working installation until the owner explicitly disconnects it.
+  const { data: existing, error: lookupError } = await supabase.from('shopify_installations')
+    .select('id, status').eq('merchant_id', input.merchantId).maybeSingle();
+  if (lookupError) throw new Error('Vérification de la connexion Shopify impossible.');
+  if (existing?.status === 'active') throw new Error('already_connected');
+  const { error } = await supabase.from('shopify_installations').upsert({
+    merchant_id: input.merchantId,
+    shop_domain: shopDomain,
+    status: 'pending',
+    oauth_state_hash: hashShopifyOAuthNonce(nonce),
+    access_token_ciphertext: null,
+    disconnected_at: null,
+    uninstalled_at: null,
+    last_error: null,
+    updated_at: now,
+  }, { onConflict: 'merchant_id' });
+  if (error) throw new Error(error.message);
+
+  return buildShopifyAuthorizationUrl(shopDomain, state);
+}
+
+export async function exchangeShopifyAuthorizationCode(shopDomain: string, code: string) {
+  const config = getShopifyConfig();
+  const response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret, code }),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10_000),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || typeof payload.access_token !== 'string') {
+    throw new Error(`Shopify a refusé l'échange OAuth (${response.status}).`);
+  }
+  const scopes = String(payload.scope || '').split(',').map((scope) => scope.trim()).filter(Boolean);
+  if (!SHOPIFY_SCOPES.every(scope => scopes.includes(scope))) throw new Error('missing_scopes');
+  return {
+    accessToken: payload.access_token as string,
+    scopes,
+  };
+}
+
+export async function shopifyGraphql<T>(input: {
+  shopDomain: string;
+  accessToken: string;
+  query: string;
+  variables?: Record<string, unknown>;
+}): Promise<T> {
+  const { apiVersion } = getShopifyConfig();
+  const response = await fetch(`https://${input.shopDomain}/admin/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Access-Token': input.accessToken,
+    },
+    body: JSON.stringify({ query: input.query, variables: input.variables || {} }),
+    cache: 'no-store',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10_000),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.errors) {
+    throw new Error(`Erreur API Shopify (${response.status}).`);
+  }
+  return payload.data as T;
+}
+
+export async function getShopifyShopIdentity(shopDomain: string, accessToken: string) {
+  const data = await shopifyGraphql<{
+    shop: { id: string; name: string; email: string | null; myshopifyDomain: string };
+  }>({
+    shopDomain,
+    accessToken,
+    query: `query KobaraShopIdentity { shop { id name email myshopifyDomain } }`,
+  });
+  return data.shop;
+}
+
+export async function registerShopifyWebhooks(shopDomain: string, accessToken: string) {
+  const callbackUrl = `${getShopifyConfig().appUrl}/api/integrations/shopify/webhooks`;
+  const topics = ['APP_UNINSTALLED', 'ORDERS_CREATE', 'ORDERS_UPDATED'] as const;
+  const query = `
+    mutation KobaraWebhookCreate($topic: WebhookSubscriptionTopic!, $subscription: WebhookSubscriptionInput!) {
+      webhookSubscriptionCreate(topic: $topic, webhookSubscription: $subscription) {
+        webhookSubscription { id topic uri }
+        userErrors { field message }
+      }
+    }
+  `;
+  const results = [];
+  for (const topic of topics) {
+    const data = await shopifyGraphql<{
+      webhookSubscriptionCreate: {
+        webhookSubscription: { id: string; topic: string; uri: string } | null;
+        userErrors: Array<{ message: string }>;
+      };
+    }>({
+      shopDomain,
+      accessToken,
+      query,
+      variables: { topic, subscription: { uri: callbackUrl } },
+    });
+    const result = data.webhookSubscriptionCreate;
+    if (result.userErrors.length > 0) {
+      const duplicateOnly = result.userErrors.every((error) => /already|taken|exists/i.test(error.message));
+      if (!duplicateOnly) throw new Error(result.userErrors.map((error) => error.message).join(', '));
+    }
+    if (result.webhookSubscription) results.push(result.webhookSubscription);
+  }
+  return results;
+}
+
+export async function getActiveShopifyInstallation(shopDomain: string): Promise<ShopifyInstallation | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('shopify_installations')
+    .select('id, merchant_id, shop_domain, status, access_token_ciphertext')
+    .eq('shop_domain', normalizeShopDomain(shopDomain))
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error) throw new Error(`Installation Shopify introuvable: ${error.message}`);
+  return data as ShopifyInstallation | null;
+}
+
+export async function getMerchantShopifySummary(merchantId: string) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('shopify_installations')
+    .select('shop_domain, shop_name, status, installed_at')
+    .eq('merchant_id', merchantId)
+    .maybeSingle();
+  if (error) {
+    console.error('[Shopify] Integration summary unavailable:', error.message);
+    return { connected: false, shopDomain: null, shopName: null };
+  }
+  return {
+    connected: data?.status === 'active',
+    shopDomain: data?.shop_domain || null,
+    shopName: data?.shop_name || null,
+  };
+}
+
+export function parseShopifyNumericId(gid: string): number | null {
+  const value = Number(gid.split('/').pop());
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+export async function upsertShopifyOrder(input: {
+  installation: Pick<ShopifyInstallation, 'id' | 'merchant_id'>;
+  payload: ShopifyOrderPayload;
+}) {
+  const supabase = createAdminClient();
+  const orderId = shopifyOrderId(input.payload);
+  const currency = String(input.payload.currency || input.payload.presentment_currency || '').toUpperCase();
+  const total = shopifyOrderAmount(input.payload);
+  const customer = input.payload.customer || {};
+  const baseOrder = {
+    installation_id: input.installation.id,
+    merchant_id: input.installation.merchant_id,
+    shopify_order_id: orderId,
+    order_name: input.payload.name || input.payload.order_number?.toString() || null,
+    currency,
+    total_amount: Number.isFinite(total) ? total : 0,
+    financial_status: input.payload.financial_status || null,
+    fulfillment_status: input.payload.fulfillment_status || null,
+    customer: {
+      id: customer.id || null,
+      email: input.payload.email || customer.email || null,
+      phone: input.payload.phone || customer.phone || null,
+      first_name: customer.first_name || null,
+      last_name: customer.last_name || null,
+    },
+    raw_order: input.payload,
+    updated_at: new Date().toISOString(),
+  };
+  const { data: order, error } = await supabase.from('shopify_orders')
+    .upsert(baseOrder, { onConflict: 'installation_id,shopify_order_id' })
+    .select('id, payment_link_id, kobara_status').single();
+  if (error) throw new Error(`Synchronisation commande Shopify impossible: ${error.message}`);
+  return order;
+}
+
+export async function ensureShopifyOrderPaymentLink(input: {
+  installation: Pick<ShopifyInstallation, 'id' | 'merchant_id' | 'shop_domain'>;
+  payload: ShopifyOrderPayload;
+}) {
+  const syncedOrder = await upsertShopifyOrder(input);
+  const total = shopifyOrderAmount(input.payload);
+  if (syncedOrder.payment_link_id) {
+    const db = createAdminClient();
+    const { data: link } = await db.from('payment_links').select('amount')
+      .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id).maybeSingle();
+    if (!canCollectShopifyOrder(input.payload) || !link || Number(link.amount) !== total) {
+      const { error } = await db.from('payment_links').update({ status: 'inactive' })
+        .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id);
+      if (error) throw new Error('Désactivation du lien Shopify impossible.');
+    }
+    return syncedOrder;
+  }
+  if (!canCollectShopifyOrder(input.payload)) return syncedOrder;
+
+  const supabase = createAdminClient();
+  const orderId = shopifyOrderId(input.payload);
+  const shopifyOrderGid = `gid://shopify/Order/${orderId}`;
+  const orderName = input.payload.name || input.payload.order_number?.toString() || orderId;
+  const slug = `shp${randomBytes(10).toString('hex')}`;
+  const { data: merchant } = await supabase
+    .from('merchants')
+    .select('current_environment, kyc_status')
+    .eq('id', input.installation.merchant_id)
+    .single();
+  if (merchant?.current_environment !== 'live' || merchant.kyc_status !== 'approved') return syncedOrder;
+  let { data: paymentLink, error: linkError } = await supabase.from('payment_links').insert({
+    merchant_id: input.installation.merchant_id,
+    environment: 'live',
+    title: `Commande Shopify ${orderName}`,
+    description: `Paiement sécurisé de la commande ${orderName}`,
+    amount: total,
+    currency: 'HTG',
+    slug,
+    status: 'active',
+    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    metadata: {
+      source: 'shopify',
+      shopify_installation_id: input.installation.id,
+      shopify_order_id: orderId,
+      shopify_order_gid: shopifyOrderGid,
+      shopify_shop_domain: input.installation.shop_domain,
+      product_name: `Commande ${orderName}`,
+      collect_phone: true,
+      pass_fees_to_customer: false,
+    },
+  }).select('id, slug').single();
+  const created = !linkError && Boolean(paymentLink);
+  if (linkError?.code === '23505') {
+    const duplicate = await supabase
+      .from('payment_links')
+      .select('id, slug')
+      .eq('metadata->>shopify_installation_id', input.installation.id)
+      .eq('metadata->>shopify_order_id', orderId)
+      .eq('merchant_id', input.installation.merchant_id)
+      .maybeSingle();
+    paymentLink = duplicate.data;
+    linkError = duplicate.error;
+  }
+  if (linkError || !paymentLink) throw new Error(`Création du lien Shopify impossible: ${linkError?.message || 'unknown'}`);
+
+  const checkoutUrl = `https://pay.kobara.app/${paymentLink.slug}`;
+  const { error: orderUpdateError } = await supabase.from('shopify_orders').update({
+    payment_link_id: paymentLink.id,
+    checkout_url: checkoutUrl,
+    kobara_status: 'payment_link_ready',
+    processed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('id', syncedOrder.id).is('payment_link_id', null);
+  if (orderUpdateError) throw new Error(`Association du lien Shopify impossible: ${orderUpdateError.message}`);
+
+  const customerEmail = input.payload.email || input.payload.customer?.email;
+  if (customerEmail && created) {
+    const { sendEmail } = await import('@/lib/server/mail');
+    await sendEmail({
+      to: customerEmail,
+      subject: `Finalisez le paiement de votre commande ${orderName}`,
+      text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée. Finalisez son paiement sécurisé ici :\n${checkoutUrl}\n\nCe lien expire dans 24 heures.`,
+      idempotencyKey: `shopify-order-link-${paymentLink.id}`,
+    });
+  }
+  return { ...syncedOrder, payment_link_id: paymentLink.id, checkout_url: checkoutUrl };
+}
+
+export async function markShopifyOrderPaid(input: {
+  installationId: string;
+  orderGid: string;
+  paymentId: string;
+}) {
+  const supabase = createAdminClient();
+  const { data: payment } = await supabase.from('payments')
+    .select('id, merchant_id, payment_link_id, environment, status, amount, currency')
+    .eq('id', input.paymentId).maybeSingle();
+  if (!payment || payment.environment !== 'live' || payment.status !== 'succeeded' || !payment.payment_link_id) return;
+  const { data: order } = await supabase.from('shopify_orders')
+    .select('id, merchant_id, payment_link_id, payment_id, currency, total_amount, kobara_status')
+    .eq('installation_id', input.installationId)
+    .eq('shopify_order_id', input.orderGid.split('/').pop())
+    .eq('merchant_id', payment.merchant_id).maybeSingle();
+  if (!order || !isMatchingShopifyPayment(payment, order)) throw new Error('Paiement Shopify non concordant.');
+  if (order.payment_id) {
+    if (order.payment_id === payment.id && order.kobara_status === 'paid') return;
+    throw new Error('Commande déjà associée à un paiement.');
+  }
+  const { data: installation, error } = await supabase
+    .from('shopify_installations')
+    .select('id, merchant_id, shop_domain, status, access_token_ciphertext')
+    .eq('id', input.installationId)
+    .eq('merchant_id', payment.merchant_id)
+    .eq('status', 'active')
+    .maybeSingle();
+  if (error || !installation?.access_token_ciphertext) throw new Error('Installation Shopify inactive.');
+  const accessToken = decryptShopifyAccessToken(installation.access_token_ciphertext);
+  const current = await shopifyGraphql<{ order: {
+    id: string; cancelledAt: string | null; displayFinancialStatus: string;
+    currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
+  } | null }>({
+    shopDomain: installation.shop_domain, accessToken,
+    query: `query KobaraOrderBeforePayment($id: ID!) { order(id: $id) { id cancelledAt displayFinancialStatus currentTotalPriceSet { shopMoney { amount currencyCode } } } }`,
+    variables: { id: input.orderGid },
+  });
+  const remote = current.order;
+  if (!remote || remote.cancelledAt || remote.currentTotalPriceSet.shopMoney.currencyCode !== 'HTG'
+    || Math.round(Number(remote.currentTotalPriceSet.shopMoney.amount) * 100) !== Math.round(Number(order.total_amount) * 100)
+    || !['PENDING', 'PAID'].includes(remote.displayFinancialStatus)) {
+    throw new Error('La commande Shopify a changé. Vérification manuelle requise.');
+  }
+  const data = await shopifyGraphql<{
+    orderMarkAsPaid: { order: { id: string; displayFinancialStatus: string } | null; userErrors: Array<{ message: string }> };
+  }>({
+    shopDomain: installation.shop_domain,
+    accessToken,
+    query: `
+      mutation KobaraOrderMarkAsPaid($input: OrderMarkAsPaidInput!) {
+        orderMarkAsPaid(input: $input) {
+          order { id displayFinancialStatus }
+          userErrors { message }
+        }
+      }
+    `,
+    variables: { input: { id: input.orderGid } },
+  });
+  const errors = data.orderMarkAsPaid.userErrors;
+  if (errors.length > 0 && !errors.every((item) => /already.*paid|no outstanding/i.test(item.message))) {
+    throw new Error(errors.map((item) => item.message).join(', '));
+  }
+  const { error: syncError } = await supabase.from('shopify_orders').update({
+    payment_id: input.paymentId,
+    financial_status: 'paid',
+    kobara_status: 'paid',
+    processed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq('installation_id', installation.id).eq('shopify_order_id', input.orderGid.split('/').pop());
+  if (syncError) throw new Error('Confirmation locale Shopify impossible.');
+  await supabase.from('payment_links').update({ status: 'inactive' })
+    .eq('id', payment.payment_link_id).eq('merchant_id', payment.merchant_id);
+}
+
+export async function reconcileShopifyPayment(paymentId: string, paymentLinkId: string) {
+  const { data: order, error } = await createAdminClient().from('shopify_orders')
+    .select('installation_id, shopify_order_id').eq('payment_link_id', paymentLinkId).maybeSingle();
+  if (error) throw new Error('Recherche de commande Shopify impossible.');
+  if (!order) return;
+  return markShopifyOrderPaid({ installationId: order.installation_id, orderGid: `gid://shopify/Order/${order.shopify_order_id}`, paymentId });
+}
+
+export async function getShopifyEffectivePaymentMethods(merchant: {
+  id: string;
+  paypal_enabled?: boolean | null;
+  has_usd_account?: boolean | null;
+}) {
+  const [config, usdAccount] = await Promise.all([
+    getPaymentProviderConfig(),
+    PayPalService.getMerchantUsdAccountState(merchant),
+  ]);
+  const moncash = config.active_provider === 'bazik'
+    || config.paym_moncash_web
+    || config.paym_moncash_ussd;
+  const natcash = config.active_provider === 'bazik'
+    ? config.sms_gateway_enabled
+    : config.paym_natcash_web;
+  return [
+    { id: 'moncash', label: 'MonCash', enabled: moncash, currency: 'HTG' },
+    { id: 'natcash', label: 'NatCash', enabled: natcash, currency: 'HTG' },
+    { id: 'card', label: 'Carte bancaire', enabled: usdAccount.isActive, currency: 'USD' },
+    { id: 'paypal', label: 'PayPal', enabled: usdAccount.isActive, currency: 'USD' },
+    { id: 'wallet', label: 'Apple Pay / Google Pay', enabled: usdAccount.isActive, currency: 'USD' },
+  ];
+}

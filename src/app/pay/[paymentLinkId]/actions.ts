@@ -15,6 +15,7 @@ import { canCreatePayment } from "@/lib/server/access";
 import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import { isMerchantPaymentMethodEnabled } from "@/lib/server/payments/merchant-payment-methods";
+import { canCollectShopifyOrder } from '@/lib/shopify-policy';
 
 function paymentLimitError(limit?: number, used?: number) {
   const normalizedLimit = Number(limit || 0);
@@ -51,7 +52,7 @@ export async function processPayment(formData: FormData) {
   // 1. Fetch Payment Link to check settings
   const { data: linkInfo } = await supabaseAdmin
     .from('payment_links')
-    .select('amount, metadata, environment, slug, merchant_id')
+    .select('amount, metadata, environment, slug, merchant_id, status, expires_at')
     .eq('id', paymentLinkId)
     .single();
 
@@ -60,6 +61,22 @@ export async function processPayment(formData: FormData) {
   }
   if (linkInfo.merchant_id !== merchantId) {
     throw new Error("Lien de paiement invalide");
+  }
+  if (linkInfo.status !== 'active' || (linkInfo.expires_at && Date.parse(linkInfo.expires_at) <= Date.now())) {
+    throw new Error("Ce lien de paiement n'est plus disponible.");
+  }
+  if (linkInfo.metadata?.source === 'shopify') {
+    const { data: order } = await supabaseAdmin.from('shopify_orders')
+      .select('installation_id, kobara_status, total_amount, currency, raw_order').eq('payment_link_id', paymentLinkId)
+      .eq('merchant_id', merchantId).maybeSingle();
+    if (!order || order.kobara_status !== 'payment_link_ready' || !canCollectShopifyOrder(order.raw_order || {})
+      || order.currency !== 'HTG' || Number(order.total_amount) !== Number(linkInfo.amount)) {
+      throw new Error("Cette commande Shopify nécessite une vérification avant paiement.");
+    }
+    const { data: installation } = await supabaseAdmin.from('shopify_installations').select('id')
+      .eq('id', order.installation_id).eq('merchant_id', merchantId).eq('status', 'active').maybeSingle();
+    if (!installation) throw new Error("La boutique Shopify n'est plus connectée.");
+    if (isInternational || isCrypto) throw new Error("Cette commande Shopify accepte uniquement les paiements locaux en HTG.");
   }
 
   if (!await isMerchantPaymentMethodEnabled(merchantId, requestedProvider)) {

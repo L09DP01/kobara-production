@@ -7,7 +7,7 @@ import clsx from "clsx";
 import type { LucideIcon } from "lucide-react";
 import {
   BarChart3, BookOpen, CreditCard, Headphones, KeyRound, FileText,
-  LayoutDashboard, LockKeyhole, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks,
+  LayoutDashboard, LockKeyhole, Menu, Settings, Users, WalletCards, Webhook, X, Link2, Blocks, ShoppingBag,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
@@ -30,6 +30,7 @@ const SIDEBAR_SECTIONS: Array<{ title: string; links: SidebarLink[] }> = [
       { href: "/payment-links", icon: Link2, label: "Liens de paiement", requiresKyc: true },
       { href: "/customers", icon: Users, label: "Clients", requiresKyc: true },
       { href: "/withdrawals", icon: WalletCards, label: "Retraits", ownerOnly: true, requiresKyc: true },
+      { href: "/integrations/shopify", icon: ShoppingBag, label: "Shopify", ownerOnly: true, requiresKyc: true },
     ],
   },
   { title: "Performance", links: [{ href: "/analytics", icon: BarChart3, label: "Analyses", requiresKyc: true }, { href: "/statements", icon: FileText, label: "Relevés", requiresKyc: true }] },
