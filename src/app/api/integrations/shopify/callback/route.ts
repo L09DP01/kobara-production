@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   let stage = 'verify_signature';
   let pendingId: string | null = null;
+  let accessToken: string | null = null;
   try {
     if (!verifyShopifyOAuthHmac(params)) throw new Error('invalid_hmac');
     const code = params.get('code');
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
 
     stage = 'exchange_token';
     const token = await exchangeShopifyAuthorizationCode(requestedShop, code);
+    accessToken = token.accessToken;
     if (!hasRequiredShopifyScopes(token.scopes)) throw new Error('missing_scopes');
     stage = 'read_shop';
     const shop = await getShopifyShopIdentity(requestedShop, token.accessToken);
@@ -139,7 +141,7 @@ export async function GET(request: NextRequest) {
     // Never log OAuth codes, state, access tokens, raw upstream errors or URLs.
     console.error('[Shopify] OAuth callback failed.', {
       stage, code,
-      ...(stage === 'exchange_token' ? { detail: safeShopifyOAuthFailure(error, [...params.values()]) } : {}),
+      detail: safeShopifyOAuthFailure(error, [...params.values(), ...(accessToken ? [accessToken] : [])]),
     });
     if (pendingId) {
       try {

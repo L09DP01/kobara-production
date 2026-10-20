@@ -290,7 +290,10 @@ export async function shopifyGraphql<T>(input: {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.errors) {
-    throw new Error(`Erreur API Shopify (${response.status}).`);
+    const codes = Array.isArray(payload.errors) ? payload.errors
+      .map((error: { extensions?: { code?: unknown } }) => error?.extensions?.code)
+      .filter((code: unknown): code is string => typeof code === 'string' && /^[A-Z_]{1,40}$/.test(code)) : [];
+    throw new Error(`Erreur API Shopify (${response.status}).${codes.length ? ` ${[...new Set(codes)].join(', ')}` : ''}`);
   }
   return payload.data as T;
 }
