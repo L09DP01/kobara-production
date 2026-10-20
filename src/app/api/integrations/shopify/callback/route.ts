@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import {
-  encryptShopifyAccessToken,
+  encryptShopifyTokenSet,
   exchangeShopifyAuthorizationCode,
   getShopifyConfig,
   getShopifyShopIdentity,
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
       shop_name: shop.name,
       shop_email: shop.email,
       status: 'active',
-      access_token_ciphertext: encryptShopifyAccessToken(token.accessToken),
+      access_token_ciphertext: encryptShopifyTokenSet(token),
       granted_scopes: token.scopes,
       oauth_state_hash: null,
       installed_at: now,

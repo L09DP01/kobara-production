@@ -118,12 +118,49 @@ test('Shopify write_orders includes read_orders in both scope validation and tok
   assert.equal(api.hasRequiredShopifyScopes(['write_products']), false);
   const original = global.fetch;
   t.after(() => { global.fetch = original; });
-  global.fetch = async () => Response.json({ access_token: 'fake-unit-test-access', scope: 'write_orders' });
+  global.fetch = async (_url, init) => {
+    assert.equal(JSON.parse(init.body).expiring, 1);
+    return Response.json({ access_token: 'fake-unit-test-access', scope: 'write_orders',
+      refresh_token: 'fake-unit-test-refresh', expires_in: 3600, refresh_token_expires_in: 7776000 });
+  };
   assert.deepEqual((await api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code')).scopes, ['write_orders']);
   global.fetch = async () => Response.json({ access_token: 'fake-unit-test-access', scope: 'read_orders' });
   await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /missing_scopes/);
   global.fetch = async () => Response.json({ error: 'sensitive-upstream-description' }, { status: 401 });
   await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /^Error: oauth_token_http_401$/);
+  global.fetch = async () => Response.json({ access_token: 'fake-unit-test-access', scope: 'write_orders' });
+  await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /oauth_expiring_token_missing/);
+});
+
+test('expiring tokens are encrypted, refreshed before expiry and never restored after disconnect', async t => {
+  const db = database({ shopify_installations: [{ ...installation }] });
+  const { api } = service(db);
+  const row = db.tables.shopify_installations[0];
+  row.access_token_ciphertext = api.encryptShopifyTokenSet({ accessToken: 'fake-old-access', refreshToken: 'fake-old-refresh',
+    expiresAt: Date.now() + 30000, refreshExpiresAt: Date.now() + 3600000 });
+  assert.doesNotMatch(row.access_token_ciphertext, /fake-old/);
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  let calls = 0;
+  global.fetch = async (_url, init) => {
+    calls++;
+    assert.equal(init.redirect, 'manual');
+    assert.equal(JSON.parse(init.body).grant_type, 'refresh_token');
+    assert.equal(JSON.parse(init.body).refresh_token, 'fake-old-refresh');
+    return Response.json({ access_token: 'fake-new-access', refresh_token: 'fake-new-refresh', expires_in: 3600, refresh_token_expires_in: 7776000 });
+  };
+  assert.equal(await api.getShopifyAccessToken(installation), 'fake-new-access');
+  assert.equal(await api.getShopifyAccessToken(installation), 'fake-new-access');
+  assert.equal(calls, 1);
+  const stored = JSON.parse(api.decryptShopifyAccessToken(row.access_token_ciphertext));
+  assert.equal(stored.refreshToken, 'fake-new-refresh');
+  row.access_token_ciphertext = api.encryptShopifyTokenSet({ ...stored, expiresAt: Date.now() - 1 });
+  global.fetch = async () => {
+    row.status = 'disconnected'; row.access_token_ciphertext = null;
+    return Response.json({ access_token: 'fake-stale-access', refresh_token: 'fake-stale-refresh', expires_in: 3600, refresh_token_expires_in: 7776000 });
+  };
+  await assert.rejects(api.getShopifyAccessToken(installation), /inactive/);
+  assert.equal(row.access_token_ciphertext, null);
 });
 
 test('OAuth diagnostic preserves runtime errors but redacts secrets, callback values and URLs', () => {
@@ -148,6 +185,17 @@ test('Shopify HTTP calls use edge-compatible manual redirects and reject redirec
   await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /oauth_token_http_302/);
   await assert.rejects(api.shopifyGraphql({ shopDomain: installation.shop_domain, accessToken: 'fake-unit-test-access', query: 'query { shop { id } }' }), /Erreur API Shopify \(302\)/);
   assert.equal(calls, 2);
+});
+
+test('GraphQL diagnostics expose only status and allowlisted error codes, not upstream messages', async t => {
+  const { api } = service(database());
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async () => Response.json({ errors: [
+    { message: 'private upstream data', extensions: { code: 'ACCESS_DENIED' } },
+    { message: 'private upstream data', extensions: { code: 'https://untrusted.example/private' } },
+  ] });
+  await assert.rejects(api.shopifyGraphql({ shopDomain: installation.shop_domain, accessToken: 'fake-unit-test-access', query: 'query { shop { id } }' }), /^Error: Erreur API Shopify \(200\)\. ACCESS_DENIED$/);
 });
 
 test('duplicate order webhooks reuse the stored link and do not email twice', async () => {
@@ -371,7 +419,7 @@ test('OAuth callback requires a verified merchant, validates scopes and consumes
   const route = load('src/app/api/integrations/shopify/callback/route.ts', {
     'next/server': { NextResponse: nextResponse }, '@/utils/supabase/admin': { createAdminClient: () => db },
     '@/lib/server/shopify': { ...api,
-      exchangeShopifyAuthorizationCode: async () => { exchanged++; return { accessToken: 'fake-unit-test-access', scopes: ['write_orders'] }; },
+      exchangeShopifyAuthorizationCode: async () => { exchanged++; return { accessToken: 'fake-unit-test-access', refreshToken: 'fake-unit-test-refresh', expiresAt: Date.now() + 3600000, refreshExpiresAt: Date.now() + 7776000000, scopes: ['write_orders'] }; },
       getShopifyShopIdentity: async () => ({ id: 'gid://shopify/Shop/1', name: 'Unit test', email: null, myshopifyDomain: installation.shop_domain }),
       registerShopifyWebhooks: async () => [],
     },
@@ -384,7 +432,7 @@ test('OAuth callback requires a verified merchant, validates scopes and consumes
   assert.equal(new URL(response.headers.get('location')).searchParams.get('connected'), '1');
   assert.equal(db.tables.shopify_installations[0].status, 'active');
   assert.equal(db.tables.shopify_installations[0].oauth_state_hash, null);
-  assert.equal(api.decryptShopifyAccessToken(db.tables.shopify_installations[0].access_token_ciphertext), 'fake-unit-test-access');
+  assert.equal(await api.getShopifyAccessToken(installation), 'fake-unit-test-access');
   const replay = await route.GET(request);
   assert.equal(new URL(replay.headers.get('location')).searchParams.get('error'), 'callback_failed');
   assert.equal(exchanged, 1);

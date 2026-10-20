@@ -26,6 +26,8 @@ TELEGRAM_BOT_USERNAME=KobaraPayBot
 
 `SHOPIFY_TOKEN_ENCRYPTION_KEY` doit être un secret aléatoire dédié. Les jetons d'installation sont chiffrés avec AES-256-GCM avant stockage.
 
+L'echange OAuth demande des jetons expirants (`expiring: 1`). Le jeton d'acces, son jeton de renouvellement et leurs echeances sont enregistres ensemble dans `access_token_ciphertext`, jamais dans les metadonnees publiques. Avant un appel authentifie apres installation, Kobara renouvelle le jeton si son expiration est proche. L'enregistrement conditionnel ne peut pas reactiver une installation deconnectee. Aucune migration supplementaire n'est requise pour ce format chiffre. Une fois le jeton de renouvellement expire, le marchand doit reconnecter sa boutique.
+
 ## Configuration Shopify Dev Dashboard
 
 - Application autonome (non intégrée dans un iframe Shopify).

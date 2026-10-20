@@ -52,6 +52,79 @@ type ShopifyInstallation = {
   access_token_ciphertext: string | null;
 };
 
+type ShopifyTokenSet = {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+  refreshExpiresAt: number;
+};
+
+function parseShopifyTokenResponse(payload: Record<string, unknown>): ShopifyTokenSet {
+  const expiresIn = Number(payload.expires_in);
+  const refreshExpiresIn = Number(payload.refresh_token_expires_in);
+  if (typeof payload.access_token !== 'string' || !payload.access_token) throw new Error('oauth_token_missing');
+  if (typeof payload.refresh_token !== 'string' || !payload.refresh_token
+    || !Number.isFinite(expiresIn) || expiresIn <= 0
+    || !Number.isFinite(refreshExpiresIn) || refreshExpiresIn <= 0) {
+    throw new Error('oauth_expiring_token_missing');
+  }
+  return {
+    accessToken: payload.access_token,
+    refreshToken: payload.refresh_token,
+    expiresAt: Date.now() + expiresIn * 1000,
+    refreshExpiresAt: Date.now() + refreshExpiresIn * 1000,
+  };
+}
+
+export function encryptShopifyTokenSet(token: ShopifyTokenSet): string {
+  return encryptShopifyAccessToken(JSON.stringify({ version: 1, ...token }));
+}
+
+export async function getShopifyAccessToken(installation: ShopifyInstallation, attempt = 0): Promise<string> {
+  if (attempt > 2) throw new Error('oauth_refresh_retry_required');
+  const supabase = createAdminClient();
+  const readCurrent = async () => {
+    const { data, error } = await supabase.from('shopify_installations')
+      .select('access_token_ciphertext').eq('id', installation.id)
+      .eq('merchant_id', installation.merchant_id).eq('status', 'active').maybeSingle();
+    if (error || !data?.access_token_ciphertext) throw new Error('Installation Shopify inactive.');
+    return data.access_token_ciphertext as string;
+  };
+  const ciphertext = await readCurrent();
+  const plaintext = decryptShopifyAccessToken(ciphertext);
+  // Keep compatibility with installations created before expiring tokens were introduced.
+  if (!plaintext.startsWith('{')) return plaintext;
+  const stored = JSON.parse(plaintext) as ShopifyTokenSet & { version: number };
+  if (stored.version !== 1 || !stored.accessToken || !stored.refreshToken
+    || !Number.isFinite(stored.expiresAt) || !Number.isFinite(stored.refreshExpiresAt)) {
+    throw new Error('oauth_stored_token_invalid');
+  }
+  if (stored.expiresAt > Date.now() + 60_000) return stored.accessToken;
+  if (stored.refreshExpiresAt <= Date.now()) throw new Error('oauth_reauthorization_required');
+  const config = getShopifyConfig();
+  const response = await fetch(`https://${installation.shop_domain}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret,
+      grant_type: 'refresh_token', refresh_token: stored.refreshToken }),
+    cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) {
+    const current = await readCurrent();
+    if (current !== ciphertext) return getShopifyAccessToken(installation, attempt + 1);
+    throw new Error(`oauth_refresh_http_${response.status}`);
+  }
+  const token = parseShopifyTokenResponse(await response.json());
+  // Compare-and-swap prevents a concurrent refresh or disconnect from being overwritten.
+  const { data, error } = await supabase.from('shopify_installations').update({
+    access_token_ciphertext: encryptShopifyTokenSet(token), updated_at: new Date().toISOString(),
+  }).eq('id', installation.id).eq('merchant_id', installation.merchant_id).eq('status', 'active')
+    .eq('access_token_ciphertext', ciphertext).select('id').maybeSingle();
+  if (error) throw new Error('oauth_refresh_save_failed');
+  if (!data) return getShopifyAccessToken(installation, attempt + 1);
+  return token.accessToken;
+}
+
 type ShopifyOrderPayload = {
   id?: string | number;
   admin_graphql_api_id?: string;
@@ -254,7 +327,7 @@ export async function exchangeShopifyAuthorizationCode(shopDomain: string, code:
   const response = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret, code }),
+    body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret, code, expiring: 1 }),
     cache: 'no-store',
     redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
@@ -265,7 +338,7 @@ export async function exchangeShopifyAuthorizationCode(shopDomain: string, code:
   const scopes = String(payload.scope || '').split(',').map((scope) => scope.trim()).filter(Boolean);
   if (!hasRequiredShopifyScopes(scopes)) throw new Error('missing_scopes');
   return {
-    accessToken: payload.access_token as string,
+    ...parseShopifyTokenResponse(payload),
     scopes,
   };
 }
@@ -529,7 +602,7 @@ export async function markShopifyOrderPaid(input: {
     .eq('status', 'active')
     .maybeSingle();
   if (error || !installation?.access_token_ciphertext) throw new Error('Installation Shopify inactive.');
-  const accessToken = decryptShopifyAccessToken(installation.access_token_ciphertext);
+  const accessToken = await getShopifyAccessToken(installation);
   const current = await shopifyGraphql<{ order: {
     id: string; cancelledAt: string | null; displayFinancialStatus: string;
     currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
