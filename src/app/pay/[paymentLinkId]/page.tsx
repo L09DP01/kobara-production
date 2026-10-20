@@ -70,7 +70,8 @@ export default async function PublicPaymentPage({
     PayPalService.getMerchantUsdAccountState(link.merchants || { id: link.merchant_id }),
     getMerchantPaymentMethodState(link.merchant_id),
   ]);
-  const allowCardPayment = usdAccount.isActive;
+  const isShopifyLink = link.metadata?.source === 'shopify';
+  const allowCardPayment = usdAccount.isActive && !isShopifyLink;
   let paymentsBlocked = false;
   let quotaError: string | undefined;
   try {
@@ -319,7 +320,7 @@ export default async function PublicPaymentPage({
               providerConfig={providerConfig}
               transactionFeePercent={transactionFeePercent}
               allowCardPayment={allowCardPayment}
-              allowCryptoPayment={isNowPaymentsConfigured()}
+              allowCryptoPayment={!isShopifyLink && isNowPaymentsConfigured()}
               enabledPaymentMethods={paymentMethods.enabled}
             />
           </div>
