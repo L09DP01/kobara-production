@@ -135,6 +135,21 @@ test('OAuth diagnostic preserves runtime errors but redacts secrets, callback va
   assert.ok(detail.length <= 200);
 });
 
+test('Shopify HTTP calls use edge-compatible manual redirects and reject redirect responses', async t => {
+  const { api } = service(database());
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  let calls = 0;
+  global.fetch = async (_url, init) => {
+    calls++;
+    assert.equal(init.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { Location: 'https://untrusted.example/token' } });
+  };
+  await assert.rejects(api.exchangeShopifyAuthorizationCode(installation.shop_domain, 'unit-test-code'), /oauth_token_http_302/);
+  await assert.rejects(api.shopifyGraphql({ shopDomain: installation.shop_domain, accessToken: 'fake-unit-test-access', query: 'query { shop { id } }' }), /Erreur API Shopify \(302\)/);
+  assert.equal(calls, 2);
+});
+
 test('duplicate order webhooks reuse the stored link and do not email twice', async () => {
   const db = database();
   const { api, emails } = service(db);

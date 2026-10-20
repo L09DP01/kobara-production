@@ -256,7 +256,7 @@ export async function exchangeShopifyAuthorizationCode(shopDomain: string, code:
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret, code }),
     cache: 'no-store',
-    redirect: 'error',
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   });
   const payload = await response.json().catch(() => ({}));
@@ -285,7 +285,7 @@ export async function shopifyGraphql<T>(input: {
     },
     body: JSON.stringify({ query: input.query, variables: input.variables || {} }),
     cache: 'no-store',
-    redirect: 'error',
+    redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   });
   const payload = await response.json().catch(() => ({}));
