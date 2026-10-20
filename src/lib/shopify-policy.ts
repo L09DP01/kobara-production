@@ -8,7 +8,19 @@ export type ShopifyOrderInput = {
   payment_gateway_names?: string[];
   cancelled_at?: string | null;
   test?: boolean;
+  line_items?: Array<{ title?: string; name?: string; quantity?: number }>;
 };
+
+export function shopifyProductName(order: ShopifyOrderInput): string | null {
+  const names = (order.line_items || []).map(item => (item.title || item.name || '').trim()).filter(Boolean);
+  return names.length ? names.join(' · ') : null;
+}
+
+export function matchesShopifyCollectionAmount(order: { currency: string; total_amount: number | string }, amount: number | string): boolean {
+  const expected = shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount });
+  return Number.isFinite(expected) && expected > 0 && Number.isFinite(Number(amount))
+    && Math.round(expected * 100) === Math.round(Number(amount) * 100);
+}
 
 export function shopifyOrderId(order: ShopifyOrderInput): string {
   const id = String(order.id ?? order.admin_graphql_api_id?.split('/').pop() ?? '');

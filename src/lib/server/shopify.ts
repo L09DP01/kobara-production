@@ -12,7 +12,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PayPalService } from '@/lib/server/payments/paypal';
-import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE } from '@/lib/shopify-policy';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName } from '@/lib/shopify-policy';
 
 export const SHOPIFY_SCOPES = ['read_orders', 'write_orders'] as const;
 
@@ -149,6 +149,7 @@ type ShopifyOrderPayload = {
     first_name?: string | null;
     last_name?: string | null;
   } | null;
+  line_items?: Array<{ title?: string; name?: string; quantity?: number }>;
   [key: string]: unknown;
 };
 
@@ -521,7 +522,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
   let { data: paymentLink, error: linkError } = await supabase.from('payment_links').insert({
     merchant_id: input.installation.merchant_id,
     environment: 'live',
-    title: `Commande Shopify ${orderName}`,
+    title: shopifyProductName(input.payload) || `Commande Shopify ${orderName}`,
     description: `Paiement sécurisé de la commande ${orderName}${input.payload.currency === 'USD' ? ` : ${shopifyOrderAmount(input.payload)} USD = ${total} HTG (1 USD = ${SHOPIFY_USD_HTG_RATE} HTG)` : ''}`,
     amount: total,
     currency: 'HTG',
@@ -539,7 +540,8 @@ export async function ensureShopifyOrderPaymentLink(input: {
       shopify_order_id: orderId,
       shopify_order_gid: shopifyOrderGid,
       shopify_shop_domain: input.installation.shop_domain,
-      product_name: `Commande ${orderName}`,
+      product_name: shopifyProductName(input.payload) || `Commande ${orderName}`,
+      order_name: orderName,
       collect_phone: true,
       pass_fees_to_customer: false,
     },

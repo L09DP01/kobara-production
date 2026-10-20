@@ -15,7 +15,7 @@ import { canCreatePayment } from "@/lib/server/access";
 import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import { isMerchantPaymentMethodEnabled } from "@/lib/server/payments/merchant-payment-methods";
-import { canCollectShopifyOrder } from '@/lib/shopify-policy';
+import { canCollectShopifyOrder, matchesShopifyCollectionAmount } from '@/lib/shopify-policy';
 
 function paymentLimitError(limit?: number, used?: number) {
   const normalizedLimit = Number(limit || 0);
@@ -70,8 +70,8 @@ export async function processPayment(formData: FormData) {
       .select('installation_id, kobara_status, total_amount, currency, raw_order').eq('payment_link_id', paymentLinkId)
       .eq('merchant_id', merchantId).maybeSingle();
     if (!order || order.kobara_status !== 'payment_link_ready' || !canCollectShopifyOrder(order.raw_order || {})
-      || order.currency !== 'HTG' || Number(order.total_amount) !== Number(linkInfo.amount)) {
-      throw new Error("Cette commande Shopify nécessite une vérification avant paiement.");
+      || !matchesShopifyCollectionAmount(order, linkInfo.amount)) {
+      return { error: "Cette commande Shopify nécessite une vérification avant paiement.", code: 'SHOPIFY_ORDER_MISMATCH' };
     }
     const { data: installation } = await supabaseAdmin.from('shopify_installations').select('id')
       .eq('id', order.installation_id).eq('merchant_id', merchantId).eq('status', 'active').maybeSingle();

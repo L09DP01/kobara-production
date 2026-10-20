@@ -140,7 +140,10 @@ export default function PaymentFormClient({
           setIsSubmitting(false);
         } catch (error) {
           setIsSubmitting(false);
-          setClientError(error instanceof Error ? error.message : "Impossible d'initialiser le paiement.");
+          const message = error instanceof Error ? error.message : '';
+          setClientError(!message || /Minified React error|Server Components render/i.test(message)
+            ? "Impossible d'initialiser le paiement. Veuillez actualiser la page et réessayer."
+            : message);
         }
       }}
       onSubmit={handleSubmit}

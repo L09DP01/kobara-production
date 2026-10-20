@@ -10,6 +10,7 @@ import { canCreatePayment } from "@/lib/server/access";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import { getPaymentMethodLabel } from '@/lib/payment-settlement';
 import { getMerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
+import { shopifyProductName } from '@/lib/shopify-policy';
 
 export default async function PublicPaymentPage({ 
   params, 
@@ -48,6 +49,18 @@ export default async function PublicPaymentPage({
 
   if (!link || link.environment !== 'live' || link.merchants?.kyc_status !== 'approved') {
     notFound();
+  }
+
+  if (link.metadata?.source === 'shopify') {
+    const { data: order } = await supabaseAdmin.from('shopify_orders')
+      .select('order_name, raw_order').eq('payment_link_id', link.id)
+      .eq('merchant_id', link.merchant_id).maybeSingle();
+    if (order) {
+      link = { ...link, metadata: { ...link.metadata,
+        product_name: shopifyProductName(order.raw_order || {}) || link.metadata.product_name,
+        order_name: order.order_name,
+      } };
+    }
   }
 
   const providerConfig = await getPaymentProviderConfig();
@@ -159,10 +172,11 @@ export default async function PublicPaymentPage({
                 </div>
               )}
               
-              <div className="flex-1 flex flex-col justify-center">
-                <h3 className="font-bold text-white text-base leading-tight mb-1">
+              <div className="min-w-0 flex-1 flex flex-col justify-center">
+                <h3 className="break-words font-bold text-white text-base leading-tight mb-1">
                   {link.metadata?.product_name || link.title}
                 </h3>
+                {link.metadata?.source === 'shopify' && link.metadata?.order_name && <p className="mb-2 text-xs text-slate-300">Commande {link.metadata.order_name}</p>}
                 {link.description && (
                   <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed mb-3">
                     {link.description}

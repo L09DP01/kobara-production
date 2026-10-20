@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { createHmac } from 'node:crypto';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE } from '../src/lib/shopify-policy.ts';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName, matchesShopifyCollectionAmount } from '../src/lib/shopify-policy.ts';
 
 const require = createRequire(import.meta.url);
 const root = new URL('../', import.meta.url);
@@ -67,7 +67,7 @@ function service(db, sendResult = () => ({ success: true })) {
   const emails = [];
   const api = load('src/lib/server/shopify.ts', {
     'server-only': {}, '@/utils/supabase/admin': { createAdminClient: () => db },
-    '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE },
+    '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName },
     '@/lib/server/payments/gateway': {}, '@/lib/server/payments/paypal': {},
     '@/lib/server/mail': { sendEmail: async email => {
       const result = sendResult(email);
@@ -237,6 +237,21 @@ test('USD orders collect HTG at 130 while preserving original currency and amoun
   assert.equal(isMatchingShopifyPayment(payment, order), true);
   assert.equal(isMatchingShopifyPayment({ ...payment, amount: 10 }, order), false);
   assert.equal(isMatchingShopifyPayment({ ...payment, currency: 'USD' }, order), false);
+});
+
+test('checkout validates converted USD amounts and product names take priority over order references', async () => {
+  assert.equal(matchesShopifyCollectionAmount({ currency: 'USD', total_amount: 10 }, 1300), true);
+  assert.equal(matchesShopifyCollectionAmount({ currency: 'USD', total_amount: 10 }, 10), false);
+  assert.equal(matchesShopifyCollectionAmount({ currency: 'HTG', total_amount: 1300 }, 1300), true);
+  assert.equal(matchesShopifyCollectionAmount({ currency: 'EUR', total_amount: 10 }, 1300), false);
+  assert.equal(shopifyProductName({ line_items: [{ title: 'Snowboard', quantity: 1 }] }), 'Snowboard');
+  const db = database();
+  const { api } = service(db);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...sample, name: '#1003', line_items: [{ title: 'Snowboard' }] } });
+  assert.equal(db.tables.payment_links[0].title, 'Snowboard');
+  assert.equal(db.tables.payment_links[0].metadata.product_name, 'Snowboard');
+  assert.equal(db.tables.payment_links[0].metadata.order_name, '#1003');
+  assert.match(read('src/app/pay/[paymentLinkId]/actions.ts'), /matchesShopifyCollectionAmount\(order, linkInfo.amount\)/);
 });
 
 test('a failed email retries the existing link and records success only after mail acceptance', async () => {
