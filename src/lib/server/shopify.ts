@@ -494,12 +494,14 @@ export async function ensureShopifyOrderPaymentLink(input: {
   const total = shopifyOrderAmount(input.payload);
   if (syncedOrder.payment_link_id) {
     const db = createAdminClient();
-    const { data: link } = await db.from('payment_links').select('amount')
+    const { data: link } = await db.from('payment_links').select('id, slug, amount, status, expires_at')
       .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id).maybeSingle();
     if (!canCollectShopifyOrder(input.payload) || !link || Number(link.amount) !== total) {
       const { error } = await db.from('payment_links').update({ status: 'inactive' })
         .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id);
       if (error) throw new Error('Désactivation du lien Shopify impossible.');
+    } else if (link.status === 'active' && Date.parse(link.expires_at) > Date.now()) {
+      await emailShopifyPaymentLink(input, link);
     }
     return syncedOrder;
   }
@@ -537,7 +539,6 @@ export async function ensureShopifyOrderPaymentLink(input: {
       pass_fees_to_customer: false,
     },
   }).select('id, slug').single();
-  const created = !linkError && Boolean(paymentLink);
   if (linkError?.code === '23505') {
     const duplicate = await supabase
       .from('payment_links')
@@ -561,17 +562,47 @@ export async function ensureShopifyOrderPaymentLink(input: {
   }).eq('id', syncedOrder.id).is('payment_link_id', null);
   if (orderUpdateError) throw new Error(`Association du lien Shopify impossible: ${orderUpdateError.message}`);
 
-  const customerEmail = input.payload.email || input.payload.customer?.email;
-  if (customerEmail && created) {
-    const { sendEmail } = await import('@/lib/server/mail');
-    await sendEmail({
-      to: customerEmail,
-      subject: `Finalisez le paiement de votre commande ${orderName}`,
-      text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée. Finalisez son paiement sécurisé ici :\n${checkoutUrl}\n\nCe lien expire dans 24 heures.`,
-      idempotencyKey: `shopify-order-link-${paymentLink.id}`,
-    });
-  }
+  await emailShopifyPaymentLink(input, paymentLink);
   return { ...syncedOrder, payment_link_id: paymentLink.id, checkout_url: checkoutUrl };
+}
+
+async function emailShopifyPaymentLink(input: {
+  installation: Pick<ShopifyInstallation, 'id' | 'merchant_id'>;
+  payload: ShopifyOrderPayload;
+}, link: { id: string; slug: string }) {
+  const customerEmail = input.payload.email || input.payload.customer?.email;
+  if (!customerEmail) {
+    console.warn('[Shopify] Payment link email skipped.', { code: 'customer_email_missing', linkId: link.id });
+    return;
+  }
+  const db = createAdminClient();
+  const { data: merchant, error: merchantError } = await db.from('merchants')
+    .select('current_environment, kyc_status').eq('id', input.installation.merchant_id).maybeSingle();
+  if (merchantError) throw new Error('shopify_email_merchant_lookup_failed');
+  if (merchant?.current_environment !== 'live' || merchant.kyc_status !== 'approved') return;
+  const { data: sent, error: lookupError } = await db.from('audit_logs').select('id')
+    .eq('merchant_id', input.installation.merchant_id).eq('entity_id', link.id)
+    .eq('action', 'shopify.payment_link_email_sent').limit(1).maybeSingle();
+  if (lookupError) throw new Error('shopify_email_delivery_lookup_failed');
+  if (sent) return;
+  const orderName = input.payload.name || input.payload.order_number?.toString() || shopifyOrderId(input.payload);
+  const { sendEmail } = await import('@/lib/server/mail');
+  const result = await sendEmail({
+    to: customerEmail,
+    subject: `Finalisez le paiement de votre commande ${orderName}`,
+    text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée. Finalisez son paiement sécurisé ici :\nhttps://pay.kobara.app/${link.slug}\n\nCe lien expire dans 24 heures.`,
+    idempotencyKey: `shopify-order-link-${link.id}`,
+  });
+  if (!result.success) {
+    console.error('[Shopify] Payment link email failed.', { code: 'mail_provider_rejected', linkId: link.id });
+    throw new Error('shopify_payment_link_email_failed');
+  }
+  const { error } = await db.from('audit_logs').insert({
+    merchant_id: input.installation.merchant_id, action: 'shopify.payment_link_email_sent',
+    entity_type: 'payment_link', entity_id: link.id,
+    metadata: { installation_id: input.installation.id },
+  });
+  if (error) throw new Error('shopify_email_delivery_save_failed');
 }
 
 export async function markShopifyOrderPaid(input: {

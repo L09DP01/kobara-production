@@ -63,13 +63,17 @@ function load(file, mocks = {}) {
   return module.exports;
 }
 
-function service(db) {
+function service(db, sendResult = () => ({ success: true })) {
   const emails = [];
   const api = load('src/lib/server/shopify.ts', {
     'server-only': {}, '@/utils/supabase/admin': { createAdminClient: () => db },
     '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId },
     '@/lib/server/payments/gateway': {}, '@/lib/server/payments/paypal': {},
-    '@/lib/server/mail': { sendEmail: async email => { emails.push(email); return { success: true }; } },
+    '@/lib/server/mail': { sendEmail: async email => {
+      const result = sendResult(email);
+      if (result.success && !emails.some(previous => previous.idempotencyKey === email.idempotencyKey)) emails.push(email);
+      return result;
+    } },
   });
   return { api, emails };
 }
@@ -210,6 +214,32 @@ test('duplicate order webhooks reuse the stored link and do not email twice', as
   assert.ok(emails[0].idempotencyKey);
   assert.equal(db.tables.payment_links[0].environment, 'live');
   assert.ok(Date.parse(db.tables.payment_links[0].expires_at) > Date.now());
+});
+
+test('a failed email retries the existing link and records success only after mail acceptance', async () => {
+  const db = database();
+  let accepted = false;
+  const { api, emails } = service(db, () => ({ success: accepted }));
+  const input = { installation, payload: { ...sample, email: 'unit-test@example.com' } };
+  await assert.rejects(api.ensureShopifyOrderPaymentLink(input), /shopify_payment_link_email_failed/);
+  assert.equal(db.tables.payment_links.length, 1);
+  assert.equal(db.tables.audit_logs.length, 0);
+  accepted = true;
+  await api.ensureShopifyOrderPaymentLink(input);
+  await api.ensureShopifyOrderPaymentLink(input);
+  assert.equal(db.tables.payment_links.length, 1);
+  assert.equal(emails.length, 1);
+  assert.equal(db.tables.audit_logs.filter(row => row.action === 'shopify.payment_link_email_sent').length, 1);
+});
+
+test('an order updated with a customer email receives its existing unpaid link', async () => {
+  const db = database();
+  const { api, emails } = service(db);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: sample });
+  assert.equal(emails.length, 0);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...sample, email: 'unit-test@example.com' } });
+  assert.equal(emails.length, 1);
+  assert.equal(db.tables.payment_links.length, 1);
 });
 
 test('simultaneous order webhooks recover the winning slug after a unique-index conflict', async () => {
