@@ -12,7 +12,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PayPalService } from '@/lib/server/payments/paypal';
-import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId } from '@/lib/shopify-policy';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE } from '@/lib/shopify-policy';
 
 export const SHOPIFY_SCOPES = ['read_orders', 'write_orders'] as const;
 
@@ -491,7 +491,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
   payload: ShopifyOrderPayload;
 }) {
   const syncedOrder = await upsertShopifyOrder(input);
-  const total = shopifyOrderAmount(input.payload);
+  const total = shopifyCollectionAmount(input.payload);
   if (syncedOrder.payment_link_id) {
     const db = createAdminClient();
     const { data: link } = await db.from('payment_links').select('id, slug, amount, status, expires_at')
@@ -522,7 +522,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
     merchant_id: input.installation.merchant_id,
     environment: 'live',
     title: `Commande Shopify ${orderName}`,
-    description: `Paiement sécurisé de la commande ${orderName}`,
+    description: `Paiement sécurisé de la commande ${orderName}${input.payload.currency === 'USD' ? ` : ${shopifyOrderAmount(input.payload)} USD = ${total} HTG (1 USD = ${SHOPIFY_USD_HTG_RATE} HTG)` : ''}`,
     amount: total,
     currency: 'HTG',
     slug,
@@ -530,6 +530,11 @@ export async function ensureShopifyOrderPaymentLink(input: {
     expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     metadata: {
       source: 'shopify',
+      original_currency: input.payload.currency,
+      original_amount: shopifyOrderAmount(input.payload),
+      collection_currency: 'HTG',
+      collection_amount: total,
+      exchange_rate: input.payload.currency === 'USD' ? SHOPIFY_USD_HTG_RATE : 1,
       shopify_installation_id: input.installation.id,
       shopify_order_id: orderId,
       shopify_order_gid: shopifyOrderGid,
@@ -590,7 +595,7 @@ async function emailShopifyPaymentLink(input: {
   const result = await sendEmail({
     to: customerEmail,
     subject: `Finalisez le paiement de votre commande ${orderName}`,
-    text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée. Finalisez son paiement sécurisé ici :\nhttps://pay.kobara.app/${link.slug}\n\nCe lien expire dans 24 heures.`,
+    text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée.${input.payload.currency === 'USD' ? `\nMontant : ${shopifyOrderAmount(input.payload)} USD, soit ${shopifyCollectionAmount(input.payload)} HTG (1 USD = ${SHOPIFY_USD_HTG_RATE} HTG).` : ''} Finalisez son paiement sécurisé ici :\nhttps://pay.kobara.app/${link.slug}\n\nCe lien expire dans 24 heures.`,
     idempotencyKey: `shopify-order-link-${link.id}`,
   });
   if (!result.success) {
@@ -643,7 +648,7 @@ export async function markShopifyOrderPaid(input: {
     variables: { id: input.orderGid },
   });
   const remote = current.order;
-  if (!remote || remote.cancelledAt || remote.currentTotalPriceSet.shopMoney.currencyCode !== 'HTG'
+  if (!remote || remote.cancelledAt || remote.currentTotalPriceSet.shopMoney.currencyCode !== order.currency
     || Math.round(Number(remote.currentTotalPriceSet.shopMoney.amount) * 100) !== Math.round(Number(order.total_amount) * 100)
     || !['PENDING', 'PAID'].includes(remote.displayFinancialStatus)) {
     throw new Error('La commande Shopify a changé. Vérification manuelle requise.');

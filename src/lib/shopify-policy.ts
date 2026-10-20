@@ -20,10 +20,17 @@ export function shopifyOrderAmount(order: ShopifyOrderInput): number {
   return Number(order.current_total_price ?? order.total_price ?? NaN);
 }
 
+export const SHOPIFY_USD_HTG_RATE = 130;
+
+export function shopifyCollectionAmount(order: ShopifyOrderInput): number {
+  const amount = shopifyOrderAmount(order);
+  if (!['HTG', 'USD'].includes(order.currency || '') || !Number.isFinite(amount) || amount <= 0) return NaN;
+  return Math.round(amount * (order.currency === 'USD' ? SHOPIFY_USD_HTG_RATE : 1) * 100) / 100;
+}
+
 export function canCollectShopifyOrder(order: ShopifyOrderInput): boolean {
   return order.test !== true && !order.cancelled_at
-    && order.currency === 'HTG'
-    && Number.isFinite(shopifyOrderAmount(order)) && shopifyOrderAmount(order) > 0
+    && Number.isFinite(shopifyCollectionAmount(order)) && shopifyCollectionAmount(order) > 0
     && order.financial_status === 'pending'
     && Array.isArray(order.payment_gateway_names)
     && order.payment_gateway_names.some(name => typeof name === 'string' && name.trim().toLowerCase() === 'kobara');
@@ -34,11 +41,11 @@ export function isMatchingShopifyPayment(
   order: { merchant_id: string; payment_link_id: string | null; currency: string; total_amount: number | string; kobara_status: string },
 ): boolean {
   const paid = Number(payment.amount);
-  const expected = Number(order.total_amount);
+  const expected = shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount });
   return payment.environment === 'live' && payment.status === 'succeeded'
     && payment.merchant_id === order.merchant_id
     && Boolean(payment.payment_link_id) && payment.payment_link_id === order.payment_link_id
-    && payment.currency === 'HTG' && order.currency === 'HTG'
+    && payment.currency === 'HTG'
     && Number.isFinite(paid) && Number.isFinite(expected) && expected > 0
     && Math.round(paid * 100) === Math.round(expected * 100)
     && order.kobara_status !== 'cancelled';

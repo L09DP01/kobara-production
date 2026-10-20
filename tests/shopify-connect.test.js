@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { createHmac } from 'node:crypto';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId } from '../src/lib/shopify-policy.ts';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE } from '../src/lib/shopify-policy.ts';
 
 const require = createRequire(import.meta.url);
 const root = new URL('../', import.meta.url);
@@ -67,7 +67,7 @@ function service(db, sendResult = () => ({ success: true })) {
   const emails = [];
   const api = load('src/lib/server/shopify.ts', {
     'server-only': {}, '@/utils/supabase/admin': { createAdminClient: () => db },
-    '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId },
+    '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE },
     '@/lib/server/payments/gateway': {}, '@/lib/server/payments/paypal': {},
     '@/lib/server/mail': { sendEmail: async email => {
       const result = sendResult(email);
@@ -81,7 +81,7 @@ const installation = { id: 'installation-a', merchant_id: 'merchant-a', shop_dom
 
 test('only an unpaid live HTG order choosing Kobara can generate a collection', () => {
   assert.equal(canCollectShopifyOrder(sample), true);
-  for (const change of [{ test: true }, { cancelled_at: '2026-01-01' }, { currency: 'USD' }, { financial_status: 'paid' }, { financial_status: 'partially_paid' }, { financial_status: 'refunded' }, { total_price: '-1' }, { payment_gateway_names: ['Cash on Delivery'] }, { payment_gateway_names: [] }]) assert.equal(canCollectShopifyOrder({ ...sample, ...change }), false);
+  for (const change of [{ test: true }, { cancelled_at: '2026-01-01' }, { currency: 'EUR' }, { financial_status: 'paid' }, { financial_status: 'partially_paid' }, { financial_status: 'refunded' }, { total_price: '-1' }, { payment_gateway_names: ['Cash on Delivery'] }, { payment_gateway_names: [] }]) assert.equal(canCollectShopifyOrder({ ...sample, ...change }), false);
   assert.equal(shopifyOrderAmount({ ...sample, current_total_price: '0' }), 0);
   assert.equal(shopifyOrderId({ admin_graphql_api_id: 'gid://shopify/Order/42' }), '42');
   assert.throws(() => shopifyOrderId({ id: 'https://attacker.example' }));
@@ -216,6 +216,29 @@ test('duplicate order webhooks reuse the stored link and do not email twice', as
   assert.ok(Date.parse(db.tables.payment_links[0].expires_at) > Date.now());
 });
 
+test('USD orders collect HTG at 130 while preserving original currency and amount', async () => {
+  assert.equal(shopifyCollectionAmount({ currency: 'USD', total_price: '10' }), 1300);
+  assert.equal(shopifyCollectionAmount({ currency: 'USD', total_price: '629.95' }), 81893.5);
+  assert.equal(shopifyCollectionAmount({ currency: 'HTG', total_price: '10' }), 10);
+  const db = database();
+  const { api, emails } = service(db);
+  const payload = { ...sample, currency: 'USD', total_price: '10', email: 'unit-test@example.com' };
+  await api.ensureShopifyOrderPaymentLink({ installation, payload });
+  await api.ensureShopifyOrderPaymentLink({ installation, payload });
+  assert.equal(db.tables.shopify_orders[0].currency, 'USD');
+  assert.equal(db.tables.shopify_orders[0].total_amount, 10);
+  assert.equal(db.tables.payment_links[0].amount, 1300);
+  assert.equal(db.tables.payment_links[0].currency, 'HTG');
+  assert.equal(db.tables.payment_links[0].metadata.exchange_rate, 130);
+  assert.match(emails[0].text, /1300 HTG/);
+  assert.equal(emails.length, 1);
+  const order = { merchant_id: 'merchant-a', payment_link_id: 'link-a', total_amount: 10, currency: 'USD', kobara_status: 'payment_link_ready' };
+  const payment = { id: 'payment-a', merchant_id: 'merchant-a', payment_link_id: 'link-a', amount: 1300, currency: 'HTG', status: 'succeeded', environment: 'live' };
+  assert.equal(isMatchingShopifyPayment(payment, order), true);
+  assert.equal(isMatchingShopifyPayment({ ...payment, amount: 10 }, order), false);
+  assert.equal(isMatchingShopifyPayment({ ...payment, currency: 'USD' }, order), false);
+});
+
 test('a failed email retries the existing link and records success only after mail acceptance', async () => {
   const db = database();
   let accepted = false;
@@ -296,15 +319,17 @@ test('Test payments and disconnected installations cannot invoke Shopify orderMa
   assert.equal(calls, 0);
 });
 
-test('successful live confirmation is idempotent and closes the payment link', async t => {
+for (const originalCurrency of ['HTG', 'USD']) test(`successful ${originalCurrency} live confirmation is idempotent and closes the payment link`, async t => {
   const db = database({ payments: [{ id: 'payment-a', merchant_id: 'merchant-a', payment_link_id: 'link-a', status: 'succeeded', environment: 'live', amount: 250, currency: 'HTG' }], shopify_orders: [{ id: 'order-a', installation_id: installation.id, shopify_order_id: '42', merchant_id: 'merchant-a', payment_link_id: 'link-a', total_amount: 250, currency: 'HTG', kobara_status: 'payment_link_ready' }], payment_links: [{ id: 'link-a', merchant_id: 'merchant-a', status: 'active' }] });
   const { api } = service(db);
+  db.tables.shopify_orders[0].currency = originalCurrency;
+  db.tables.payments[0].amount = originalCurrency === 'USD' ? 32500 : 250;
   db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyAccessToken('fake-access-for-unit-test') }];
   const original = global.fetch;
   let mutations = 0;
   global.fetch = async (_url, init) => {
     const body = JSON.parse(init.body);
-    if (body.query.includes('KobaraOrderBeforePayment')) return Response.json({ data: { order: { id: 'gid://shopify/Order/42', cancelledAt: null, displayFinancialStatus: 'PENDING', currentTotalPriceSet: { shopMoney: { amount: '250', currencyCode: 'HTG' } } } } });
+    if (body.query.includes('KobaraOrderBeforePayment')) return Response.json({ data: { order: { id: 'gid://shopify/Order/42', cancelledAt: null, displayFinancialStatus: 'PENDING', currentTotalPriceSet: { shopMoney: { amount: '250', currencyCode: originalCurrency } } } } });
     mutations++;
     return Response.json({ data: { orderMarkAsPaid: { order: { id: 'gid://shopify/Order/42', displayFinancialStatus: 'PAID' }, userErrors: [] } } });
   };
@@ -490,6 +515,7 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
     const page = load('src/app/dashboard/integrations/shopify/page.tsx', {
       'next/navigation': { redirect: () => { throw new Error('redirect'); } },
       '@/components/shopify-kobara-lockup': { ShopifyKobaraLockup: () => React.createElement('span', null, 'Shopify / Kobara') },
+      '@/lib/shopify-policy': { shopifyCollectionAmount },
       '@/utils/supabase/auth-helper': { getCurrentUserAndMerchant: async () => ({ merchant: db.tables.merchants[0], userRole: 'owner' }) },
       '@/utils/supabase/admin': { createAdminClient: () => db },
     });

@@ -3,6 +3,7 @@ import { AlertCircle, ExternalLink, Unplug } from 'lucide-react';
 import { ShopifyKobaraLockup } from '@/components/shopify-kobara-lockup';
 import { getCurrentUserAndMerchant } from '@/utils/supabase/auth-helper';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { shopifyCollectionAmount } from '@/lib/shopify-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -80,7 +81,7 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
             <blockquote className="mt-2 border-l-2 border-orange-500 pl-3 text-slate-200">Après validation de votre commande, consultez votre e-mail pour recevoir votre lien de paiement sécurisé Kobara. Ce lien est valable 24 heures.</blockquote>
             <p className="mt-2">Cliquez ensuite sur <strong className="text-white">Activer</strong>. Le client choisira son moyen disponible sur le checkout Kobara.</p>
           </li>
-          <li>Vérifiez que la commande est en <strong className="text-white">HTG</strong> et que le client renseigne son <strong className="text-white">e-mail</strong>. La collecte nécessite un compte Kobara vérifié et une commande Live ; les commandes Test ne génèrent pas de lien.</li>
+          <li>Les commandes en USD sont converties au taux fixe de <strong className="text-white">1 USD = 130 HTG</strong>. Les commandes HTG restent inchangées. Le client doit renseigner son <strong className="text-white">e-mail</strong>. La collecte nécessite un compte Kobara vérifié et une commande Live ; les commandes Test ne génèrent pas de lien.</li>
           <li>Lors de votre première commande réelle, vérifiez l&apos;arrivée du lien puis la mise à jour automatique vers <strong className="text-white">Payée</strong> après confirmation du paiement. Ne marquez pas la commande payée avant cette confirmation.</li>
         </ol>
         <p className="mt-4 text-xs leading-5 text-slate-400">Aucune clé API à coller dans Shopify. Ce parcours envoie un lien par e-mail après la commande, sans redirection automatique depuis le checkout Shopify.</p>
@@ -88,12 +89,12 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
       </details>
     </section>}
     <section className="border-b border-[#27364B] pb-6"><h2 className="text-lg font-semibold text-white">Paiement manuel Kobara</h2>
-      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Dans les paramètres de paiement Shopify, ajoutez une méthode manuelle nommée « Kobara ». Les commandes Live impayées en HTG ayant choisi cette méthode recevront un lien sécurisé, valable 24 heures, si l&apos;e-mail du client est renseigné. La commande est marquée payée après confirmation réelle.</p>
-      <p className="mt-3 text-sm leading-6 text-slate-400">Les commandes Test et les commandes en devises autres que HTG ne déclenchent pas de collecte. Ce connecteur n&apos;est pas une passerelle native dans le checkout Shopify.</p>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Dans Shopify, ajoutez une méthode manuelle nommée « Kobara ». Les commandes Live impayées en HTG ou USD recevront un lien sécurisé en HTG, valable 24 heures, si l&apos;e-mail du client est renseigné. Conversion fixe : 1 USD = 130 HTG. La commande est marquée payée après confirmation réelle.</p>
+      <p className="mt-3 text-sm leading-6 text-slate-400">Les commandes Test et les autres devises ne déclenchent pas de collecte. Ce connecteur n&apos;est pas une passerelle native dans le checkout Shopify.</p>
     </section>
     <section><h2 className="text-lg font-semibold text-white">Dernières commandes</h2>
       <div className="mt-4 overflow-x-auto rounded-md border border-[#27364B]"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-[#111C2C] text-slate-300"><tr><th className="px-4 py-3 font-semibold">Commande</th><th className="px-4 py-3 font-semibold">Montant</th><th className="px-4 py-3 font-semibold">Statut</th><th className="px-4 py-3 font-semibold">Mise à jour</th></tr></thead>
-        <tbody className="divide-y divide-[#27364B] text-slate-200">{(ordersResult.data || []).map(order => <tr key={order.id}><td className="px-4 py-4 font-semibold">{order.order_name || 'Commande Shopify'}</td><td className="whitespace-nowrap px-4 py-4 tabular-nums">{Number(order.total_amount).toLocaleString('fr-FR')} {order.currency}</td><td className="px-4 py-4">{order.kobara_status === 'paid' ? 'Payée' : order.kobara_status === 'payment_link_ready' ? 'Lien prêt' : order.financial_status || order.kobara_status}</td><td className="px-4 py-4">{formatDate(order.updated_at)}</td></tr>)}
+        <tbody className="divide-y divide-[#27364B] text-slate-200">{(ordersResult.data || []).map(order => <tr key={order.id}><td className="px-4 py-4 font-semibold">{order.order_name || 'Commande Shopify'}</td><td className="whitespace-nowrap px-4 py-4 tabular-nums">{Number(order.total_amount).toLocaleString('fr-FR')} {order.currency}{order.currency === 'USD' && Number(order.total_amount) > 0 && <span className="mt-1 block text-xs text-slate-300">Équivalent : {shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount }).toLocaleString('fr-FR')} HTG</span>}</td><td className="px-4 py-4">{order.kobara_status === 'paid' ? 'Payée' : order.kobara_status === 'payment_link_ready' ? 'Lien prêt' : order.financial_status || order.kobara_status}</td><td className="px-4 py-4">{formatDate(order.updated_at)}</td></tr>)}
           {!ordersResult.data?.length && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{storageReady ? 'Aucune commande synchronisée.' : 'Commandes indisponibles.'}</td></tr>}</tbody></table></div>
     </section>
   </div>;
