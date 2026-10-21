@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PaymentsFilter } from "./payments-filter";
 import ExportCsvButton from "./ExportCsvButton";
 import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
+import { isReviewAccount } from '@/lib/review-account';
 
 export default async function PaymentsPage({
   searchParams
@@ -22,7 +23,7 @@ export default async function PaymentsPage({
     .from('payments')
     .select('*, customers(name, email)', { count: 'exact' })
     .eq('merchant_id', merchant.id)
-    .eq('environment', 'live');
+    .eq('environment', isReviewAccount(merchant) ? 'test' : 'live');
 
   if (filterStatus !== 'all') {
     query = query.eq('status', filterStatus);
@@ -62,7 +63,7 @@ export default async function PaymentsPage({
     .from('payments')
     .select('amount, net_amount, fee_amount, status, created_at')
     .eq('merchant_id', merchant.id)
-    .eq('environment', 'live');
+    .eq('environment', isReviewAccount(merchant) ? 'test' : 'live');
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);

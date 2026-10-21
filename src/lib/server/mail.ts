@@ -1,3 +1,4 @@
+import { isReviewAccount, isReviewEmail } from '@/lib/review-account';
 // Module d'envoi d'e-mails pour Kobara utilisant Resend
 // Fonctionne de manière native sur les environnements Edge et Serverless comme Vercel
 
@@ -128,6 +129,21 @@ export function emailSenderWithName(configuredSender: string, senderName?: strin
 async function sendEmailCore(
   { to, subject, html, text, replyTo, idempotencyKey, senderName }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string },
 ): Promise<{ success: boolean; error?: string }> {
+  if (isReviewEmail(to)) return { success: true };
+  // Suppress interactive mail (invitations, support, settings) initiated by reviewers.
+  let currentUserId: string | undefined;
+  try {
+    const { auth } = await import('@/auth');
+    currentUserId = (await auth())?.user?.id;
+  } catch {
+    // Scheduled jobs have no request session; their source-specific guards apply.
+  }
+  if (currentUserId) {
+    const { createAdminClient } = await import('@/utils/supabase/admin');
+    const { data: merchants, error } = await createAdminClient().from('merchants').select('*').eq('user_id', currentUserId);
+    if (error) return { success: false, error: 'Vérification du contexte e-mail indisponible' };
+    if (merchants?.some(isReviewAccount)) return { success: true };
+  }
   const separator = "─".repeat(56);
   console.log(`
 ┌${separator}┐

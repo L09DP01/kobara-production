@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 import ts from 'typescript';
 import { createHmac } from 'node:crypto';
 import React from 'react';
+import * as reviewAccount from '../src/lib/review-account.ts';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName, matchesShopifyCollectionAmount, shopifyExchangeRate, isValidShopifyRate } from '../src/lib/shopify-policy.ts';
 
@@ -59,7 +60,7 @@ function database(seed = {}) {
 function load(file, mocks = {}) {
   const compiled = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } });
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', compiled.outputText)(name => name in mocks ? mocks[name] : require(name), module, module.exports);
+  new Function('require', 'module', 'exports', compiled.outputText)(name => name in mocks ? mocks[name] : name === '@/lib/review-account' ? reviewAccount : require(name), module, module.exports);
   return module.exports;
 }
 
@@ -78,6 +79,69 @@ function service(db, sendResult = () => ({ success: true })) {
   return { api, emails };
 }
 const installation = { id: 'installation-a', merchant_id: 'merchant-a', shop_domain: 'test-shop.myshopify.com', status: 'active' };
+
+test('review flag is explicit, creates test-order links and suppresses all reminder emails', async () => {
+  assert.equal(reviewAccount.isReviewAccount({ email: 'test@shopify.com' }), false);
+  assert.equal(reviewAccount.isReviewAccount({ shopify_review_mode: 'true' }), false);
+  const db = database({ merchants: [{ id: 'merchant-a', shopify_review_mode: true, current_environment: 'live', kyc_status: 'approved' }] });
+  const { api, emails } = service(db);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...sample, test: true, email: 'customer@example.invalid' } });
+  assert.equal(db.tables.payment_links.length, 1);
+  assert.equal(emails.length, 0);
+});
+
+test('mail to the Shopify review identity is suppressed before transport or session lookup', async t => {
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async () => { throw new Error('Review mail must not be sent'); };
+  const mail = load('src/lib/server/mail.ts');
+  assert.deepEqual(await mail.sendEmail({ to: 'test@shopify.com', subject: 'Review', text: 'Test' }), { success: true });
+});
+
+test('review checkout is idempotent, never calls a provider and persists only Test payments', async t => {
+  const db = database({ merchants: [{ id: 'merchant-a', shopify_review_mode: true }] });
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async () => { throw new Error('Provider must not be called'); };
+  const api = load('src/lib/server/shopify-review.ts', {
+    'server-only': {}, '@/utils/supabase/admin': { createAdminClient: () => db },
+    '@/lib/shopify-policy': { canCollectShopifyOrder, matchesShopifyCollectionAmount, shopifyExchangeRate },
+  });
+  const link = { id: 'link-a', merchant_id: 'merchant-a', amount: 250 };
+  const first = await api.simulateReviewPayment(link, '1');
+  const second = await api.simulateReviewPayment(link, '999');
+  assert.deepEqual(first, second);
+  assert.equal(db.tables.payments.length, 1);
+  assert.equal(db.tables.payments[0].environment, 'test');
+  assert.equal(db.tables.payments[0].amount, 250);
+  assert.equal(db.tables.payments[0].status, 'succeeded');
+  assert.equal(db.tables.payments[0].metadata.shopify_review, true);
+  db.tables.merchants[0].shopify_review_mode = false;
+  assert.equal(await api.simulateReviewPayment(link, '250'), null);
+});
+
+test('review settlement refuses a real Shopify store before marking any order paid', async t => {
+  const db = database({ merchants: [{ id: 'merchant-a', shopify_review_mode: true }],
+    payments: [{ id: 'payment-a', merchant_id: 'merchant-a', payment_link_id: 'link-a', status: 'succeeded', environment: 'test', amount: 250, currency: 'HTG', metadata: { shopify_review: true } }],
+    shopify_orders: [{ id: 'order-a', installation_id: installation.id, shopify_order_id: '42', merchant_id: 'merchant-a', payment_link_id: 'link-a', total_amount: 250, currency: 'HTG', kobara_status: 'payment_link_ready' }],
+    payment_links: [{ id: 'link-a', merchant_id: 'merchant-a', amount: 250 }],
+  });
+  const { api } = service(db);
+  db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyAccessToken('fake-unit-test-access') }];
+  const original = global.fetch; let mutations = 0; let development = false;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    if (body.query.includes('KobaraOrderBeforePayment')) return Response.json({ data: { shop: { plan: { partnerDevelopment: development } }, order: { id: 'gid://shopify/Order/42', cancelledAt: null, displayFinancialStatus: 'PENDING', currentTotalPriceSet: { shopMoney: { amount: '250', currencyCode: 'HTG' } } } } });
+    mutations++;
+    return Response.json({ data: { orderMarkAsPaid: { order: { id: 'gid://shopify/Order/42' }, userErrors: [] } } });
+  };
+  await assert.rejects(api.reconcileShopifyPayment('payment-a', 'link-a'), /development stores/);
+  assert.equal(mutations, 0);
+  development = true;
+  await api.reconcileShopifyPayment('payment-a', 'link-a');
+  assert.equal(mutations, 1);
+});
 
 test('only an unpaid live HTG order choosing Kobara can generate a collection', () => {
   assert.equal(canCollectShopifyOrder(sample), true);

@@ -41,6 +41,7 @@ export async function onPaymentSucceeded(paymentId: string) {
     console.warn(`onPaymentSucceeded: Payment ${paymentId} status is ${payment.status}, skipping`);
     return;
   }
+  if (payment.environment === 'test' && payment.metadata?.shopify_review === true) return;
 
   // --- 1. Check if it's a subscription upgrade ---
   const merchantId = payment.merchant_id;

@@ -1,4 +1,5 @@
 import 'server-only';
+import { isReviewAccount } from '@/lib/review-account';
 
 import {
   createCipheriv,
@@ -492,11 +493,16 @@ export async function ensureShopifyOrderPaymentLink(input: {
   payload: ShopifyOrderPayload;
 }) {
   const syncedOrder = await upsertShopifyOrder(input);
+  const { data: reviewMerchant, error: reviewError } = await createAdminClient().from('merchants').select('*')
+    .eq('id', input.installation.merchant_id).maybeSingle();
+  if (reviewError) throw new Error('shopify_merchant_lookup_failed');
+  const reviewMode = isReviewAccount(reviewMerchant);
+  const collectible = canCollectShopifyOrder(reviewMode ? { ...input.payload, test: false } : input.payload);
   if (syncedOrder.payment_link_id) {
     const db = createAdminClient();
     const { data: link } = await db.from('payment_links').select('id, slug, amount, status, expires_at, metadata')
       .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id).maybeSingle();
-    if (!canCollectShopifyOrder(input.payload) || !link || Number(link.amount) !== shopifyCollectionAmount(input.payload, shopifyExchangeRate(link.metadata?.exchange_rate))) {
+    if (!collectible || !link || Number(link.amount) !== shopifyCollectionAmount(input.payload, shopifyExchangeRate(link.metadata?.exchange_rate))) {
       const { error } = await db.from('payment_links').update({ status: 'inactive' })
         .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id);
       if (error) throw new Error('Désactivation du lien Shopify impossible.');
@@ -505,7 +511,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
     }
     return syncedOrder;
   }
-  if (!canCollectShopifyOrder(input.payload)) return syncedOrder;
+  if (!collectible) return syncedOrder;
 
   const supabase = createAdminClient();
   const { data: settings, error: settingsError } = await supabase.from('shopify_installations')
@@ -589,8 +595,9 @@ async function emailShopifyPaymentLink(input: {
   }
   const db = createAdminClient();
   const { data: merchant, error: merchantError } = await db.from('merchants')
-    .select('current_environment, kyc_status, business_name').eq('id', input.installation.merchant_id).maybeSingle();
+    .select('*').eq('id', input.installation.merchant_id).maybeSingle();
   if (merchantError) throw new Error('shopify_email_merchant_lookup_failed');
+  if (isReviewAccount(merchant)) return;
   if (merchant?.current_environment !== 'live' || merchant.kyc_status !== 'approved') return;
   const { data: sent, error: lookupError } = await db.from('audit_logs').select('id')
     .eq('merchant_id', input.installation.merchant_id).eq('entity_id', link.id)
@@ -634,9 +641,15 @@ export async function markShopifyOrderPaid(input: {
 }) {
   const supabase = createAdminClient();
   const { data: payment } = await supabase.from('payments')
-    .select('id, merchant_id, payment_link_id, environment, status, amount, currency')
+    .select('id, merchant_id, payment_link_id, environment, status, amount, currency, metadata')
     .eq('id', input.paymentId).maybeSingle();
-  if (!payment || payment.environment !== 'live' || payment.status !== 'succeeded' || !payment.payment_link_id) return;
+  if (!payment || payment.status !== 'succeeded' || !payment.payment_link_id) return;
+  let reviewMode = false;
+  if (payment.environment === 'test' && payment.metadata?.shopify_review === true) {
+    const { data: merchant } = await supabase.from('merchants').select('*').eq('id', payment.merchant_id).maybeSingle();
+    reviewMode = isReviewAccount(merchant);
+  }
+  if (payment.environment !== 'live' && !reviewMode) return;
   const { data: order } = await supabase.from('shopify_orders')
     .select('id, merchant_id, payment_link_id, payment_id, currency, total_amount, kobara_status')
     .eq('installation_id', input.installationId)
@@ -645,7 +658,7 @@ export async function markShopifyOrderPaid(input: {
   const { data: collectionLink } = await supabase.from('payment_links').select('metadata, amount')
     .eq('id', payment.payment_link_id).eq('merchant_id', payment.merchant_id).maybeSingle();
   const exchangeRate = shopifyExchangeRate(collectionLink?.metadata?.exchange_rate);
-  if (!order || !collectionLink || !isMatchingShopifyPayment(payment, { ...order, exchange_rate: exchangeRate })) throw new Error('Paiement Shopify non concordant.');
+  if (!order || !collectionLink || !isMatchingShopifyPayment(reviewMode ? { ...payment, environment: 'live' } : payment, { ...order, exchange_rate: exchangeRate })) throw new Error('Paiement Shopify non concordant.');
   if (order.payment_id) {
     if (order.payment_id === payment.id && order.kobara_status === 'paid') return;
     throw new Error('Commande déjà associée à un paiement.');
@@ -659,15 +672,16 @@ export async function markShopifyOrderPaid(input: {
     .maybeSingle();
   if (error || !installation?.access_token_ciphertext) throw new Error('Installation Shopify inactive.');
   const accessToken = await getShopifyAccessToken(installation);
-  const current = await shopifyGraphql<{ order: {
+  const current = await shopifyGraphql<{ shop?: { plan: { partnerDevelopment: boolean } }; order: {
     id: string; cancelledAt: string | null; displayFinancialStatus: string;
     currentTotalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
   } | null }>({
     shopDomain: installation.shop_domain, accessToken,
-    query: `query KobaraOrderBeforePayment($id: ID!) { order(id: $id) { id cancelledAt displayFinancialStatus currentTotalPriceSet { shopMoney { amount currencyCode } } } }`,
+    query: `query KobaraOrderBeforePayment($id: ID!) { ${reviewMode ? 'shop { plan { partnerDevelopment } }' : ''} order(id: $id) { id cancelledAt displayFinancialStatus currentTotalPriceSet { shopMoney { amount currencyCode } } } }`,
     variables: { id: input.orderGid },
   });
   const remote = current.order;
+  if (reviewMode && current.shop?.plan.partnerDevelopment !== true) throw new Error('Les simulations sont réservées aux development stores Shopify.');
   if (!remote || remote.cancelledAt || remote.currentTotalPriceSet.shopMoney.currencyCode !== order.currency
     || Math.round(Number(remote.currentTotalPriceSet.shopMoney.amount) * 100) !== Math.round(Number(order.total_amount) * 100)
     || !['PENDING', 'PAID'].includes(remote.displayFinancialStatus)) {

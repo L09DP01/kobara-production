@@ -125,7 +125,7 @@ export default async function DashboardPage() {
     has_usd_account?: boolean;
     available_balance_usd?: number | string | null;
   };
-  const environment = "live";
+  const environment = merchant.shopify_review_mode === true ? 'test' : 'live';
   const availableBalanceUsd = Number(usdMerchant.available_balance_usd || 0);
   const usdBalanceActive = Boolean(usdMerchant.has_usd_account)
     && (usdAccount.isActive || isNowPaymentsConfigured());

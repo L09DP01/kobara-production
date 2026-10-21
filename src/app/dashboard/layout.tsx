@@ -311,6 +311,7 @@ export default async function DashboardLayout({
         kycApproved={isKycApproved}
         referralSummary={referralSummary}
       >
+        {merchant?.shopify_review_mode === true && <div role="status" className="border-b border-amber-800 bg-amber-950/20 p-4 text-sm text-amber-200">Démonstration Shopify : KYC simulé, paiements Test uniquement. Aucun fonds réel, aucun retrait, aucun e-mail Kobara.</div>}
         {children}
       </DashboardLayoutClient>
     </>

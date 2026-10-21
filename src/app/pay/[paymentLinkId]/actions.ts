@@ -16,6 +16,7 @@ import { convertPaymentAmountToUsd } from "@/lib/nowpayments";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import { isMerchantPaymentMethodEnabled } from "@/lib/server/payments/merchant-payment-methods";
 import { canCollectShopifyOrder, matchesShopifyCollectionAmount, shopifyExchangeRate } from '@/lib/shopify-policy';
+import { simulateReviewPayment } from '@/lib/server/shopify-review';
 
 function paymentLimitError(limit?: number, used?: number) {
   const normalizedLimit = Number(limit || 0);
@@ -64,6 +65,12 @@ export async function processPayment(formData: FormData) {
   }
   if (linkInfo.status !== 'active' || (linkInfo.expires_at && Date.parse(linkInfo.expires_at) <= Date.now())) {
     throw new Error("Ce lien de paiement n'est plus disponible.");
+  }
+  const simulation = await simulateReviewPayment({ ...linkInfo, id: paymentLinkId }, amountStr);
+  if (simulation) {
+    const { headers } = await import('next/headers');
+    const host = (await headers()).get('host') || '';
+    return { redirectUrl: host.startsWith('pay.') ? simulation.redirectUrl.replace(/^\/pay/, '') : simulation.redirectUrl };
   }
   if (linkInfo.metadata?.source === 'shopify') {
     const { data: order } = await supabaseAdmin.from('shopify_orders')

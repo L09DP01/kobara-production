@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/utils/supabase/admin";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { isReviewAccount } from '@/lib/review-account';
 import { processPayment } from "./actions";
 import { getMerchantCurrentPlan } from "@/lib/server/plans";
 import PaymentFormClient from "@/components/payments/PaymentFormClient";
@@ -29,7 +30,7 @@ export default async function PublicPaymentPage({
   
   const { data: linkBySlug } = await supabaseAdmin
     .from('payment_links')
-    .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account, kyc_status)')
+    .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account, kyc_status, shopify_review_mode)')
     .eq('slug', resolvedParams.paymentLinkId)
     .single();
 
@@ -38,7 +39,7 @@ export default async function PublicPaymentPage({
   } else {
     const { data: linkById } = await supabaseAdmin
       .from('payment_links')
-      .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account, kyc_status)')
+      .select('*, merchants(id, business_name, logo_url, paypal_enabled, has_usd_account, kyc_status, shopify_review_mode)')
       .eq('id', resolvedParams.paymentLinkId)
       .single();
     
@@ -63,6 +64,32 @@ export default async function PublicPaymentPage({
     }
   }
 
+  if (isReviewAccount(link.merchants)) {
+    if (link.status !== 'active' || (link.expires_at && Date.parse(link.expires_at) <= Date.now())) notFound();
+    async function simulate(formData: FormData) {
+      'use server';
+      const result = await processPayment(formData);
+      if ('redirectUrl' in result && result.redirectUrl) redirect(result.redirectUrl);
+      throw new Error('La simulation n’a pas pu être finalisée.');
+    }
+    return <main className="min-h-dvh bg-[#080e19] px-6 py-16 text-white"><div className="mx-auto max-w-lg space-y-5">
+      <p className="text-sm font-semibold text-amber-300">TEST SHOPIFY</p>
+      <h1 className="text-2xl font-bold">{link.metadata?.product_name || link.title}</h1>
+      {link.metadata?.order_name && <p>Commande {link.metadata.order_name}</p>}
+      <p className="text-slate-300">Simulation uniquement. Aucun prélèvement, aucun fonds réel et aucun e-mail Kobara.</p>
+      <form action={simulate} className="space-y-4">
+        <input type="hidden" name="paymentLinkId" value={link.id} />
+        <input type="hidden" name="merchantId" value={link.merchant_id} />
+        <input type="hidden" name="customerName" value="Shopify reviewer" />
+        <input type="hidden" name="customerEmail" value="test@shopify.com" />
+        <input type="hidden" name="customerPhone" value="00000000" />
+        <input type="hidden" name="provider" value="moncash" />
+        {link.amount ? <><p className="text-2xl">{Number(link.amount).toLocaleString('fr-FR')} HTG</p><input type="hidden" name="amount" value={link.amount} /></>
+          : <label className="block">Montant HTG<input name="amount" type="number" min="10" step="0.01" required className="mt-2 block w-full rounded border border-slate-600 bg-slate-950 p-3" /></label>}
+        <button type="submit" className="w-full rounded bg-orange-600 px-4 py-3 font-semibold">Simuler un paiement réussi</button>
+      </form>
+    </div></main>;
+  }
   const providerConfig = await getPaymentProviderConfig();
   const { plan } = await getMerchantCurrentPlan(link.merchant_id);
   const transactionFeePercent = 0.039;

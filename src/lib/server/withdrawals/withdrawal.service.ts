@@ -13,6 +13,7 @@ import {
 } from '@/lib/server/payments/nowpayments';
 import { getWithdrawalUserMessage } from '@/lib/withdrawal-error-message';
 import { isWithdrawalAmountAllowed } from '@/lib/merchant-pricing';
+import { isReviewAccount } from '@/lib/review-account';
 
 export interface ProcessWithdrawalParams {
   requestSource?: 'dashboard' | 'api';
@@ -61,6 +62,9 @@ export const WithdrawalService = {
       requestSource = 'api',
     } = params;
 
+    const { data: reviewMerchant, error: reviewError } = await createAdminClient().from('merchants').select('*').eq('id', merchantId).maybeSingle();
+    if (reviewError || !reviewMerchant) return { success: false, error: 'Compte marchand indisponible.' };
+    if (isReviewAccount(reviewMerchant)) return { success: false, error: 'Les retraits sont désactivés pour ce compte de démonstration.', errorCode: 'REVIEW_ACCOUNT_WITHDRAWALS_FORBIDDEN' };
     const normalizedMethod = (method || '').trim().toLowerCase();
     const normalizedSourceCurrency = sourceCurrency === 'USD' ? 'USD' : 'HTG';
 

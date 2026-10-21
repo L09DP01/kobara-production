@@ -71,6 +71,7 @@ export class B2BTransferService {
       const access = await canCreateWithdrawal(params.senderId, amount);
       if (!access.allowed) {
         const messages = {
+          review_account_restricted: 'Les transferts sont désactivés pour ce compte de démonstration.',
           subscription_expired: 'Votre abonnement a expiré.',
           withdrawal_limit_reached: `Votre limite journalière est atteinte (${access.used?.toLocaleString('fr-FR')}/${access.limit?.toLocaleString('fr-FR')} HTG).`,
           kyc_required: 'Votre compte doit être vérifié pour effectuer ce transfert.',

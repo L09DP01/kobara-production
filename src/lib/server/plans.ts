@@ -67,7 +67,7 @@ export async function getMerchantSubscriptionEntitlement(merchantId: string) {
   const [{ data: merchant, error: merchantError }, freePlan] = await Promise.all([
     supabase
       .from('merchants')
-      .select('id, email, plan_slug, plan_status, account_access, kyc_status, available_balance')
+      .select('id, email, plan_slug, plan_status, account_access, kyc_status, available_balance, shopify_review_mode')
       .eq('id', merchantId)
       .single(),
     getPlanBySlug('free'),
