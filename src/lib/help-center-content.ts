@@ -150,9 +150,9 @@ export const helpArticles: HelpArticle[] = [
   }),
   article({
     id: "balance-availability", slug: "availability", path: "balance/availability", title: "Quand un paiement devient-il disponible ?", description: "Comprendre le délai de disponibilité appliqué aux encaissements locaux.",
-    summary: "Un encaissement MonCash ou NatCash devient disponible au premier des deux moments suivants : 12 heures après sa confirmation ou 08:00 le lendemain, heure d’Haïti.", category: "balance",
+    summary: "Un encaissement MonCash ou NatCash devient disponible au premier des deux moments suivants : 12 heures après sa confirmation ou le prochain passage à 08:00, heure d’Haïti. Avant 08:00, il s’agit du même matin.", category: "balance",
     sections: [
-      { title: "Exemples horaires", bullets: ["Confirmé à 10:00 : 12 heures plus tard correspond à 22:00 le même jour ; le montant devient disponible à 22:00.", "Confirmé à 19:00 : 12 heures plus tard correspond à 07:00 le lendemain ; le montant devient disponible à 07:00.", "Confirmé à 22:00 : 08:00 le lendemain arrive avant l’échéance de 12 heures ; le montant devient disponible à 08:00."] },
+      { title: "Exemples horaires", bullets: ["Confirmé à 00:00 : le montant devient disponible à 08:00 le même matin, sans attendre midi.", "Confirmé à 07:00 : le montant devient disponible à 08:00 le même matin.", "Confirmé à 10:00 : 12 heures plus tard correspond à 22:00 le même jour ; le montant devient disponible à 22:00.", "Confirmé à 19:00 : 12 heures plus tard correspond à 07:00 le lendemain ; le montant devient disponible à 07:00.", "Confirmé à 22:00 : 08:00 le lendemain arrive avant l’échéance de 12 heures ; le montant devient disponible à 08:00."] },
       { title: "Si le montant n’est pas disponible", steps: ["Vérifiez que le paiement est réellement succeeded.", "Confirmez l’heure de confirmation, pas seulement l’heure de création.", "Actualisez le solde après l’échéance calculée.", "Contactez le support avec l’identifiant Kobara si le montant reste bloqué."] },
     ],
     keywords: ["disponibilité", "12 heures", "8 heures", "solde en attente", "délai"], relatedArticles: ["balance/what-is-balance", "payments/payment-status", "payouts/how-withdrawals-work"], audience: ["merchant", "finance"], country: ["HT"], paymentMethods: ["moncash", "natcash"], plans: ["all"],

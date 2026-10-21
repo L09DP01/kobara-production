@@ -66,7 +66,7 @@ const withdrawal = await kobara.withdrawals.create({
 console.log(withdrawal.data.payout_amount);
 ```
 
-Seuls les versements vers `moncash` et `natcash` sont exposés. Le compte source peut être HTG ou USD et le portefeuille reçoit des HTG après frais de 5 % et conversion éventuelle. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti.
+Seuls les versements vers `moncash` et `natcash` sont exposés. Le compte source peut être HTG ou USD et le portefeuille reçoit des HTG après frais de 5 % et conversion éventuelle. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou au prochain passage à 08:00 (le même matin si confirmé avant 08:00) en heure d'Haïti.
 
 ## Surface publique actuelle
 

@@ -78,7 +78,7 @@ console.log(withdrawal.data.status);
 console.log(withdrawal.data.payout_amount);
 ```
 
-Les frais MonCash et NatCash sont de 5 % du montant brut. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti. Un retrait peut répondre `200 OK` s'il est terminé ou `202 Accepted` s'il reste en traitement ou en vérification.
+Les frais MonCash et NatCash sont de 5 % du montant brut. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou au prochain passage à 08:00 (le même matin si confirmé avant 08:00) en heure d'Haïti. Un retrait peut répondre `200 OK` s'il est terminé ou `202 Accepted` s'il reste en traitement ou en vérification.
 
 ## Vérifier un webhook
 

@@ -63,7 +63,7 @@ print(withdrawal["data"]["status"])
 print(withdrawal["data"]["payout_amount"])
 ```
 
-Seuls `moncash` et `natcash` sont acceptés. Le compte source peut être `HTG` ou `USD`, mais le portefeuille reçoit des HTG. Les frais sont de 5 % du montant brut. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou à 08:00 le jour suivant en heure d'Haïti.
+Seuls `moncash` et `natcash` sont acceptés. Le compte source peut être `HTG` ou `USD`, mais le portefeuille reçoit des HTG. Les frais sont de 5 % du montant brut. Un encaissement local devient disponible au premier des deux moments suivants: 12 heures après sa confirmation ou au prochain passage à 08:00 (le même matin si confirmé avant 08:00) en heure d'Haïti.
 
 ## Vérifier un webhook
 
