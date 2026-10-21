@@ -4,7 +4,7 @@
 
 1. Le propriétaire connecte sa boutique depuis `dashboard.kobara.app/integrations/shopify`.
 2. Shopify autorise Kobara à lire et mettre à jour les commandes.
-3. Une commande Live HTG ou USD impayee ayant choisi la methode manuelle `Kobara` cree un lien unique en HTG, valable 24 heures. Le taux fixe est 1 USD = 130 HTG, arrondi au centime. Le montant et la devise Shopify d'origine sont conserves ; le taux et le montant collecte sont inscrits dans les metadonnees du lien. Les commandes HTG ne sont pas converties. Les commandes Test et les autres methodes ne declenchent pas de collecte.
+3. Une commande Live HTG ou USD impayee ayant choisi la methode manuelle `Kobara` cree un lien unique en HTG, valable 24 heures. Le marchand configure son taux USD/HTG depuis l'interface Shopify de Kobara (valeur initiale 130). Le taux est fige dans chaque nouveau lien et le montant arrondi au centime. Le montant et la devise Shopify d'origine sont conserves. Modifier le taux ne change pas les liens existants. Les commandes HTG ne sont pas converties. Les commandes Test et les autres methodes ne declenchent pas de collecte.
 4. Le client reçoit ce lien par e-mail et paie avec les moyens actifs pour le marchand.
 5. Après confirmation Kobara, `orderMarkAsPaid` met la commande à jour dans Shopify.
 6. Une déconnexion ou le webhook `app/uninstalled` désactive la connexion et supprime le jeton enregistré. Aucun abonnement ou changement de plan n'est lié à Shopify.
@@ -49,7 +49,7 @@ Dans Shopify Admin, ouvrir **Settings > Payments > Manual payment methods**, cr�
 - Migration à appliquer manuellement : `supabase/migrations/20260828165318_shopify_connect.sql`. Elle crée trois tables privées et leurs index. Aucun solde ni paiement existant n'est modifié.
 - La présence de secrets en local ne confirme pas leur présence sur Cloudflare. Ajouter les mêmes secrets à l'environnement du Worker avant activation.
 - Vérifier les URLs et les scopes ci-dessus dans le Dev Dashboard Shopify et l'accès aux données clients protégées, notamment l'e-mail des commandes.
-- Le paiement est collecte en HTG via MonCash/NatCash. Les commandes USD sont converties a 130 HTG pour 1 USD, sans conversion pour les commandes HTG. Les autres devises et les commandes Shopify Test ne sont pas collectees.
+- Le paiement est collecte en HTG via MonCash/NatCash. Les commandes USD utilisent le taux marchand fige dans le lien, sans conversion pour les commandes HTG. Les autres devises et les commandes Shopify Test ne sont pas collectees. Le checkout affiche seulement le produit, la reference de commande, le taux applicable aux USD et le montant HTG ; les liens Shopify restent exclus des listes de liens classiques du dashboard et de l'API mobile.
 - Un paiement Test, d'un autre marchand, d'un mauvais montant ou d'un autre lien ne marque jamais une commande réelle comme payée.
 - Les erreurs de confirmation sont inscrites dans l'audit Core (`shopify.order_confirmation_failed`). Une intervention peut être nécessaire si la commande change après émission du lien.
 - Les webhooks de conformité doivent être configurés dans Shopify. Les demandes d'accès aux données doivent être traitées par l'équipe ; ce connecteur ne prétend pas générer un export RGPD automatique.

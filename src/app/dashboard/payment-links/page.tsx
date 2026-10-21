@@ -11,6 +11,7 @@ export default async function PaymentLinksPage() {
     .select('*')
     .eq('merchant_id', merchant.id)
     .eq('environment', 'live')
+    .or('metadata->>source.is.null,metadata->>source.neq.shopify')
     .order('created_at', { ascending: false });
 
   // Fetch payments to calculate stats per link

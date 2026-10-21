@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { createHmac } from 'node:crypto';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName, matchesShopifyCollectionAmount } from '../src/lib/shopify-policy.ts';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName, matchesShopifyCollectionAmount, shopifyExchangeRate, isValidShopifyRate } from '../src/lib/shopify-policy.ts';
 
 const require = createRequire(import.meta.url);
 const root = new URL('../', import.meta.url);
@@ -67,7 +67,7 @@ function service(db, sendResult = () => ({ success: true })) {
   const emails = [];
   const api = load('src/lib/server/shopify.ts', {
     'server-only': {}, '@/utils/supabase/admin': { createAdminClient: () => db },
-    '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName },
+    '@/lib/shopify-policy': { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName, shopifyExchangeRate },
     '@/lib/server/payments/gateway': {}, '@/lib/server/payments/paypal': {},
     '@/lib/server/mail': { sendEmail: async email => {
       const result = sendResult(email);
@@ -251,7 +251,25 @@ test('checkout validates converted USD amounts and product names take priority o
   assert.equal(db.tables.payment_links[0].title, 'Snowboard');
   assert.equal(db.tables.payment_links[0].metadata.product_name, 'Snowboard');
   assert.equal(db.tables.payment_links[0].metadata.order_name, '#1003');
-  assert.match(read('src/app/pay/[paymentLinkId]/actions.ts'), /matchesShopifyCollectionAmount\(order, linkInfo.amount\)/);
+  assert.match(read('src/app/pay/[paymentLinkId]/actions.ts'), /matchesShopifyCollectionAmount\(order, linkInfo.amount, shopifyExchangeRate/);
+});
+
+test('merchant rates apply only to new links while retries keep their locked amount and rate', async () => {
+  const db = database({ shopify_installations: [{ ...installation, metadata: { usd_htg_rate: 145 } }] });
+  const { api } = service(db);
+  const payload = { ...sample, currency: 'USD', total_price: '10', email: 'unit-test@example.com' };
+  await api.ensureShopifyOrderPaymentLink({ installation, payload });
+  assert.equal(db.tables.payment_links[0].amount, 1450);
+  assert.equal(db.tables.payment_links[0].metadata.exchange_rate, 145);
+  db.tables.shopify_installations[0].metadata.usd_htg_rate = 160;
+  await api.ensureShopifyOrderPaymentLink({ installation, payload });
+  assert.equal(db.tables.payment_links[0].status, 'active');
+  assert.equal(db.tables.payment_links[0].amount, 1450);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...payload, id: 43 } });
+  assert.equal(db.tables.payment_links[1].amount, 1600);
+  assert.equal(matchesShopifyCollectionAmount({ currency: 'USD', total_amount: 10 }, 1450, 145), true);
+  assert.equal(matchesShopifyCollectionAmount({ currency: 'USD', total_amount: 10 }, 1450, 160), false);
+  for (const rate of [0, -1, Infinity, NaN, 130.12345]) assert.equal(isValidShopifyRate(rate), false);
 });
 
 test('a failed email retries the existing link and records success only after mail acceptance', async () => {
@@ -326,7 +344,7 @@ test('Test payments and disconnected installations cannot invoke Shopify orderMa
   t.after(() => { global.fetch = original; });
   const p = { id: 'payment-a', merchant_id: 'merchant-a', payment_link_id: 'link-a', status: 'succeeded', environment: 'test', amount: 250, currency: 'HTG' };
   const order = { id: 'order-a', installation_id: installation.id, shopify_order_id: '42', merchant_id: 'merchant-a', payment_link_id: 'link-a', total_amount: 250, currency: 'HTG', kobara_status: 'payment_link_ready' };
-  const db = database({ payments: [p], shopify_orders: [order], shopify_installations: [{ ...installation, status: 'disconnected' }] });
+  const db = database({ payments: [p], shopify_orders: [order], payment_links: [{ id: 'link-a', merchant_id: 'merchant-a', amount: 250 }], shopify_installations: [{ ...installation, status: 'disconnected' }] });
   const { api } = service(db);
   await api.markShopifyOrderPaid({ installationId: installation.id, orderGid: 'gid://shopify/Order/42', paymentId: p.id });
   db.tables.payments[0].environment = 'live';
@@ -338,7 +356,8 @@ for (const originalCurrency of ['HTG', 'USD']) test(`successful ${originalCurren
   const db = database({ payments: [{ id: 'payment-a', merchant_id: 'merchant-a', payment_link_id: 'link-a', status: 'succeeded', environment: 'live', amount: 250, currency: 'HTG' }], shopify_orders: [{ id: 'order-a', installation_id: installation.id, shopify_order_id: '42', merchant_id: 'merchant-a', payment_link_id: 'link-a', total_amount: 250, currency: 'HTG', kobara_status: 'payment_link_ready' }], payment_links: [{ id: 'link-a', merchant_id: 'merchant-a', status: 'active' }] });
   const { api } = service(db);
   db.tables.shopify_orders[0].currency = originalCurrency;
-  db.tables.payments[0].amount = originalCurrency === 'USD' ? 32500 : 250;
+  db.tables.payments[0].amount = originalCurrency === 'USD' ? 36250 : 250;
+  db.tables.payment_links[0].metadata = { exchange_rate: originalCurrency === 'USD' ? 145 : 1 };
   db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyAccessToken('fake-access-for-unit-test') }];
   const original = global.fetch;
   let mutations = 0;
@@ -469,6 +488,32 @@ test('disconnect validates the origin and owner session, clears credentials and 
   assert.equal(db.tables.payment_links[0].status, 'inactive');
 });
 
+test('Shopify rate settings enforce same origin and owner authorization, validate input and preserve metadata', async () => {
+  const db = database({ shopify_installations: [{ ...installation, metadata: { webhook_subscriptions: ['retained'] } }] });
+  let allowed = true;
+  const route = load('src/app/api/integrations/shopify/settings/route.ts', {
+    'next/server': { NextResponse: nextResponse },
+    '@/lib/shopify-policy': { isValidShopifyRate },
+    '@/lib/server/shopify-auth': { requireShopifyOwnerMerchant: async () => {
+      if (!allowed) throw new Error('owner_required');
+      return { merchant: { id: 'merchant-a' }, supabase: db };
+    } },
+  });
+  const request = (value, origin = 'https://dashboard.example') => ({
+    headers: new Headers({ origin }), nextUrl: new URL('https://dashboard.example/api/integrations/shopify/settings'),
+    url: 'https://dashboard.example/api/integrations/shopify/settings',
+    formData: async () => { const form = new FormData(); form.set('usd_htg_rate', value); return form; },
+  });
+  assert.equal((await route.POST(request('145', 'https://attacker.example'))).status, 403);
+  assert.match((await route.POST(request('0'))).headers.get('location'), /invalid_exchange_rate/);
+  assert.match((await route.POST(request('145,5'))).headers.get('location'), /rate_saved=1/);
+  assert.equal(db.tables.shopify_installations[0].metadata.usd_htg_rate, 145.5);
+  assert.deepEqual(db.tables.shopify_installations[0].metadata.webhook_subscriptions, ['retained']);
+  allowed = false;
+  await route.POST(request('200'));
+  assert.equal(db.tables.shopify_installations[0].metadata.usd_htg_rate, 145.5);
+});
+
 test('a retried uninstall still closes links after the installation was already deactivated', async () => {
   const db = database({ shopify_installations: [{ ...installation, status: 'uninstalled', access_token_ciphertext: null }], payment_links: [{ id: 'link-a', merchant_id: 'merchant-a', status: 'active', metadata: { shopify_installation_id: installation.id } }] });
   const { api } = service(db);
@@ -530,7 +575,7 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
     const page = load('src/app/dashboard/integrations/shopify/page.tsx', {
       'next/navigation': { redirect: () => { throw new Error('redirect'); } },
       '@/components/shopify-kobara-lockup': { ShopifyKobaraLockup: () => React.createElement('span', null, 'Shopify / Kobara') },
-      '@/lib/shopify-policy': { shopifyCollectionAmount },
+      '@/lib/shopify-policy': { shopifyCollectionAmount, shopifyExchangeRate },
       '@/utils/supabase/auth-helper': { getCurrentUserAndMerchant: async () => ({ merchant: db.tables.merchants[0], userRole: 'owner' }) },
       '@/utils/supabase/admin': { createAdminClient: () => db },
     });

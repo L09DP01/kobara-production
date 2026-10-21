@@ -16,8 +16,8 @@ export function shopifyProductName(order: ShopifyOrderInput): string | null {
   return names.length ? names.join(' · ') : null;
 }
 
-export function matchesShopifyCollectionAmount(order: { currency: string; total_amount: number | string }, amount: number | string): boolean {
-  const expected = shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount });
+export function matchesShopifyCollectionAmount(order: { currency: string; total_amount: number | string }, amount: number | string, rate = SHOPIFY_USD_HTG_RATE): boolean {
+  const expected = shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount }, rate);
   return Number.isFinite(expected) && expected > 0 && Number.isFinite(Number(amount))
     && Math.round(expected * 100) === Math.round(Number(amount) * 100);
 }
@@ -34,10 +34,22 @@ export function shopifyOrderAmount(order: ShopifyOrderInput): number {
 
 export const SHOPIFY_USD_HTG_RATE = 130;
 
-export function shopifyCollectionAmount(order: ShopifyOrderInput): number {
+export function isValidShopifyRate(value: number): boolean {
+  return Number.isFinite(value) && value > 0 && Math.abs(value * 10000 - Math.round(value * 10000)) < 0.00001;
+}
+
+export function shopifyExchangeRate(value: unknown): number {
+  const rate = value == null ? SHOPIFY_USD_HTG_RATE : Number(value);
+  if (!isValidShopifyRate(rate)) throw new Error('invalid_exchange_rate');
+  return rate;
+}
+
+export function shopifyCollectionAmount(order: ShopifyOrderInput, rate = SHOPIFY_USD_HTG_RATE): number {
   const amount = shopifyOrderAmount(order);
   if (!['HTG', 'USD'].includes(order.currency || '') || !Number.isFinite(amount) || amount <= 0) return NaN;
-  return Math.round(amount * (order.currency === 'USD' ? SHOPIFY_USD_HTG_RATE : 1) * 100) / 100;
+  if (order.currency === 'USD' && !isValidShopifyRate(rate)) return NaN;
+  const cents = Math.round(amount * (order.currency === 'USD' ? rate : 1) * 100);
+  return Number.isSafeInteger(cents) ? cents / 100 : NaN;
 }
 
 export function canCollectShopifyOrder(order: ShopifyOrderInput): boolean {
@@ -50,10 +62,10 @@ export function canCollectShopifyOrder(order: ShopifyOrderInput): boolean {
 
 export function isMatchingShopifyPayment(
   payment: { id: string; merchant_id: string; payment_link_id?: string | null; status: string; environment?: string; currency: string; amount: number | string },
-  order: { merchant_id: string; payment_link_id: string | null; currency: string; total_amount: number | string; kobara_status: string },
+  order: { merchant_id: string; payment_link_id: string | null; currency: string; total_amount: number | string; kobara_status: string; exchange_rate?: number },
 ): boolean {
   const paid = Number(payment.amount);
-  const expected = shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount });
+  const expected = shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount }, order.exchange_rate);
   return payment.environment === 'live' && payment.status === 'succeeded'
     && payment.merchant_id === order.merchant_id
     && Boolean(payment.payment_link_id) && payment.payment_link_id === order.payment_link_id

@@ -10,7 +10,7 @@ import { canCreatePayment } from "@/lib/server/access";
 import { isNowPaymentsConfigured } from "@/lib/server/payments/nowpayments";
 import { getPaymentMethodLabel } from '@/lib/payment-settlement';
 import { getMerchantPaymentMethodState } from '@/lib/server/payments/merchant-payment-methods';
-import { shopifyProductName } from '@/lib/shopify-policy';
+import { shopifyProductName, shopifyExchangeRate } from '@/lib/shopify-policy';
 
 export default async function PublicPaymentPage({ 
   params, 
@@ -178,7 +178,8 @@ export default async function PublicPaymentPage({
                   {link.metadata?.product_name || link.title}
                 </h3>
                 {link.metadata?.source === 'shopify' && link.metadata?.order_name && <p className="mb-2 text-xs text-slate-300">Commande {link.metadata.order_name}</p>}
-                {link.description && (
+                {isShopifyLink && link.metadata?.original_currency === 'USD' && <p className="mb-3 text-xs text-slate-400">Taux : {shopifyExchangeRate(link.metadata.exchange_rate).toLocaleString('fr-FR')} HTG / USD</p>}
+                {link.description && !isShopifyLink && (
                   <p className="text-slate-400 text-xs line-clamp-2 leading-relaxed mb-3">
                     {link.description}
                   </p>
@@ -321,7 +322,8 @@ export default async function PublicPaymentPage({
               transactionFeePercent={transactionFeePercent}
               allowCardPayment={allowCardPayment}
               allowCryptoPayment={!isShopifyLink && isNowPaymentsConfigured()}
-              enabledPaymentMethods={paymentMethods.enabled}
+              enabledPaymentMethods={{ ...paymentMethods.enabled, natcash: paymentMethods.enabled.natcash
+                && !(isShopifyLink && providerConfig.active_provider === 'paym' && !Number.isInteger(Number(link.amount))) }}
             />
           </div>
         </div>

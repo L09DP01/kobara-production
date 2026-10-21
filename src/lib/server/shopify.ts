@@ -12,7 +12,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PayPalService } from '@/lib/server/payments/paypal';
-import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName } from '@/lib/shopify-policy';
+import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, shopifyExchangeRate, shopifyProductName } from '@/lib/shopify-policy';
 
 export const SHOPIFY_SCOPES = ['read_orders', 'write_orders'] as const;
 
@@ -492,12 +492,11 @@ export async function ensureShopifyOrderPaymentLink(input: {
   payload: ShopifyOrderPayload;
 }) {
   const syncedOrder = await upsertShopifyOrder(input);
-  const total = shopifyCollectionAmount(input.payload);
   if (syncedOrder.payment_link_id) {
     const db = createAdminClient();
-    const { data: link } = await db.from('payment_links').select('id, slug, amount, status, expires_at')
+    const { data: link } = await db.from('payment_links').select('id, slug, amount, status, expires_at, metadata')
       .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id).maybeSingle();
-    if (!canCollectShopifyOrder(input.payload) || !link || Number(link.amount) !== total) {
+    if (!canCollectShopifyOrder(input.payload) || !link || Number(link.amount) !== shopifyCollectionAmount(input.payload, shopifyExchangeRate(link.metadata?.exchange_rate))) {
       const { error } = await db.from('payment_links').update({ status: 'inactive' })
         .eq('id', syncedOrder.payment_link_id).eq('merchant_id', input.installation.merchant_id);
       if (error) throw new Error('Désactivation du lien Shopify impossible.');
@@ -509,6 +508,12 @@ export async function ensureShopifyOrderPaymentLink(input: {
   if (!canCollectShopifyOrder(input.payload)) return syncedOrder;
 
   const supabase = createAdminClient();
+  const { data: settings, error: settingsError } = await supabase.from('shopify_installations')
+    .select('metadata').eq('id', input.installation.id).eq('merchant_id', input.installation.merchant_id).maybeSingle();
+  if (settingsError) throw new Error('shopify_rate_lookup_failed');
+  const exchangeRate = shopifyExchangeRate(settings?.metadata?.usd_htg_rate);
+  const total = shopifyCollectionAmount(input.payload, exchangeRate);
+  if (!Number.isFinite(total) || total <= 0) throw new Error('invalid_collection_amount');
   const orderId = shopifyOrderId(input.payload);
   const shopifyOrderGid = `gid://shopify/Order/${orderId}`;
   const orderName = input.payload.name || input.payload.order_number?.toString() || orderId;
@@ -523,7 +528,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
     merchant_id: input.installation.merchant_id,
     environment: 'live',
     title: shopifyProductName(input.payload) || `Commande Shopify ${orderName}`,
-    description: `Paiement sécurisé de la commande ${orderName}${input.payload.currency === 'USD' ? ` : ${shopifyOrderAmount(input.payload)} USD = ${total} HTG (1 USD = ${SHOPIFY_USD_HTG_RATE} HTG)` : ''}`,
+    description: `Commande ${orderName}`,
     amount: total,
     currency: 'HTG',
     slug,
@@ -535,7 +540,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
       original_amount: shopifyOrderAmount(input.payload),
       collection_currency: 'HTG',
       collection_amount: total,
-      exchange_rate: input.payload.currency === 'USD' ? SHOPIFY_USD_HTG_RATE : 1,
+      exchange_rate: input.payload.currency === 'USD' ? exchangeRate : 1,
       shopify_installation_id: input.installation.id,
       shopify_order_id: orderId,
       shopify_order_gid: shopifyOrderGid,
@@ -545,11 +550,11 @@ export async function ensureShopifyOrderPaymentLink(input: {
       collect_phone: true,
       pass_fees_to_customer: false,
     },
-  }).select('id, slug').single();
+  }).select('id, slug, amount, metadata').single();
   if (linkError?.code === '23505') {
     const duplicate = await supabase
       .from('payment_links')
-      .select('id, slug')
+      .select('id, slug, amount, metadata')
       .eq('metadata->>shopify_installation_id', input.installation.id)
       .eq('metadata->>shopify_order_id', orderId)
       .eq('merchant_id', input.installation.merchant_id)
@@ -576,7 +581,7 @@ export async function ensureShopifyOrderPaymentLink(input: {
 async function emailShopifyPaymentLink(input: {
   installation: Pick<ShopifyInstallation, 'id' | 'merchant_id'>;
   payload: ShopifyOrderPayload;
-}, link: { id: string; slug: string }) {
+}, link: { id: string; slug: string; amount?: number | string; metadata?: { exchange_rate?: number } }) {
   const customerEmail = input.payload.email || input.payload.customer?.email;
   if (!customerEmail) {
     console.warn('[Shopify] Payment link email skipped.', { code: 'customer_email_missing', linkId: link.id });
@@ -597,7 +602,7 @@ async function emailShopifyPaymentLink(input: {
   const result = await sendEmail({
     to: customerEmail,
     subject: `Finalisez le paiement de votre commande ${orderName}`,
-    text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée.${input.payload.currency === 'USD' ? `\nMontant : ${shopifyOrderAmount(input.payload)} USD, soit ${shopifyCollectionAmount(input.payload)} HTG (1 USD = ${SHOPIFY_USD_HTG_RATE} HTG).` : ''} Finalisez son paiement sécurisé ici :\nhttps://pay.kobara.app/${link.slug}\n\nCe lien expire dans 24 heures.`,
+    text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée.${input.payload.currency === 'USD' ? `\nMontant : ${shopifyOrderAmount(input.payload)} USD, soit ${link.amount} HTG (1 USD = ${shopifyExchangeRate(link.metadata?.exchange_rate)} HTG).` : ''} Finalisez son paiement sécurisé ici :\nhttps://pay.kobara.app/${link.slug}\n\nCe lien expire dans 24 heures.`,
     idempotencyKey: `shopify-order-link-${link.id}`,
   });
   if (!result.success) {
@@ -627,7 +632,10 @@ export async function markShopifyOrderPaid(input: {
     .eq('installation_id', input.installationId)
     .eq('shopify_order_id', input.orderGid.split('/').pop())
     .eq('merchant_id', payment.merchant_id).maybeSingle();
-  if (!order || !isMatchingShopifyPayment(payment, order)) throw new Error('Paiement Shopify non concordant.');
+  const { data: collectionLink } = await supabase.from('payment_links').select('metadata, amount')
+    .eq('id', payment.payment_link_id).eq('merchant_id', payment.merchant_id).maybeSingle();
+  const exchangeRate = shopifyExchangeRate(collectionLink?.metadata?.exchange_rate);
+  if (!order || !collectionLink || !isMatchingShopifyPayment(payment, { ...order, exchange_rate: exchangeRate })) throw new Error('Paiement Shopify non concordant.');
   if (order.payment_id) {
     if (order.payment_id === payment.id && order.kobara_status === 'paid') return;
     throw new Error('Commande déjà associée à un paiement.');

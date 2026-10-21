@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
       .select('id, title, description, amount, currency, status, slug, created_at, expires_at', { count: 'exact' })
       .eq('merchant_id', merchant.id)
       .eq('environment', environment)
+      .or('metadata->>source.is.null,metadata->>source.neq.shopify')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 

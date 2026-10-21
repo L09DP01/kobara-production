@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     const supabase = createAdminClient();
     const { data: pending, error: pendingError } = await supabase
       .from('shopify_installations')
-      .select('id, merchant_id, oauth_state_hash')
+      .select('id, merchant_id, oauth_state_hash, metadata')
       .eq('merchant_id', state.merchantId)
       .eq('shop_domain', requestedShop)
       .eq('status', 'pending')
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       disconnected_at: null,
       uninstalled_at: null,
       last_error: null,
-      metadata: { webhook_subscriptions: webhooks },
+      metadata: { ...pending.metadata, webhook_subscriptions: webhooks },
       updated_at: now,
     }).eq('id', pending.id);
     if (updateError) throw new Error(updateError.message);
