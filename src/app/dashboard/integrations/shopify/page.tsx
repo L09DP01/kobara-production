@@ -4,6 +4,7 @@ import { ShopifyKobaraLockup } from '@/components/shopify-kobara-lockup';
 import { getCurrentUserAndMerchant } from '@/utils/supabase/auth-helper';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { shopifyCollectionAmount, shopifyExchangeRate } from '@/lib/shopify-policy';
+import { isReviewAccount } from '@/lib/review-account';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,13 +24,14 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
   searchParams: Promise<{ connected?: string; disconnected?: string; error?: string; rate_saved?: string }>;
 }) {
   const { merchant, userRole } = await getCurrentUserAndMerchant();
+  const reviewMode = isReviewAccount(merchant);
   if (userRole !== 'owner') redirect('/dashboard');
   const params = await searchParams;
   const db = createAdminClient();
   const [installationResult, ordersResult] = await Promise.all([
     db.from('shopify_installations').select('id, shop_domain, shop_name, status, granted_scopes, installed_at, metadata')
       .eq('merchant_id', merchant.id).maybeSingle(),
-    db.from('shopify_orders').select('id, order_name, currency, total_amount, financial_status, kobara_status, updated_at, payment_links(amount, metadata)')
+    db.from('shopify_orders').select('id, order_name, currency, total_amount, financial_status, kobara_status, updated_at, payment_links(amount, metadata, slug)')
       .eq('merchant_id', merchant.id).order('updated_at', { ascending: false }).limit(20),
   ]);
   const installation = installationResult.data;
@@ -53,6 +55,7 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
     </header>
     {notice && <p role="alert" className="flex items-start gap-2 rounded border border-amber-800 bg-amber-950/20 p-4 text-sm leading-6 text-amber-200"><AlertCircle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />{notice}</p>}
     {success && <p role="status" className="rounded border border-emerald-800 p-4 text-sm text-emerald-300">{success}</p>}
+    {reviewMode && <p className="rounded border border-amber-800 p-4 text-sm text-amber-200">Review Shopify : aucun e-mail Kobara. Ouvrez le lien Test depuis la commande ci-dessous. La synchronisation des paiements simulés est réservée aux boutiques de développement.</p>}
     <section className="border-b border-[#27364B] pb-6">
       <h2 className="text-lg font-semibold text-white">Boutique</h2>
       {connected ? <div className="mt-4 space-y-4">
@@ -102,14 +105,14 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
     </section>}
     <section className="border-b border-[#27364B] pb-6"><h2 className="text-lg font-semibold text-white">Paiement manuel Kobara</h2>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">Dans Shopify, ajoutez une méthode manuelle nommée « Kobara ». Les commandes Live impayées en HTG ou USD recevront un lien sécurisé en HTG, valable 24 heures, si l&apos;e-mail du client est renseigné. La commande est marquée payée après confirmation réelle.</p>
-      <p className="mt-3 text-sm leading-6 text-slate-400">Les commandes Test et les autres devises ne déclenchent pas de collecte. Ce connecteur n&apos;est pas une passerelle native dans le checkout Shopify.</p>
+      <p className="mt-3 text-sm leading-6 text-slate-400">{reviewMode ? 'Les commandes de démonstration HTG et USD créent un lien Test, sans collecte de fonds.' : 'Les commandes Test et les autres devises ne déclenchent pas de collecte.'} Ce connecteur n&apos;est pas une passerelle native dans le checkout Shopify.</p>
     </section>
     <section><h2 className="text-lg font-semibold text-white">Dernières commandes</h2>
       <div className="mt-4 overflow-x-auto rounded-md border border-[#27364B]"><table className="w-full min-w-[640px] text-left text-sm"><thead className="bg-[#111C2C] text-slate-300"><tr><th className="px-4 py-3 font-semibold">Commande</th><th className="px-4 py-3 font-semibold">Montant</th><th className="px-4 py-3 font-semibold">Statut</th><th className="px-4 py-3 font-semibold">Mise à jour</th></tr></thead>
         <tbody className="divide-y divide-[#27364B] text-slate-200">{(ordersResult.data || []).map(order => {
           const collection = Array.isArray(order.payment_links) ? order.payment_links[0] : order.payment_links;
           const equivalent = collection?.amount ?? shopifyCollectionAmount({ currency: order.currency, total_price: order.total_amount }, configuredRate);
-          return <tr key={order.id}><td className="px-4 py-4 font-semibold">{order.order_name || 'Commande Shopify'}</td><td className="whitespace-nowrap px-4 py-4 tabular-nums">{Number(order.total_amount).toLocaleString('fr-FR')} {order.currency}{order.currency === 'USD' && Number(order.total_amount) > 0 && <span className="mt-1 block text-xs text-slate-300">Équivalent : {Number(equivalent).toLocaleString('fr-FR')} HTG</span>}</td><td className="px-4 py-4">{order.kobara_status === 'paid' ? 'Payée' : order.kobara_status === 'payment_link_ready' ? 'Lien prêt' : order.financial_status || order.kobara_status}</td><td className="px-4 py-4">{formatDate(order.updated_at)}</td></tr>;
+          return <tr key={order.id}><td className="px-4 py-4 font-semibold">{order.order_name || 'Commande Shopify'}{reviewMode && collection?.slug && order.kobara_status === 'payment_link_ready' && <a href={`https://pay.kobara.app/${encodeURIComponent(collection.slug)}`} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-1 text-orange-300">Ouvrir le lien Test <ExternalLink className="h-3.5 w-3.5" /></a>}</td><td className="whitespace-nowrap px-4 py-4 tabular-nums">{Number(order.total_amount).toLocaleString('fr-FR')} {order.currency}{order.currency === 'USD' && Number(order.total_amount) > 0 && <span className="mt-1 block text-xs text-slate-300">Équivalent : {Number(equivalent).toLocaleString('fr-FR')} HTG</span>}</td><td className="px-4 py-4">{order.kobara_status === 'paid' ? (reviewMode ? 'Payée (Test)' : 'Payée') : order.kobara_status === 'payment_link_ready' ? 'Lien prêt' : order.financial_status || order.kobara_status}</td><td className="px-4 py-4">{formatDate(order.updated_at)}</td></tr>;
         })}
           {!ordersResult.data?.length && <tr><td colSpan={4} className="px-4 py-8 text-center text-slate-400">{storageReady ? 'Aucune commande synchronisée.' : 'Commandes indisponibles.'}</td></tr>}</tbody></table></div>
     </section>
