@@ -589,7 +589,7 @@ async function emailShopifyPaymentLink(input: {
   }
   const db = createAdminClient();
   const { data: merchant, error: merchantError } = await db.from('merchants')
-    .select('current_environment, kyc_status').eq('id', input.installation.merchant_id).maybeSingle();
+    .select('current_environment, kyc_status, business_name').eq('id', input.installation.merchant_id).maybeSingle();
   if (merchantError) throw new Error('shopify_email_merchant_lookup_failed');
   if (merchant?.current_environment !== 'live' || merchant.kyc_status !== 'approved') return;
   const { data: sent, error: lookupError } = await db.from('audit_logs').select('id')
@@ -598,11 +598,21 @@ async function emailShopifyPaymentLink(input: {
   if (lookupError) throw new Error('shopify_email_delivery_lookup_failed');
   if (sent) return;
   const orderName = input.payload.name || input.payload.order_number?.toString() || shopifyOrderId(input.payload);
+  const { data: shop, error: shopError } = await db.from('shopify_installations').select('shop_name')
+    .eq('id', input.installation.id).eq('merchant_id', input.installation.merchant_id).maybeSingle();
+  if (shopError) throw new Error('shopify_email_shop_lookup_failed');
+  const storeName = String(shop?.shop_name || merchant.business_name || 'Kobara').replace(/[\r\n]/g, ' ').trim();
+  const productName = shopifyProductName(input.payload) || 'Votre commande';
+  const escapeHtml = (value: unknown) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const checkoutUrl = `https://pay.kobara.app/${link.slug}`;
+  const amountLabel = `${Number(link.amount).toLocaleString('fr-FR')} HTG`;
   const { sendEmail } = await import('@/lib/server/mail');
   const result = await sendEmail({
     to: customerEmail,
-    subject: `Finalisez le paiement de votre commande ${orderName}`,
-    text: `Bonjour,\n\nVotre commande ${orderName} a été enregistrée.${input.payload.currency === 'USD' ? `\nMontant : ${shopifyOrderAmount(input.payload)} USD, soit ${link.amount} HTG (1 USD = ${shopifyExchangeRate(link.metadata?.exchange_rate)} HTG).` : ''} Finalisez son paiement sécurisé ici :\nhttps://pay.kobara.app/${link.slug}\n\nCe lien expire dans 24 heures.`,
+    senderName: storeName,
+    subject: `Finalisez le paiement : ${productName.slice(0, 160)} - commande ${orderName}`.replace(/[\r\n]/g, ' '),
+    text: `Bonjour,\n\n${storeName}\nProduit : ${productName}\nCommande : ${orderName}\nMontant à payer : ${link.amount} HTG\n\nVotre commande est en attente de paiement. Finalisez son paiement sécurisé ici :\n${checkoutUrl}\n\nCe lien expire dans 24 heures.`,
+    html: `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head><body style="margin:0;background:#f4f5f7;font-family:Arial,sans-serif;color:#171b23"><div style="max-width:560px;margin:24px auto;background:#fff;padding:32px"><h1 style="font-size:24px">${escapeHtml(storeName)}</h1><p>Bonjour,</p><p>Votre commande est en attente de paiement.</p><h2 style="font-size:20px">${escapeHtml(productName)}</h2><p>Commande ${escapeHtml(orderName)}</p><p style="font-size:22px;font-weight:bold">${escapeHtml(amountLabel)}</p><p><a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;background:#f65a27;color:#fff;padding:14px 22px;text-decoration:none;border-radius:6px">Finaliser le paiement</a></p><p>Ce lien expire dans 24 heures.</p><p style="font-size:12px;color:#68707d">Paiement sécurisé par Kobara.</p></div></body></html>`,
     idempotencyKey: `shopify-order-link-${link.id}`,
   });
   if (!result.success) {

@@ -272,6 +272,22 @@ test('merchant rates apply only to new links while retries keep their locked amo
   for (const rate of [0, -1, Infinity, NaN, 130.12345]) assert.equal(isValidShopifyRate(rate), false);
 });
 
+test('Shopify reminder emails use the shop sender name and safely show product and order details', async () => {
+  const db = database({ shopify_installations: [{ ...installation, shop_name: 'Boutique Demo' }] });
+  const { api, emails } = service(db);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...sample, name: '#1004', email: 'unit-test@example.com', line_items: [{ title: '<Snowboard & accessoires>' }] } });
+  assert.equal(emails[0].senderName, 'Boutique Demo');
+  assert.match(emails[0].subject, /Snowboard & accessoires/);
+  assert.match(emails[0].subject, /#1004/);
+  assert.match(emails[0].html, /&lt;Snowboard &amp; accessoires&gt;/);
+  assert.doesNotMatch(emails[0].html, /<Snowboard/);
+  assert.match(emails[0].text, /Produit : <Snowboard & accessoires>/);
+  const mail = load('src/lib/server/mail.ts');
+  assert.equal(mail.emailSenderWithName('Kobara <noreply@example.com>', 'Boutique Demo'), '"Boutique Demo" <noreply@example.com>');
+  assert.equal(mail.emailSenderWithName('Kobara <noreply@example.com>'), 'Kobara <noreply@example.com>');
+  assert.equal(mail.emailSenderWithName('noreply@example.com', 'Test\r\nBcc: <bad@example.com>'), '"Test Bcc: bad@example.com" <noreply@example.com>');
+});
+
 test('a failed email retries the existing link and records success only after mail acceptance', async () => {
   const db = database();
   let accepted = false;

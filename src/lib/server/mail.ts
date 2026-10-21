@@ -117,8 +117,16 @@ async function scheduleEmailSend<T>(fn: () => Promise<T>): Promise<T> {
   return resultPromise;
 }
 
+export function emailSenderWithName(configuredSender: string, senderName?: string): string {
+  if (!senderName) return configuredSender;
+  const address = configuredSender.match(/<([^<>]+)>\s*$/)?.[1] || configuredSender.trim();
+  if (!/^[^\s<>@]+@[^\s<>@]+$/.test(address)) throw new Error('Invalid configured email sender');
+  const name = senderName.replace(/[\r\n"\\<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'Kobara';
+  return `"${name}" <${address}>`;
+}
+
 async function sendEmailCore(
-  { to, subject, html, text, replyTo, idempotencyKey }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string },
+  { to, subject, html, text, replyTo, idempotencyKey, senderName }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string },
 ): Promise<{ success: boolean; error?: string }> {
   const separator = "─".repeat(56);
   console.log(`
@@ -139,7 +147,7 @@ async function sendEmailCore(
   }
 
   const payload = {
-    from: process.env.RESEND_FROM_EMAIL || 'Kobara <noreply@kobara.app>',
+    from: emailSenderWithName(process.env.RESEND_FROM_EMAIL || 'Kobara <noreply@kobara.app>', senderName),
     to: [to],
     subject: subject,
     html: html,
@@ -306,12 +314,12 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
 }
 
 // Fonction générique (pour la rétrocompatibilité)
-export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string }) {
+export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey, senderName }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string }) {
   const generatedHtml = html || renderEmailTemplate({
     subject,
     paragraphs: text.split('\n\n').filter(p => p.trim() !== '')
   });
-  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey });
+  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName });
 }
 
 export async function sendBulkEmail({
