@@ -2,8 +2,8 @@
 
 ## Flux pris en charge
 
-1. Le propriétaire connecte sa boutique depuis `dashboard.kobara.app/integrations/shopify`.
-2. Shopify autorise Kobara à lire et mettre à jour les commandes.
+1. Le proprietaire ouvre Kobara Connect depuis Shopify. La requete signee et recente lance OAuth avant toute connexion au compte Kobara. Aucun domaine n'est saisi manuellement dans le dashboard.
+2. Apres autorisation Shopify, une session temporaire liee au navigateur permet au proprietaire de se connecter a Kobara et de confirmer l'association a son compte verifie. Une reinstallation remplace les jetons de la meme boutique, sans changer son proprietaire.
 3. Une commande Live HTG ou USD impayee ayant choisi la methode manuelle `Kobara` cree un lien unique en HTG, valable 24 heures. Le marchand configure son taux USD/HTG depuis l'interface Shopify de Kobara (valeur initiale 130). Le taux est fige dans chaque nouveau lien et le montant arrondi au centime. Le montant et la devise Shopify d'origine sont conserves. Modifier le taux ne change pas les liens existants. Les commandes HTG ne sont pas converties. Les commandes Test et les autres methodes ne declenchent pas de collecte.
 4. Le client reçoit ce lien par e-mail et paie avec les moyens actifs pour le marchand.
 5. Après confirmation Kobara, `orderMarkAsPaid` met la commande à jour dans Shopify.
@@ -39,6 +39,38 @@ L'echange OAuth demande des jetons expirants (`expiring: 1`). Le jeton d'acces, 
 - Webhooks de conformité: `customers/data_request`, `customers/redact`, `shop/redact`
 
 Ne pas publier une nouvelle version Shopify avant le déploiement des routes et l'application de la migration `shopify_connect`.
+
+La correction du 21 octobre exige egalement la migration locale
+`supabase/migrations/20261021230910_shopify_installation_privacy_hardening.sql`.
+L'appliquer sur la base confirmee avant de deployer ce code. Elle n'est pas appliquee automatiquement.
+Elle minimise aussi les anciennes copies de commandes ; sauvegarder selon la procedure interne avant execution.
+Le parcours de paiement externe et les frais restent soumis a la decision de Shopify : ces corrections
+ne constituent ni une exemption ni une approbation Payments Apps.
+
+## Demandes de confidentialite
+
+Le registre `/system-core/shopify-privacy` est reserve aux roles super_admin et compliance.
+Il conserve une demande chiffree, y compris apres desinstallation ou sans installation active.
+L'equipe peut prendre en charge le dossier, exporter les commandes concernees et confirmer son
+traitement avec une reference interne. La cloture supprime le detail chiffre de la demande.
+Chaque consultation et export sont journalises. L'export des commandes miroirs n'est pas un export
+exhaustif des donnees financieres, des journaux ou des sauvegardes.
+
+Les webhooks clients effacent les copies miroir apres desinstallation et desactivent les liens
+concernes. Un marqueur et un trigger empechent un webhook tardif de restaurer le client efface.
+Les commandes sans rapport avec Kobara ne sont plus copiees. Nom, telephone, adresses et proprietes
+personnalisees des lignes ne sont plus conserves dans les copies de commandes Shopify.
+
+Les sessions OAuth expirent au bout de 30 minutes au maximum, ou avant l'expiration du jeton.
+Le cron existant merchant-activation appelle aussi `purge_expired_shopify_handoffs` pour supprimer
+les sessions expirees ou consommees. Verifier le champ `shopify_handoff_cleanup` de sa reponse.
+Verifier que ce cron est bien actif sur Cloudflare ; aucune nouvelle programmation n'est creee ici.
+
+Avant de cloturer une demande, le responsable doit inventorier paiements, clients, liens, journaux,
+copies de sauvegarde et prestataires, puis appliquer les obligations de conservation confirmees.
+Ne pas supprimer une ecriture financiere sans examen de ces obligations. La suppression de la copie
+Shopify ne certifie pas l'effacement de toutes les autres donnees du systeme.
+Les procedures de sauvegarde, DLP, incidents et les attestations Shopify restent a valider avec l'exploitant.
 
 ## Méthode manuelle dans la boutique
 

@@ -23,16 +23,36 @@ process.env.SHOPIFY_APP_URL = 'https://dashboard.example';
 function database(seed = {}) {
   const tables = { merchants: [{ id: 'merchant-a', kyc_status: 'approved', current_environment: 'live' }], ...structuredClone(seed) };
   const value = (row, key) => key.includes('->>') ? row[key.split('->>')[0]]?.[key.split('->>')[1]] : row[key];
-  const db = { tables, from(table) {
+  const db = { tables, async rpc(name, args) {
+    if (name === 'redact_shopify_shop') {
+      const ids = (tables.shopify_installations || []).filter(row => row.shop_domain === args.shop_domain_value).map(row => row.id);
+      for (const link of tables.payment_links || []) if (ids.includes(link.metadata?.shopify_installation_id)) link.status = 'inactive';
+      tables.shopify_oauth_handoffs = (tables.shopify_oauth_handoffs || []).filter(row => row.shop_domain !== args.shop_domain_value);
+      tables.shopify_orders = (tables.shopify_orders || []).filter(row => !ids.includes(row.installation_id));
+      tables.shopify_installations = (tables.shopify_installations || []).filter(row => !ids.includes(row.id));
+      return { data: null, error: null };
+    }
+    if (name !== 'redact_shopify_customer') throw new Error('Unexpected RPC');
+    const rows = (tables.shopify_orders || []).filter(row => row.installation_id === args.target_installation_id
+      && ((args.customer_id_value && String(row.customer?.id || '') === args.customer_id_value)
+        || args.order_id_values.includes(String(row.shopify_order_id))));
+    for (const row of rows) {
+      const link = tables.payment_links?.find(link => link.id === row.payment_link_id);
+      if (link) link.status = 'inactive';
+      row.customer = {}; row.raw_order = {}; row.privacy_redacted_at = new Date().toISOString();
+    }
+    return { data: null, error: null };
+  }, from(table) {
     tables[table] ||= [];
     const q = { filters: [], operation: 'select', one: false,
       select() { return this; }, eq(k, v) { this.filters.push(row => value(row, k) === v); return this; },
       is(k, v) { this.filters.push(row => (row[k] ?? null) === v); return this; },
       in(k, values) { this.filters.push(row => values.includes(row[k])); return this; },
       insert(data) { this.operation = 'insert'; this.data = data; return this; },
-      upsert(data, options) { this.operation = 'upsert'; this.data = data; this.conflict = options?.onConflict; return this; },
+      upsert(data, options) { this.operation = 'upsert'; this.data = data; this.conflict = options?.onConflict; this.ignoreDuplicates = options?.ignoreDuplicates; return this; },
       update(data) { this.operation = 'update'; this.data = data; return this; },
       delete() { this.operation = 'delete'; return this; }, order() { return this; }, limit() { return this; },
+      range(start, end) { this.rangeStart = start; this.rangeEnd = end; return this; },
       single() { this.one = true; return this.run(); }, maybeSingle() { this.one = true; return this.run(); },
       then(resolve, reject) { return this.run().then(resolve, reject); },
       async run() {
@@ -44,11 +64,12 @@ function database(seed = {}) {
             return { data: null, error: { code: '23505' } };
           }
           if (table === 'shopify_webhook_receipts' && tables[table].some(row => row.webhook_id === this.data.webhook_id)) return { data: null, error: { code: '23505' } };
-          if (existing) Object.assign(existing, structuredClone(this.data));
-          else { existing = { id: `${table}-${tables[table].length + 1}`, kobara_status: 'observed', status: table === 'shopify_webhook_receipts' ? 'processing' : undefined, ...structuredClone(this.data) }; tables[table].push(existing); }
+          if (existing && !this.ignoreDuplicates) Object.assign(existing, structuredClone(this.data));
+          else if (!existing) { existing = { id: `${table}-${tables[table].length + 1}`, kobara_status: 'observed', status: table === 'shopify_webhook_receipts' ? 'processing' : undefined, ...structuredClone(this.data) }; tables[table].push(existing); }
           rows = [existing];
         } else if (this.operation === 'update') rows.forEach(row => Object.assign(row, structuredClone(this.data)));
         else if (this.operation === 'delete') tables[table] = tables[table].filter(row => !rows.includes(row));
+        if (this.rangeStart != null) rows = rows.slice(this.rangeStart, this.rangeEnd + 1);
         return { data: structuredClone(this.one ? rows[0] || null : rows), error: null };
       },
     };
@@ -60,7 +81,11 @@ function database(seed = {}) {
 function load(file, mocks = {}) {
   const compiled = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } });
   const module = { exports: {} };
-  new Function('require', 'module', 'exports', compiled.outputText)(name => name in mocks ? mocks[name] : name === '@/lib/review-account' ? reviewAccount : require(name), module, module.exports);
+  const defaults = {
+    '@/lib/server/shopify-install': { finishShopifyInstall: async () => null, getShopifyInstallHandoff: async () => null, SHOPIFY_INSTALL_COOKIE: '__Host-kobara_shopify_install' },
+    'next/headers': { cookies: async () => ({ get: () => undefined }) },
+  };
+  new Function('require', 'module', 'exports', compiled.outputText)(name => name in mocks ? mocks[name] : name === '@/lib/review-account' ? reviewAccount : name in defaults ? defaults[name] : require(name), module, module.exports);
   return module.exports;
 }
 
@@ -673,11 +698,243 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
     }
     else {
       assert.doesNotMatch(html, /Finaliser la configuration dans Shopify/);
-      assert.match(html, /name="shop"/);
+      assert.doesNotMatch(html, /name="shop"/);
+      assert.match(html, /depuis Shopify/);
       db.tables.merchants[0].kyc_status = 'pending';
       const blocked = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));
       assert.match(blocked, /disabled=""/);
       assert.match(blocked, /compte doit être vérifié/);
     }
   }
+});
+
+test('mirrored orders retain collection fields but never copy names, phones or addresses', async () => {
+  const db = database();
+  const { api } = service(db);
+  await api.upsertShopifyOrder({ installation, payload: { ...sample, email: 'buyer@example.invalid',
+    phone: '+000000000', shipping_address: { address1: 'Private address' },
+    customer: { id: 7, first_name: 'Private', last_name: 'Customer', phone: '+000000000' },
+    line_items: [{ title: 'Product', quantity: 1, properties: [{ name: 'private', value: 'secret' }] }],
+  } });
+  const row = db.tables.shopify_orders[0];
+  assert.deepEqual(row.customer, { id: 7, email: 'buyer@example.invalid' });
+  assert.equal(canCollectShopifyOrder(row.raw_order), true);
+  assert.equal(shopifyProductName(row.raw_order), 'Product');
+  assert.doesNotMatch(JSON.stringify(row.raw_order), /Private|address|secret|phone|buyer@/);
+});
+
+test('orders unrelated to Kobara are not mirrored', async () => {
+  const db = database();
+  const { api } = service(db);
+  assert.equal(await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...sample, payment_gateway_names: ['Other'], email: 'unused@example.invalid' } }), null);
+  assert.equal(db.tables.shopify_orders.length, 0);
+});
+
+test('customer erasure after uninstall is durable, scopes orders, closes links and survives retries', async () => {
+  const db = database({ shopify_installations: [{ ...installation, status: 'uninstalled' }],
+    shopify_orders: [{ id: 'order-a', installation_id: installation.id, shopify_order_id: '42', customer: { id: 7, email: 'erase@example.invalid' }, raw_order: sample, payment_link_id: 'link-a' },
+      { id: 'order-b', installation_id: installation.id, shopify_order_id: '43', customer: { id: 8 } }],
+    payment_links: [{ id: 'link-a', status: 'active' }],
+  });
+  const { api } = service(db);
+  const route = load('src/app/api/integrations/shopify/webhooks/route.ts', {
+    'next/server': { NextResponse: nextResponse }, '@/utils/supabase/admin': { createAdminClient: () => db }, '@/lib/server/shopify': api,
+  });
+  const request = () => webhookRequest('erase-after-uninstall', { customer: { id: 7, email: 'erase@example.invalid' }, orders_to_redact: [42] }, 'customers/redact');
+  assert.equal((await route.POST(request())).status, 200);
+  assert.deepEqual(db.tables.shopify_orders[0].customer, {});
+  assert.deepEqual(db.tables.shopify_orders[1].customer, { id: 8 });
+  assert.equal(db.tables.payment_links[0].status, 'inactive');
+  assert.ok(db.tables.shopify_orders[0].privacy_redacted_at);
+  assert.equal(db.tables.shopify_privacy_requests.length, 1);
+  const details = api.decryptShopifyAccessToken(db.tables.shopify_privacy_requests[0].request_details_ciphertext);
+  assert.equal(JSON.parse(details).customer_id, '7');
+  assert.doesNotMatch(db.tables.shopify_privacy_requests[0].request_details_ciphertext, /erase@example/);
+  assert.equal((await route.POST(request())).status, 200);
+  assert.equal(db.tables.shopify_privacy_requests.length, 1);
+  await api.ensureShopifyOrderPaymentLink({ installation, payload: { ...sample, customer: { id: 7 }, email: 'erase@example.invalid' } });
+  assert.deepEqual(db.tables.shopify_orders[0].customer, {});
+  assert.equal(db.tables.payment_links.length, 1);
+});
+
+test('privacy requests without active installations are retained for compliance rather than dropped', async () => {
+  const db = database();
+  const { api } = service(db);
+  const route = load('src/app/api/integrations/shopify/webhooks/route.ts', {
+    'next/server': { NextResponse: nextResponse }, '@/utils/supabase/admin': { createAdminClient: () => db }, '@/lib/server/shopify': api,
+  });
+  assert.equal((await route.POST(webhookRequest('privacy-no-install', { customer: { id: 9 }, data_request: { id: 12 }, orders_requested: [42] }, 'customers/data_request'))).status, 200);
+  assert.equal(db.tables.shopify_privacy_requests.length, 1);
+  assert.equal(db.tables.shopify_privacy_requests[0].merchant_id, null);
+  assert.equal(JSON.parse(api.decryptShopifyAccessToken(db.tables.shopify_privacy_requests[0].request_details_ciphertext)).request_id, '12');
+});
+
+test('shop erasure removes mirror and authorization handoffs but keeps its compliance case', async () => {
+  const db = database({ shopify_installations: [{ ...installation, status: 'uninstalled' }],
+    shopify_orders: [{ id: 'order-a', installation_id: installation.id }],
+    shopify_oauth_handoffs: [{ id: 'handoff-a', shop_domain: installation.shop_domain }],
+    payment_links: [{ id: 'link-a', status: 'active', metadata: { shopify_installation_id: installation.id } }],
+  });
+  const { api } = service(db);
+  const route = load('src/app/api/integrations/shopify/webhooks/route.ts', {
+    'next/server': { NextResponse: nextResponse }, '@/utils/supabase/admin': { createAdminClient: () => db }, '@/lib/server/shopify': api,
+  });
+  assert.equal((await route.POST(webhookRequest('erase-shop', {}, 'shop/redact'))).status, 200);
+  assert.equal(db.tables.shopify_installations.length, 0);
+  assert.equal(db.tables.shopify_orders.length, 0);
+  assert.equal(db.tables.shopify_oauth_handoffs.length, 0);
+  assert.equal(db.tables.payment_links[0].status, 'inactive');
+  assert.equal(db.tables.shopify_privacy_requests.length, 1);
+});
+
+function installationService(db) {
+  const { api } = service(db);
+  const response = { ...nextResponse, redirect: (url, status = 307) => {
+    const result = nextResponse.redirect(url, status);
+    result.cookieWrites = [];
+    result.cookies = { set: (...args) => result.cookieWrites.push(args), delete: () => {} };
+    return result;
+  } };
+  return { api: load('src/lib/server/shopify-install.ts', {
+    'server-only': {}, 'next/server': { NextResponse: response },
+    '@/utils/supabase/admin': { createAdminClient: () => db },
+    '@/lib/server/shopify': { ...api,
+      exchangeShopifyAuthorizationCode: async () => ({ accessToken: 'fake-test-access', refreshToken: 'fake-test-refresh',
+        expiresAt: Date.now() + 3600000, refreshExpiresAt: Date.now() + 86400000, scopes: ['write_orders'] }),
+      getShopifyShopIdentity: async () => ({ id: 'gid://shopify/Shop/1', name: 'Demo shop', myshopifyDomain: installation.shop_domain }),
+      registerShopifyWebhooks: async () => [],
+    },
+  }), response };
+}
+
+function signedParams(values) {
+  const params = new URLSearchParams(values);
+  const message = [...params.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([k,v]) => `${k}=${v}`).join('&');
+  params.set('hmac', createHmac('sha256', process.env.SHOPIFY_CLIENT_SECRET).update(message).digest('hex'));
+  return params;
+}
+
+test('Shopify-origin installation requires a fresh signed request and starts OAuth before merchant login', async () => {
+  const db = database();
+  const { api } = installationService(db);
+  const params = signedParams({ shop: installation.shop_domain, timestamp: String(Math.floor(Date.now()/1000)) });
+  const response = await api.startShopifyInstall(params);
+  const url = new URL(response.headers.get('location'));
+  assert.equal(url.hostname, installation.shop_domain);
+  assert.equal(url.pathname, '/admin/oauth/authorize');
+  assert.equal(db.tables.shopify_oauth_handoffs.length, 1);
+  assert.equal(response.cookieWrites[0][2].httpOnly, true);
+  assert.equal(response.cookieWrites[0][2].secure, true);
+  assert.equal(response.cookieWrites[0][2].sameSite, 'lax');
+  const stale = signedParams({ shop: installation.shop_domain, timestamp: '1' });
+  await assert.rejects(api.startShopifyInstall(stale), /expired/);
+  params.set('shop', 'attacker.example');
+  await assert.rejects(api.startShopifyInstall(params), /invalid/);
+});
+
+test('installation callback binds browser proof and consumes state before returning to account linking', async () => {
+  const db = database();
+  const { api } = installationService(db);
+  const started = await api.startShopifyInstall(signedParams({ shop: installation.shop_domain, timestamp: String(Math.floor(Date.now()/1000)) }));
+  const state = new URL(started.headers.get('location')).searchParams.get('state');
+  const cookie = started.cookieWrites[0][1];
+  const params = signedParams({ shop: installation.shop_domain, code: 'fake-code', state });
+  const request = { nextUrl: new URL(`https://dashboard.example/api/integrations/shopify/callback?${params}`), cookies: { get: () => ({ value: cookie }) } };
+  await assert.rejects(api.finishShopifyInstall({ ...request, cookies: { get: () => undefined } }), /invalid/);
+  assert.equal(db.tables.shopify_oauth_handoffs[0].status, 'pending');
+  const finished = await api.finishShopifyInstall(request);
+  assert.match(finished.headers.get('location'), /link_account=1/);
+  assert.equal(db.tables.shopify_oauth_handoffs[0].status, 'authorized');
+  assert.doesNotMatch(JSON.stringify(db.tables.shopify_oauth_handoffs), /fake-test-access/);
+  assert.ok(await api.getShopifyInstallHandoff(cookie));
+  assert.equal(await api.getShopifyInstallHandoff(cookie + '.tamper'), null);
+  await assert.rejects(api.finishShopifyInstall(request), /expired/);
+});
+
+test('public Shopify entry preserves signed installation context, not arbitrary return URLs', async () => {
+  const page = load('src/app/integrations/shopify/page.tsx', { 'next/navigation': { redirect: url => { throw new Error(url); } } });
+  await assert.rejects(page.default({ searchParams: Promise.resolve({ shop: installation.shop_domain, hmac: 'signed-hmac', timestamp: '123' }) }), /\/api\/integrations\/shopify\/install\?shop=/);
+  await assert.rejects(page.default({ searchParams: Promise.resolve({ connected: '1', rate_saved: '1', next: 'https://attacker.example' }) }), error => !error.message.includes('attacker') && error.message.includes('rate_saved=1'));
+});
+
+test('account linking requires same-origin POST and a verified owner before consuming the proof', async () => {
+  let calls = 0;
+  let approved = true;
+  const route = load('src/app/api/integrations/shopify/link/route.ts', {
+    'next/server': { NextResponse: installationService(database()).response },
+    '@/lib/server/shopify-auth': { requireShopifyOwnerMerchant: async () => ({ merchant: { id: 'merchant-a', kyc_status: approved ? 'approved' : 'pending' } }) },
+    '@/lib/server/shopify-install': { SHOPIFY_INSTALL_COOKIE: '__Host-kobara_shopify_install', claimShopifyInstall: async () => { calls++; } },
+  });
+  const request = origin => ({ url: 'https://dashboard.example/api/integrations/shopify/link', nextUrl: new URL('https://dashboard.example/api/integrations/shopify/link'), headers: new Headers({ origin }), cookies: { get: () => ({ value: 'opaque-test-proof' }) } });
+  assert.equal((await route.POST(request('https://attacker.example'))).status, 403);
+  assert.equal(calls, 0);
+  approved = false;
+  assert.match((await route.POST(request('https://dashboard.example'))).headers.get('location'), /link_failed/);
+  assert.equal(calls, 0);
+  approved = true;
+  assert.match((await route.POST(request('https://dashboard.example'))).headers.get('location'), /connected=1/);
+  assert.equal(calls, 1);
+});
+
+test('privacy export is restricted, scoped to a customer and audited before data is returned', async () => {
+  const db = database({ shopify_installations: [installation], shopify_orders: [
+    { id: 'a', installation_id: installation.id, shopify_order_id: '42', customer: { id: '7' } },
+    { id: 'b', installation_id: installation.id, shopify_order_id: '43', customer: { id: '8' } },
+  ] });
+  const { api } = service(db);
+  const id = '00000000-0000-4000-8000-000000000001';
+  db.tables.shopify_privacy_requests = [{ id, merchant_id: 'merchant-a', shop_domain: installation.shop_domain,
+    topic: 'customers/data_request', request_details_ciphertext: api.encryptShopifyAccessToken(JSON.stringify({ customer_id: '7', orders_requested: ['42'] })) }];
+  let allowed = false;
+  const route = load('src/app/api/system-core/shopify-privacy/[id]/export/route.ts', {
+    '@/utils/supabase/admin': { createAdminClient: () => db }, '@/lib/server/shopify': api,
+    '@/lib/auth/require-admin': { requireAdmin: async roles => {
+      assert.deepEqual(roles, ['super_admin', 'compliance']);
+      if (!allowed) throw new Error('unauthorized');
+      return { user: { id: 'admin-test' } };
+    } },
+  });
+  const context = { params: Promise.resolve({ id }) };
+  assert.equal((await route.GET(new Request('https://dashboard.example/export'), context)).status, 403);
+  allowed = true;
+  const result = await route.GET(new Request('https://dashboard.example/export'), context);
+  assert.equal(result.headers.get('cache-control'), 'no-store');
+  const exported = await result.json();
+  assert.equal(exported.mirrored_orders.length, 1);
+  assert.equal(exported.mirrored_orders[0].shopify_order_id, '42');
+  assert.equal(db.tables.audit_logs[0].action, 'shopify_privacy.exported');
+});
+
+test('privacy completion requires a reference and removes encrypted request details', async () => {
+  const id = '00000000-0000-4000-8000-000000000002';
+  const db = database({ shopify_privacy_requests: [{ id, status: 'pending', request_details_ciphertext: 'unit-test-placeholder' }] });
+  const actions = load('src/app/system-core/(protected)/shopify-privacy/actions.ts', {
+    'next/cache': { revalidatePath: () => {} }, '@/utils/supabase/admin': { createAdminClient: () => db },
+    '@/lib/auth/require-admin': { requireAdmin: async () => ({ user: { id: 'admin-test' } }) },
+  });
+  const form = new FormData(); form.set('id', id); form.set('status', 'completed');
+  await assert.rejects(actions.updateShopifyPrivacyRequest(form), /invalide/);
+  form.set('reference', 'INTERNAL-TEST-1');
+  await actions.updateShopifyPrivacyRequest(form);
+  assert.equal(db.tables.shopify_privacy_requests[0].status, 'completed');
+  assert.equal(db.tables.shopify_privacy_requests[0].request_details_ciphertext, null);
+  assert.ok(db.tables.shopify_privacy_requests[0].completed_at);
+  await assert.rejects(actions.updateShopifyPrivacyRequest(form), /indisponible/);
+});
+
+test('middleware allows Shopify OAuth entry before login but preserves authentication for account linking', async () => {
+  const middleware = load('src/utils/supabase/middleware.ts', {
+    'next/server': { NextResponse: { ...nextResponse, next: () => new Response(null, { status: 200 }) } },
+    '@/lib/session-inactivity': { SESSION_ACTIVITY_COOKIE_MAX_AGE_SECONDS: 1200, isSessionInactive: () => false },
+  });
+  const request = path => ({ nextUrl: new URL(`https://dashboard.kobara.app${path}`),
+    headers: new Headers({ host: 'dashboard.kobara.app' }), cookies: { get: () => undefined },
+  });
+  const entry = await middleware.updateSession(request(`/integrations/shopify?shop=${installation.shop_domain}&hmac=fake-unit-test-value`));
+  assert.equal(entry.status, 200); // The install route, not middleware, verifies the HMAC.
+  const linking = await middleware.updateSession(request('/dashboard/integrations/shopify?link_account=1'));
+  const login = new URL(linking.headers.get('location'));
+  assert.equal(login.hostname, 'kobara.app');
+  assert.equal(login.pathname, '/login');
+  assert.equal(login.searchParams.get('callbackUrl'), '/dashboard/integrations/shopify?link_account=1');
 });

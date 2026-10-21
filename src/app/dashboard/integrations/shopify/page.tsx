@@ -5,6 +5,8 @@ import { getCurrentUserAndMerchant } from '@/utils/supabase/auth-helper';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { shopifyCollectionAmount, shopifyExchangeRate } from '@/lib/shopify-policy';
 import { isReviewAccount } from '@/lib/review-account';
+import { cookies } from 'next/headers';
+import { getShopifyInstallHandoff, SHOPIFY_INSTALL_COOKIE } from '@/lib/server/shopify-install';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +20,7 @@ const errors: Record<string, string> = {
   owner_required: 'Seul le propriétaire peut gérer Shopify.',
   unauthorized: 'Votre session a expiré. Reconnectez-vous.',
   connection_failed: 'Connexion Shopify indisponible. Contactez le support.',
+  link_failed: 'La boutique ne peut pas être associée. Relancez l’installation depuis Shopify et vérifiez le compte propriétaire.',
 };
 
 export default async function ShopifyIntegrationPage({ searchParams }: {
@@ -28,6 +31,7 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
   if (userRole !== 'owner') redirect('/dashboard');
   const params = await searchParams;
   const db = createAdminClient();
+  const handoff = await getShopifyInstallHandoff((await cookies()).get(SHOPIFY_INSTALL_COOKIE)?.value);
   const [installationResult, ordersResult] = await Promise.all([
     db.from('shopify_installations').select('id, shop_domain, shop_name, status, granted_scopes, installed_at, metadata')
       .eq('merchant_id', merchant.id).maybeSingle(),
@@ -56,6 +60,13 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
     {notice && <p role="alert" className="flex items-start gap-2 rounded border border-amber-800 bg-amber-950/20 p-4 text-sm leading-6 text-amber-200"><AlertCircle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />{notice}</p>}
     {success && <p role="status" className="rounded border border-emerald-800 p-4 text-sm text-emerald-300">{success}</p>}
     {reviewMode && <p className="rounded border border-amber-800 p-4 text-sm text-amber-200">Review Shopify : aucun e-mail Kobara. Ouvrez le lien Test depuis la commande ci-dessous. La synchronisation des paiements simulés est réservée aux boutiques de développement.</p>}
+    {handoff && <section className="border-b border-[#27364B] pb-6">
+      <h2 className="text-lg font-semibold text-white">Associer la boutique autorisée</h2>
+      <form action="/api/integrations/shopify/link" method="post" className="mt-3 space-y-3">
+        <p className="text-sm text-slate-300">Boutique autorisée : <strong>{handoff.shop_domain}</strong></p>
+        <button type="submit" disabled={!configured || !storageReady || !approved} className="min-h-12 rounded-md bg-orange-500 px-5 text-sm font-bold text-white disabled:opacity-50">Associer à mon compte Kobara</button>
+      </form>
+    </section>}
     <section className="border-b border-[#27364B] pb-6">
       <h2 className="text-lg font-semibold text-white">Boutique</h2>
       {connected ? <div className="mt-4 space-y-4">
@@ -69,12 +80,12 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
           <a href={`https://${installation.shop_domain}/admin`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-600 px-4 text-sm font-semibold text-white hover:bg-white/5">Ouvrir Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /></a>
           <form action="/api/integrations/shopify/disconnect" method="post"><button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-800 px-4 text-sm font-semibold text-red-300 hover:bg-red-950/30"><Unplug className="h-4 w-4" aria-hidden="true" />Déconnecter</button></form>
         </div>
-      </div> : <form action="/api/integrations/shopify/connect" method="get" className="mt-4 max-w-2xl">
-        <label htmlFor="shop" className="text-sm font-semibold text-slate-200">Domaine permanent</label>
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row"><input id="shop" name="shop" required maxLength={255} autoCapitalize="none" spellCheck={false} placeholder="ma-boutique.myshopify.com" className="min-h-12 min-w-0 flex-1 rounded-md border border-slate-600 bg-[#091321] px-4 text-sm text-white placeholder:text-slate-400 focus-visible:outline-2 focus-visible:outline-orange-500" />
-          <button type="submit" disabled={!configured || !storageReady || !approved} className="min-h-12 rounded-md bg-orange-500 px-5 text-sm font-bold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50">Connecter Shopify</button></div>
-        <p className="mt-3 text-xs leading-5 text-slate-400">L&apos;autorisation se fait sur Shopify. Ne partagez jamais votre mot de passe ou vos clés dans une conversation.</p>
-      </form>}
+      </div> : <div className="mt-4 max-w-2xl space-y-3">
+        {!handoff && <>
+          <p className="text-sm text-slate-300">Ouvrez Kobara Connect depuis Shopify pour autoriser votre boutique, puis associez-la à ce compte marchand.</p>
+          {approved && configured && storageReady ? <a href="https://admin.shopify.com" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-slate-600 px-5 text-sm font-semibold text-white">Ouvrir Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /></a> : <button disabled className="min-h-12 rounded-md border border-slate-600 px-5 text-sm text-slate-400">Connexion Shopify indisponible</button>}
+        </>}
+      </div>}
     </section>
     {connected && <section className="border-b border-[#27364B] pb-6">
       <h2 className="text-lg font-semibold text-white">Taux de change USD / HTG</h2>

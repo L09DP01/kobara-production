@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { finishShopifyInstall } from '@/lib/server/shopify-install';
 import {
   encryptShopifyTokenSet,
   exchangeShopifyAuthorizationCode,
@@ -37,6 +38,8 @@ export async function GET(request: NextRequest) {
   let accessToken: string | null = null;
   try {
     if (!verifyShopifyOAuthHmac(params)) throw new Error('invalid_hmac');
+    const installationResponse = await finishShopifyInstall(request);
+    if (installationResponse) return installationResponse;
     const code = params.get('code');
     const stateRaw = params.get('state');
     const requestedShop = normalizeShopDomain(params.get('shop') || '');
@@ -77,7 +80,7 @@ export async function GET(request: NextRequest) {
       shop_domain: normalizeShopDomain(shop.myshopifyDomain),
       shop_id: parseShopifyNumericId(shop.id),
       shop_name: shop.name,
-      shop_email: shop.email,
+      shop_email: null,
       status: 'active',
       access_token_ciphertext: encryptShopifyTokenSet(token),
       granted_scopes: token.scopes,

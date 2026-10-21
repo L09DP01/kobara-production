@@ -46,6 +46,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { name: "REPORTS", href: "/system-core/reports", icon: FileBarChart },
     { name: "WITHDRAWALS", href: "/system-core/withdrawals", icon: Banknote },
     { name: "SUPPORT", href: "/system-core/support", icon: LifeBuoy },
+    { name: "SHOPIFY PRIVACY", href: "/system-core/shopify-privacy", icon: ShieldAlert },
     { name: "WHATSAPP", href: "/system-core/whatsapp", icon: MessageCircleMore },
     { name: "SYSTEM LOGS", href: "/system-core/logs", icon: ScrollText },
     { name: "SUPABASE LOGS", href: "/system-core/logs/supabase", icon: ScrollText },

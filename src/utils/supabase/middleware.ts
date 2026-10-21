@@ -62,16 +62,24 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Require authentication for dashboard subdomain (except APIs which have their own auth)
+    const isShopifyInstallEntry = pathname === '/integrations/shopify'
+      && request.nextUrl.searchParams.has('shop') && request.nextUrl.searchParams.has('hmac');
+    // Shopify authenticates the installation before Kobara account linking.
     if (!userLoggedIn
       && !pathname.startsWith('/api')
       && !pathname.startsWith('/_next')
       && !pathname.startsWith('/system-core')
+      && !isShopifyInstallEntry
       && !isPublicPartnerPath) {
       const redirectUrl = hostname.includes('localhost') || hostname.includes('local') ?
         `http://${hostname.replace('dashboard.', '')}:3000/login${request.nextUrl.search}` :
         `https://kobara.app/login${request.nextUrl.search}`;
-      return NextResponse.redirect(redirectUrl);
+      const loginUrl = new URL(redirectUrl);
+      if (pathname === '/integrations/shopify' || pathname === '/dashboard/integrations/shopify') {
+        loginUrl.search = '';
+        loginUrl.searchParams.set('callbackUrl', '/dashboard/integrations/shopify?link_account=1');
+      }
+      return NextResponse.redirect(loginUrl);
     }
   }
 

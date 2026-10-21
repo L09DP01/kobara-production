@@ -375,11 +375,11 @@ export async function shopifyGraphql<T>(input: {
 
 export async function getShopifyShopIdentity(shopDomain: string, accessToken: string) {
   const data = await shopifyGraphql<{
-    shop: { id: string; name: string; email: string | null; myshopifyDomain: string };
+    shop: { id: string; name: string; myshopifyDomain: string };
   }>({
     shopDomain,
     accessToken,
-    query: `query KobaraShopIdentity { shop { id name email myshopifyDomain } }`,
+    query: `query KobaraShopIdentity { shop { id name myshopifyDomain } }`,
   });
   return data.shop;
 }
@@ -462,6 +462,22 @@ export async function upsertShopifyOrder(input: {
   const currency = String(input.payload.currency || input.payload.presentment_currency || '').toUpperCase();
   const total = shopifyOrderAmount(input.payload);
   const customer = input.payload.customer || {};
+  const { data: previous, error: previousError } = await supabase.from('shopify_orders')
+    .select('privacy_redacted_at').eq('installation_id', input.installation.id)
+    .eq('shopify_order_id', orderId).maybeSingle();
+  if (previousError) throw new Error('shopify_order_privacy_lookup_failed');
+  const redacted = Boolean(previous?.privacy_redacted_at);
+  // Keep only the fields used to validate collection and display the purchased product.
+  const rawOrder = {
+    id: orderId, currency, total_price: input.payload.total_price,
+    current_total_price: input.payload.current_total_price,
+    financial_status: input.payload.financial_status,
+    payment_gateway_names: input.payload.payment_gateway_names,
+    cancelled_at: input.payload.cancelled_at, test: input.payload.test,
+    line_items: redacted ? [] : input.payload.line_items?.map(item => ({
+      title: item.title, name: item.name, quantity: item.quantity,
+    })),
+  };
   const baseOrder = {
     installation_id: input.installation.id,
     merchant_id: input.installation.merchant_id,
@@ -471,19 +487,16 @@ export async function upsertShopifyOrder(input: {
     total_amount: Number.isFinite(total) ? total : 0,
     financial_status: input.payload.financial_status || null,
     fulfillment_status: input.payload.fulfillment_status || null,
-    customer: {
+    customer: redacted ? {} : {
       id: customer.id || null,
       email: input.payload.email || customer.email || null,
-      phone: input.payload.phone || customer.phone || null,
-      first_name: customer.first_name || null,
-      last_name: customer.last_name || null,
     },
-    raw_order: input.payload,
+    raw_order: rawOrder,
     updated_at: new Date().toISOString(),
   };
   const { data: order, error } = await supabase.from('shopify_orders')
     .upsert(baseOrder, { onConflict: 'installation_id,shopify_order_id' })
-    .select('id, payment_link_id, kobara_status').single();
+    .select('id, payment_link_id, kobara_status, privacy_redacted_at').single();
   if (error) throw new Error(`Synchronisation commande Shopify impossible: ${error.message}`);
   return order;
 }
@@ -492,7 +505,16 @@ export async function ensureShopifyOrderPaymentLink(input: {
   installation: Pick<ShopifyInstallation, 'id' | 'merchant_id' | 'shop_domain'>;
   payload: ShopifyOrderPayload;
 }) {
+  const choseKobara = input.payload.payment_gateway_names?.some(name =>
+    typeof name === 'string' && name.trim().toLowerCase() === 'kobara');
+  if (!choseKobara) {
+    const existing = await createAdminClient().from('shopify_orders').select('id')
+      .eq('installation_id', input.installation.id).eq('shopify_order_id', shopifyOrderId(input.payload)).maybeSingle();
+    if (existing.error) throw new Error('shopify_order_lookup_failed');
+    if (!existing.data) return null;
+  }
   const syncedOrder = await upsertShopifyOrder(input);
+  if (syncedOrder.privacy_redacted_at) return syncedOrder;
   const { data: reviewMerchant, error: reviewError } = await createAdminClient().from('merchants').select('*')
     .eq('id', input.installation.merchant_id).maybeSingle();
   if (reviewError) throw new Error('shopify_merchant_lookup_failed');
