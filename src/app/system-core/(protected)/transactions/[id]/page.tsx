@@ -5,6 +5,7 @@ import { createAdminClient } from '@/utils/supabase/admin';
 import { updatePendingPayment } from '../actions';
 
 const errorMessages: Record<string, string> = {
+  status: 'Choisissez un statut et confirmez la verification du paiement.',
   reference: 'Le code de référence doit contenir entre 4 et 64 lettres ou chiffres.',
   method: 'Cette méthode de paiement ne peut pas être sélectionnée.',
   not_found: 'Ce paiement Live est introuvable.',
@@ -14,7 +15,7 @@ const errorMessages: Record<string, string> = {
 
 export default async function AdminTransactionDetail({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ edit?: string; saved?: string; error?: string }>;
+  searchParams: Promise<{ edit?: string; saved?: string; error?: string; warning?: string }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -61,7 +62,8 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
         </div>
       </div>
 
-      {query.saved === '1' ? <p className="border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">Correction enregistrée et ajoutée au journal d’audit.</p> : null}
+      {query.saved === '1' ? <p className="border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-300">Statut enregistré.</p> : null}
+      {query.warning ? <p className="border border-amber-500/30 p-3 text-sm text-amber-300">Le statut est enregistré, mais un traitement associé nécessite une vérification technique. Ne confirmez pas une seconde fois le paiement.</p> : null}
       {query.error ? <p className="border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">{errorMessages[query.error] || 'Une erreur est survenue.'}</p> : null}
 
       {payment.status === 'pending' && query.edit === '1' ? (
@@ -69,20 +71,20 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-bold text-amber-300">CORRIGER LE PAIEMENT EN ATTENTE</h2>
-              <p className="mt-1 text-xs text-slate-500">Les montants et la référence Kobara restent protégés.</p>
+              <p className="mt-1 text-xs text-slate-500">Seul le statut peut être modifié. Les autres informations sont conservées.</p>
             </div>
             <Link href={`/system-core/transactions/${id}`} aria-label="Annuler la correction" className="inline-flex h-9 w-9 shrink-0 items-center justify-center border border-slate-700 text-slate-400 hover:text-white"><X className="h-4 w-4" /></Link>
           </div>
           <form action={updatePendingPayment} className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <input type="hidden" name="payment_id" value={id} />
             <label className="space-y-1.5 text-xs text-slate-400">Code de référence
-              <input name="reference_code" required minLength={4} maxLength={64} pattern="[A-Za-z0-9]+" defaultValue={payment.reference_code || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+              <input readOnly value={payment.reference_code || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
             </label>
             <label className="space-y-1.5 text-xs text-slate-400">Référence externe
-              <input name="external_reference" maxLength={120} defaultValue={payment.external_reference || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+              <input readOnly value={payment.external_reference || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
             </label>
             <label className="space-y-1.5 text-xs text-slate-400">Méthode
-              <select name="payment_method" defaultValue={payment.payment_method || payment.provider || 'moncash'} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500">
+              <select disabled defaultValue={payment.payment_method || payment.provider || 'moncash'} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400">
                 <option value="moncash">MonCash</option>
                 <option value="moncash_ussd">MonCash USSD</option>
                 <option value="natcash">NatCash</option>
@@ -96,10 +98,21 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
               </select>
             </label>
             <label className="space-y-1.5 text-xs text-slate-400">Nom du client
-              <input name="customer_name" maxLength={120} defaultValue={payment.metadata?.customer_name || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+              <input readOnly value={payment.metadata?.customer_name || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
             </label>
             <label className="space-y-1.5 text-xs text-slate-400 md:col-span-2">Téléphone du client
-              <input name="customer_phone" inputMode="tel" maxLength={32} defaultValue={payment.metadata?.customer_phone || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white focus:border-amber-500" />
+              <input readOnly value={payment.metadata?.customer_phone || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
+            </label>
+            <label className="space-y-1.5 text-xs text-slate-400 md:col-span-2">Statut du paiement
+              <select name="status" required defaultValue="" className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white">
+                <option value="" disabled>En attente : choisir le nouveau statut</option>
+                <option value="succeeded">Réussi</option>
+                <option value="failed">Échoué</option>
+              </select>
+            </label>
+            <label className="flex items-start gap-2 text-xs text-amber-200 md:col-span-2">
+              <input type="checkbox" name="confirmed" value="yes" required className="mt-0.5" />
+              J’ai vérifié le résultat auprès du fournisseur. Le statut Réussi crédite le marchand et déclenche les confirmations de paiement.
             </label>
             <button type="submit" className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-400 md:col-span-2 md:w-auto md:justify-self-end">
               <Save className="h-4 w-4" /> ENREGISTRER LA CORRECTION
