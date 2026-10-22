@@ -93,21 +93,24 @@ export async function getShopifyAccessToken(installation: ShopifyInstallation, a
   };
   const ciphertext = await readCurrent();
   const plaintext = decryptShopifyAccessToken(ciphertext);
-  // Keep compatibility with installations created before expiring tokens were introduced.
-  if (!plaintext.startsWith('{')) return plaintext;
-  const stored = JSON.parse(plaintext) as ShopifyTokenSet & { version: number };
-  if (stored.version !== 1 || !stored.accessToken || !stored.refreshToken
-    || !Number.isFinite(stored.expiresAt) || !Number.isFinite(stored.refreshExpiresAt)) {
+  const legacy = !plaintext.startsWith('{');
+  const stored = legacy ? null : JSON.parse(plaintext) as ShopifyTokenSet & { version: number };
+  if (stored && (stored.version !== 1 || !stored.accessToken || !stored.refreshToken
+    || !Number.isFinite(stored.expiresAt) || !Number.isFinite(stored.refreshExpiresAt))) {
     throw new Error('oauth_stored_token_invalid');
   }
-  if (stored.expiresAt > Date.now() + 60_000) return stored.accessToken;
-  if (stored.refreshExpiresAt <= Date.now()) throw new Error('oauth_reauthorization_required');
+  if (stored && stored.expiresAt > Date.now() + 60_000) return stored.accessToken;
+  if (stored && stored.refreshExpiresAt <= Date.now()) throw new Error('oauth_reauthorization_required');
   const config = getShopifyConfig();
   const response = await fetch(`https://${installation.shop_domain}/admin/oauth/access_token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ client_id: config.clientId, client_secret: config.clientSecret,
-      grant_type: 'refresh_token', refresh_token: stored.refreshToken }),
+      ...(legacy ? {
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange', subject_token: plaintext,
+        subject_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token',
+        requested_token_type: 'urn:shopify:params:oauth:token-type:offline-access-token', expiring: 1,
+      } : { grant_type: 'refresh_token', refresh_token: stored!.refreshToken }) }),
     cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) {

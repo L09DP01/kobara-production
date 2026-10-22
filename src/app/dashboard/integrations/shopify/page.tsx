@@ -7,7 +7,8 @@ import { shopifyCollectionAmount, shopifyExchangeRate } from '@/lib/shopify-poli
 import { isReviewAccount } from '@/lib/review-account';
 import { cookies } from 'next/headers';
 import { getShopifyInstallHandoff, SHOPIFY_INSTALL_COOKIE } from '@/lib/server/shopify-install';
-import { shopifyAppLaunchUrl } from '@/lib/server/shopify';
+import { getShopifyAccessToken, shopifyAppLaunchUrl } from '@/lib/server/shopify';
+import { ShopifyConnectionRefresh } from '@/components/shopify-connection-refresh';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,10 +45,18 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
   const storageReady = !installationResult.error && !ordersResult.error;
   const configured = ['SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET', 'SHOPIFY_TOKEN_ENCRYPTION_KEY'].every(key => Boolean(process.env[key]?.trim()));
   const approved = merchant.kyc_status === 'approved';
+  const refreshExisting = Boolean(connected && handoff?.shop_domain === installation.shop_domain);
+  let tokenUnavailable = false;
+  if (connected && configured && approved && !refreshExisting) {
+    try {
+      await getShopifyAccessToken({ ...installation, merchant_id: merchant.id, access_token_ciphertext: null });
+    } catch { tokenUnavailable = true; }
+  }
   const launchUrl = configured ? shopifyAppLaunchUrl(installation?.shop_domain) : null;
   const notice = !storageReady ? 'La connexion Shopify nécessite la migration de base de données. Contactez le support.'
     : !configured ? "La connexion Shopify n'est pas encore configurée sur ce serveur."
     : !approved ? errors.kyc_required
+    : tokenUnavailable ? 'La connexion Shopify doit être actualisée. Ouvrez Shopify pour renouveler son autorisation.'
     : params.error ? errors[params.error] || errors.connection_failed : null;
   const success = !notice && (params.rate_saved ? 'Taux de change enregistré.' : params.connected ? 'Votre boutique est connectée à Kobara.' : params.disconnected ? 'La boutique est déconnectée.' : '');
   const configuredRate = shopifyExchangeRate(installation?.metadata?.usd_htg_rate);
@@ -62,7 +71,8 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
     {notice && <p role="alert" className="flex items-start gap-2 rounded border border-amber-800 bg-amber-950/20 p-4 text-sm leading-6 text-amber-200"><AlertCircle className="mt-1 h-4 w-4 shrink-0" aria-hidden="true" />{notice}</p>}
     {success && <p role="status" className="rounded border border-emerald-800 p-4 text-sm text-emerald-300">{success}</p>}
     {reviewMode && <p className="rounded border border-amber-800 p-4 text-sm text-amber-200">Review Shopify : aucun e-mail Kobara. Ouvrez le lien Test depuis la commande ci-dessous. La synchronisation des paiements simulés est réservée aux boutiques de développement.</p>}
-    {handoff && <section className="border-b border-[#27364B] pb-6">
+    {refreshExisting && configured && storageReady && approved && <ShopifyConnectionRefresh automatic={!params.error} />}
+    {handoff && !refreshExisting && <section className="border-b border-[#27364B] pb-6">
       <h2 className="text-lg font-semibold text-white">Associer la boutique autorisée</h2>
       <form action="/api/integrations/shopify/link" method="post" className="mt-3 space-y-3">
         <p className="text-sm text-slate-300">Boutique autorisée : <strong>{handoff.shop_domain}</strong></p>

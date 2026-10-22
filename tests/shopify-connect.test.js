@@ -167,7 +167,10 @@ test('review settlement refuses a real Shopify store before marking any order pa
     payment_links: [{ id: 'link-a', merchant_id: 'merchant-a', amount: 250 }],
   });
   const { api } = service(db);
-  db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyAccessToken('fake-unit-test-access') }];
+  db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyTokenSet({
+    accessToken: 'fake-unit-test-access', refreshToken: 'fake-unit-test-refresh',
+    expiresAt: Date.now() + 3600000, refreshExpiresAt: Date.now() + 7776000000,
+  }) }];
   const original = global.fetch; let mutations = 0; let development = false;
   t.after(() => { global.fetch = original; });
   global.fetch = async (_url, init) => {
@@ -266,6 +269,49 @@ test('expiring tokens are encrypted, refreshed before expiry and never restored 
   global.fetch = async () => {
     row.status = 'disconnected'; row.access_token_ciphertext = null;
     return Response.json({ access_token: 'fake-stale-access', refresh_token: 'fake-stale-refresh', expires_in: 3600, refresh_token_expires_in: 7776000 });
+  };
+  await assert.rejects(api.getShopifyAccessToken(installation), /inactive/);
+  assert.equal(row.access_token_ciphertext, null);
+});
+
+test('legacy offline tokens migrate once and never fall back to the deprecated token', async t => {
+  const db = database({ shopify_installations: [{ ...installation }] });
+  const { api } = service(db);
+  const row = db.tables.shopify_installations[0];
+  row.access_token_ciphertext = api.encryptShopifyAccessToken('fake-legacy-token');
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  let calls = 0;
+  global.fetch = async (_url, init) => {
+    calls++;
+    const body = JSON.parse(init.body);
+    assert.equal(body.grant_type, 'urn:ietf:params:oauth:grant-type:token-exchange');
+    assert.equal(body.subject_token, 'fake-legacy-token');
+    assert.equal(body.subject_token_type, 'urn:shopify:params:oauth:token-type:offline-access-token');
+    assert.equal(body.requested_token_type, body.subject_token_type);
+    assert.equal(body.expiring, 1);
+    return Response.json({ access_token: 'fake-migrated-access', refresh_token: 'fake-migrated-refresh', expires_in: 3600, refresh_token_expires_in: 7776000 });
+  };
+  assert.equal(await api.getShopifyAccessToken(installation), 'fake-migrated-access');
+  assert.equal(await api.getShopifyAccessToken(installation), 'fake-migrated-access');
+  assert.equal(calls, 1);
+  assert.equal(JSON.parse(api.decryptShopifyAccessToken(row.access_token_ciphertext)).refreshToken, 'fake-migrated-refresh');
+  row.access_token_ciphertext = api.encryptShopifyAccessToken('fake-legacy-token');
+  global.fetch = async () => Response.json({ error: 'invalid_subject_token' }, { status: 400 });
+  await assert.rejects(api.getShopifyAccessToken(installation), /oauth_refresh_http_400/);
+  assert.equal(api.decryptShopifyAccessToken(row.access_token_ciphertext), 'fake-legacy-token');
+});
+
+test('a concurrent disconnect cannot be overwritten by offline token migration', async t => {
+  const db = database({ shopify_installations: [{ ...installation }] });
+  const { api } = service(db);
+  const row = db.tables.shopify_installations[0];
+  row.access_token_ciphertext = api.encryptShopifyAccessToken('fake-legacy-token');
+  const original = global.fetch;
+  t.after(() => { global.fetch = original; });
+  global.fetch = async () => {
+    row.status = 'disconnected'; row.access_token_ciphertext = null;
+    return Response.json({ access_token: 'fake-migrated-access', refresh_token: 'fake-migrated-refresh', expires_in: 3600, refresh_token_expires_in: 7776000 });
   };
   await assert.rejects(api.getShopifyAccessToken(installation), /inactive/);
   assert.equal(row.access_token_ciphertext, null);
@@ -478,7 +524,10 @@ for (const originalCurrency of ['HTG', 'USD']) test(`successful ${originalCurren
   db.tables.shopify_orders[0].currency = originalCurrency;
   db.tables.payments[0].amount = originalCurrency === 'USD' ? 36250 : 250;
   db.tables.payment_links[0].metadata = { exchange_rate: originalCurrency === 'USD' ? 145 : 1 };
-  db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyAccessToken('fake-access-for-unit-test') }];
+  db.tables.shopify_installations = [{ ...installation, access_token_ciphertext: api.encryptShopifyTokenSet({
+    accessToken: 'fake-access-for-unit-test', refreshToken: 'fake-refresh-for-unit-test',
+    expiresAt: Date.now() + 3600000, refreshExpiresAt: Date.now() + 7776000000,
+  }) }];
   const original = global.fetch;
   let mutations = 0;
   global.fetch = async (_url, init) => {
@@ -692,9 +741,12 @@ test('Shopify callback defaults never inherit the unrelated NEXTAUTH_URL', () =>
 test('merchant Shopify screen renders connected, disconnected and KYC-blocked states without subscriptions', async () => {
   for (const connected of [false, true]) {
     const db = database({ shopify_installations: connected ? [{ ...installation, shop_name: 'Unit test shop', granted_scopes: ['read_orders', 'write_orders'] }] : [] });
+    let pendingHandoff = null;
     const page = load('src/app/dashboard/integrations/shopify/page.tsx', {
       'next/navigation': { redirect: () => { throw new Error('redirect'); } },
-      '@/lib/server/shopify': service(db).api,
+      '@/lib/server/shopify': { ...service(db).api, getShopifyAccessToken: async () => 'fake-test-token' },
+      '@/components/shopify-connection-refresh': load('src/components/shopify-connection-refresh.tsx'),
+      '@/lib/server/shopify-install': { getShopifyInstallHandoff: async () => pendingHandoff, SHOPIFY_INSTALL_COOKIE: '__Host-kobara_shopify_install' },
       '@/components/shopify-kobara-lockup': { ShopifyKobaraLockup: () => React.createElement('span', null, 'Shopify / Kobara') },
       '@/lib/shopify-policy': { shopifyCollectionAmount, shopifyExchangeRate },
       '@/utils/supabase/auth-helper': { getCurrentUserAndMerchant: async () => ({ merchant: db.tables.merchants[0], userRole: 'owner' }) },
@@ -713,6 +765,18 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
       assert.match(html, /saisissez exactement|Saisissez exactement/);
       assert.match(html, /sans redirection automatique/);
       assert.match(html, /help.shopify.com\/fr\/manual\/payments\/manual-payments/);
+      pendingHandoff = { shop_domain: installation.shop_domain };
+      const refreshed = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));
+      assert.doesNotMatch(refreshed, /Associer la boutique autorisée|Associer à mon compte/);
+      assert.match(refreshed, /name="mode" value="refresh"/);
+      assert.match(refreshed, /Actualisation de la connexion Shopify/);
+      const failed = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({ error: 'link_failed' }) }));
+      assert.doesNotMatch(failed, /Actualisation de la connexion Shopify/);
+      assert.match(failed, /Actualiser la connexion Shopify/);
+      pendingHandoff = { shop_domain: 'other-shop.myshopify.com' };
+      const otherShop = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));
+      assert.match(otherShop, /Associer la boutique autorisée/);
+      assert.doesNotMatch(otherShop, /name="mode" value="refresh"/);
     }
     else {
       assert.match(html, /href="https:\/\/admin.shopify.com\/oauth\/install\?client_id=shopify-test-client"/);
@@ -880,6 +944,7 @@ test('account linking requires same-origin POST and a verified owner before cons
   let calls = 0;
   let approved = true;
   const route = load('src/app/api/integrations/shopify/link/route.ts', {
+    '@/utils/supabase/admin': { createAdminClient: () => database() },
     'next/server': { NextResponse: installationService(database()).response },
     '@/lib/server/shopify-auth': { requireShopifyOwnerMerchant: async () => ({ merchant: { id: 'merchant-a', kyc_status: approved ? 'approved' : 'pending' } }) },
     '@/lib/server/shopify-install': { SHOPIFY_INSTALL_COOKIE: '__Host-kobara_shopify_install', claimShopifyInstall: async () => { calls++; } },
@@ -893,6 +958,47 @@ test('account linking requires same-origin POST and a verified owner before cons
   approved = true;
   assert.match((await route.POST(request('https://dashboard.example'))).headers.get('location'), /connected=1/);
   assert.equal(calls, 1);
+});
+
+test('automatic refresh only claims the same active shop owned by the current merchant', async () => {
+  const db = database({ shopify_installations: [installation] });
+  let calls = 0;
+  let shop = installation.shop_domain;
+  const route = load('src/app/api/integrations/shopify/link/route.ts', {
+    'next/server': { NextResponse: installationService(database()).response },
+    '@/utils/supabase/admin': { createAdminClient: () => db },
+    '@/lib/server/shopify-auth': { requireShopifyOwnerMerchant: async () => ({ merchant: db.tables.merchants[0] }) },
+    '@/lib/server/shopify-install': { SHOPIFY_INSTALL_COOKIE: '__Host-kobara_shopify_install',
+      getShopifyInstallHandoff: async () => ({ shop_domain: shop }), claimShopifyInstall: async () => { calls++; } },
+  });
+  const request = () => ({ url: 'https://dashboard.example/api/integrations/shopify/link', nextUrl: new URL('https://dashboard.example/api/integrations/shopify/link'),
+    headers: new Headers({ origin: 'https://dashboard.example', 'content-type': 'application/x-www-form-urlencoded' }),
+    formData: async () => new Map([['mode', 'refresh']]), cookies: { get: () => ({ value: 'opaque-test-proof' }) } });
+  assert.match((await route.POST(request())).headers.get('location'), /connected=1/);
+  assert.equal(calls, 1);
+  shop = 'other-shop.myshopify.com';
+  assert.match((await route.POST(request())).headers.get('location'), /link_failed/);
+  db.tables.shopify_installations[0].status = 'uninstalled';
+  shop = installation.shop_domain;
+  assert.match((await route.POST(request())).headers.get('location'), /link_failed/);
+  db.tables.shopify_installations[0].status = 'active';
+  db.tables.shopify_installations[0].merchant_id = 'other-merchant';
+  assert.match((await route.POST(request())).headers.get('location'), /link_failed/);
+  assert.equal(calls, 1);
+});
+
+test('automatic connection refresh submits once and never loops on a failed retry', () => {
+  for (const automatic of [true, false]) {
+    let calls = 0;
+    let effect;
+    const component = load('src/components/shopify-connection-refresh.tsx', {
+      react: { useRef: value => ({ current: value === null ? { requestSubmit: () => { calls++; } } : value }),
+        useEffect: callback => { effect = callback; } },
+    });
+    component.ShopifyConnectionRefresh({ automatic });
+    effect(); effect();
+    assert.equal(calls, automatic ? 1 : 0);
+  }
 });
 
 test('privacy export is restricted, scoped to a customer and audited before data is returned', async () => {
