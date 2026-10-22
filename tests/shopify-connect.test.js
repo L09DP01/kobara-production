@@ -105,6 +105,21 @@ function service(db, sendResult = () => ({ success: true })) {
 }
 const installation = { id: 'installation-a', merchant_id: 'merchant-a', shop_domain: 'test-shop.myshopify.com', status: 'active' };
 
+test('Shopify launch targets this app and lets Shopify select an unknown store', () => {
+  const { api } = service(database());
+  const url = new URL(api.shopifyAppLaunchUrl());
+  assert.equal(url.origin, 'https://admin.shopify.com');
+  assert.equal(url.pathname, '/oauth/install');
+  assert.equal(url.searchParams.get('client_id'), process.env.SHOPIFY_CLIENT_ID);
+  assert.equal([...url.searchParams.keys()].join(','), 'client_id');
+});
+
+test('Shopify launch preserves the associated store even when it needs reinstalling', () => {
+  const { api } = service(database());
+  assert.equal(new URL(api.shopifyAppLaunchUrl(installation.shop_domain)).pathname, '/store/test-shop/oauth/install');
+  assert.throws(() => api.shopifyAppLaunchUrl('example.com'));
+});
+
 test('review flag is explicit, creates test-order links and suppresses all reminder emails', async () => {
   assert.equal(reviewAccount.isReviewAccount({ email: 'test@shopify.com' }), false);
   assert.equal(reviewAccount.isReviewAccount({ shopify_review_mode: 'true' }), false);
@@ -679,6 +694,7 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
     const db = database({ shopify_installations: connected ? [{ ...installation, shop_name: 'Unit test shop', granted_scopes: ['read_orders', 'write_orders'] }] : [] });
     const page = load('src/app/dashboard/integrations/shopify/page.tsx', {
       'next/navigation': { redirect: () => { throw new Error('redirect'); } },
+      '@/lib/server/shopify': service(db).api,
       '@/components/shopify-kobara-lockup': { ShopifyKobaraLockup: () => React.createElement('span', null, 'Shopify / Kobara') },
       '@/lib/shopify-policy': { shopifyCollectionAmount, shopifyExchangeRate },
       '@/utils/supabase/auth-helper': { getCurrentUserAndMerchant: async () => ({ merchant: db.tables.merchants[0], userRole: 'owner' }) },
@@ -688,6 +704,8 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
     assert.match(html, /Dernières commandes/);
     assert.doesNotMatch(html, /Pro offert|Premium|abonnement/i);
     if (connected) {
+      assert.match(html, /href="https:\/\/admin.shopify.com\/store\/test-shop\/oauth\/install\?client_id=shopify-test-client"/);
+      assert.match(html, />Connecté<\/span>/);
       assert.match(html, /Déconnecter/);
       assert.match(html, /<details\b[^>]*\bopen=""/);
       assert.match(html, /Finaliser la configuration dans Shopify/);
@@ -697,6 +715,7 @@ test('merchant Shopify screen renders connected, disconnected and KYC-blocked st
       assert.match(html, /help.shopify.com\/fr\/manual\/payments\/manual-payments/);
     }
     else {
+      assert.match(html, /href="https:\/\/admin.shopify.com\/oauth\/install\?client_id=shopify-test-client"/);
       assert.doesNotMatch(html, /Finaliser la configuration dans Shopify/);
       assert.doesNotMatch(html, /name="shop"/);
       assert.match(html, /depuis Shopify/);

@@ -184,6 +184,15 @@ export function normalizeShopDomain(input: string): string {
   return value;
 }
 
+export function shopifyAppLaunchUrl(shopDomain?: string | null): string {
+  const shop = shopDomain ? normalizeShopDomain(shopDomain).replace(/\.myshopify\.com$/, '') : null;
+  const url = new URL(shop
+    ? `https://admin.shopify.com/store/${shop}/oauth/install`
+    : 'https://admin.shopify.com/oauth/install');
+  url.searchParams.set('client_id', requiredEnv('SHOPIFY_CLIENT_ID'));
+  return url.toString();
+}
+
 function stateSecret(): Uint8Array {
   return new TextEncoder().encode(requiredEnv('SHOPIFY_CLIENT_SECRET'));
 }

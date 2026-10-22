@@ -7,6 +7,7 @@ import { shopifyCollectionAmount, shopifyExchangeRate } from '@/lib/shopify-poli
 import { isReviewAccount } from '@/lib/review-account';
 import { cookies } from 'next/headers';
 import { getShopifyInstallHandoff, SHOPIFY_INSTALL_COOKIE } from '@/lib/server/shopify-install';
+import { shopifyAppLaunchUrl } from '@/lib/server/shopify';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,7 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
   const storageReady = !installationResult.error && !ordersResult.error;
   const configured = ['SHOPIFY_CLIENT_ID', 'SHOPIFY_CLIENT_SECRET', 'SHOPIFY_TOKEN_ENCRYPTION_KEY'].every(key => Boolean(process.env[key]?.trim()));
   const approved = merchant.kyc_status === 'approved';
+  const launchUrl = configured ? shopifyAppLaunchUrl(installation?.shop_domain) : null;
   const notice = !storageReady ? 'La connexion Shopify nécessite la migration de base de données. Contactez le support.'
     : !configured ? "La connexion Shopify n'est pas encore configurée sur ce serveur."
     : !approved ? errors.kyc_required
@@ -77,13 +79,13 @@ export default async function ShopifyIntegrationPage({ searchParams }: {
           <div><dt className="text-slate-400">Connexion</dt><dd className="mt-1 text-white">{installation.installed_at ? `${formatDate(installation.installed_at)} (Haïti)` : 'Non renseignée'}</dd></div>
         </dl>
         <div className="flex flex-wrap gap-3">
-          <a href={`https://${installation.shop_domain}/admin`} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-600 px-4 text-sm font-semibold text-white hover:bg-white/5">Ouvrir Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /></a>
+          {launchUrl && <a href={launchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-600 px-4 text-sm font-semibold text-white hover:bg-white/5">Ouvrir Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /></a>}
           <form action="/api/integrations/shopify/disconnect" method="post"><button type="submit" className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-800 px-4 text-sm font-semibold text-red-300 hover:bg-red-950/30"><Unplug className="h-4 w-4" aria-hidden="true" />Déconnecter</button></form>
         </div>
       </div> : <div className="mt-4 max-w-2xl space-y-3">
         {!handoff && <>
           <p className="text-sm text-slate-300">Ouvrez Kobara Connect depuis Shopify pour autoriser votre boutique, puis associez-la à ce compte marchand.</p>
-          {approved && configured && storageReady ? <a href="https://admin.shopify.com" target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-slate-600 px-5 text-sm font-semibold text-white">Ouvrir Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /></a> : <button disabled className="min-h-12 rounded-md border border-slate-600 px-5 text-sm text-slate-400">Connexion Shopify indisponible</button>}
+          {approved && launchUrl && storageReady ? <a href={launchUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-12 items-center gap-2 rounded-md border border-slate-600 px-5 text-sm font-semibold text-white">Ouvrir Shopify <ExternalLink className="h-4 w-4" aria-hidden="true" /></a> : <button disabled className="min-h-12 rounded-md border border-slate-600 px-5 text-sm text-slate-400">Connexion Shopify indisponible</button>}
         </>}
       </div>}
     </section>
