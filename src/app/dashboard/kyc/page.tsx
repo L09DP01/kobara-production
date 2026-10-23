@@ -21,14 +21,20 @@ export default async function KycPage() {
   }
 
   const profile = await getKycStatus();
-  const kycStatus = profile?.status === 'approved'
+  const requiresReverification = merchant.account_access === 'reverify_required'
+    || merchant.kyc_status === 'pending_reverification';
+  const accessBlocked = merchant.status === 'suspended'
+    || ['suspended', 'closure_pending', 'closure_pending_payout', 'closed', 'permanently_closed'].includes(merchant.account_access || '')
+    || merchant.kyc_status === 'suspended';
+  const kycStatus = requiresReverification && !['pending', 'in_review'].includes(merchant.kyc_status)
+    ? 'pending_reverification'
+    : profile?.status === 'approved' && !requiresReverification && !accessBlocked
     ? 'approved'
     : merchant.kyc_status || profile?.status || 'not_started';
 
-  const isApproved = kycStatus === 'approved';
-  const isInReview = kycStatus === 'in_review' || kycStatus === 'pending';
-  const isRejected = kycStatus === 'rejected';
-  const isNotStarted = kycStatus === 'not_started';
+  const isApproved = !accessBlocked && kycStatus === 'approved';
+  const isInReview = !accessBlocked && (kycStatus === 'in_review' || kycStatus === 'pending');
+  const canStartVerification = !accessBlocked && !isApproved && !isInReview;
 
   return (
     <div className="mx-auto w-full max-w-[760px] pb-6 sm:pb-12">
@@ -54,6 +60,11 @@ export default async function KycPage() {
         </div>
 
         {/* Status Section */}
+        {accessBlocked && (
+          <div role="alert" className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-5 text-sm leading-6 text-amber-200">
+            Votre compte fait toujours l'objet d'une restriction. Contactez le support Kobara pour connaître les prochaines étapes.
+          </div>
+        )}
         {isApproved && (
           <div className="relative overflow-hidden rounded-lg border border-green-500/20 bg-green-500/10 p-5 text-center sm:p-8">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/20 text-green-400 sm:h-16 sm:w-16">
@@ -89,8 +100,14 @@ export default async function KycPage() {
           </div>
         )}
 
-        {(isNotStarted || isRejected) && (
+        {canStartVerification && (
           <div className="space-y-4 sm:space-y-6">
+            {requiresReverification && (
+              <div role="status" className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-amber-200">
+                <h2 className="font-bold">Nouvelle vérification d'identité requise</h2>
+                <p className="mt-2">Votre compte a été débloqué par notre équipe de conformité. Vérifiez à nouveau votre identité pour réactiver les paiements et les retraits. Votre ancienne vérification ne suffit pas.</p>
+              </div>
+            )}
             <div className="rounded-lg border border-slate-800 bg-slate-950/60 px-4 py-3 sm:p-6">
               <h3 className="flex min-h-10 items-center gap-2 text-sm font-bold text-white sm:mb-4 sm:text-base">
                 <ShieldCheck className="h-5 w-5 shrink-0 text-orange-400" />
@@ -125,7 +142,7 @@ export default async function KycPage() {
             </div>
 
             <div>
-              <DiditVerificationButton buttonText="Lancer la vérification d'identité" />
+              <DiditVerificationButton buttonText={requiresReverification ? "Revérifier mon identité" : "Lancer la vérification d'identité"} />
             </div>
           </div>
         )}

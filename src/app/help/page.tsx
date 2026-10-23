@@ -5,8 +5,9 @@ import { getHelpArticleHref, getHelpCategory, publishedHelpArticles, type HelpCa
 
 const iconMap = { payments: CreditCard, payouts: Landmark, verification: BadgeCheck, pricing: WalletCards, developers: Code2, security: ShieldCheck, balance: WalletCards, marketplace: BookOpen, legal: LockKeyhole, "getting-started": Search };
 const priorityCategories = ["payments", "payouts", "verification", "pricing", "developers", "security"];
-const popularPaths = ["payments/payment-status", "payouts/failed", "pricing/how-fees-work", "verification/proof-of-address", "developers/live-requirements", "balance/availability"];
+const popularPaths = ["security/account-suspended", "verification/reverify-after-unblock", "payments/payment-status", "payouts/failed", "pricing/how-fees-work", "verification/proof-of-address", "developers/live-requirements", "balance/availability"];
 const quickLinks = [
+  { label: "Compte suspendu", path: "security/account-suspended" },
   { label: "Paiement en attente", path: "payments/payment-status" },
   { label: "Retrait échoué", path: "payouts/failed" },
   { label: "Comprendre les frais", path: "pricing/how-fees-work" },
@@ -35,7 +36,7 @@ export default function HelpHomePage() {
       <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8 sm:py-20">
         <div className="flex items-end justify-between gap-6">
           <div><p className="text-sm font-extrabold uppercase text-[#D7471D]">Parcourir l’aide</p><h2 className="mt-2 text-3xl font-extrabold sm:text-4xl">Les sujets les plus consultés</h2></div>
-          <span className="hidden text-sm text-[#777981] sm:block">25 articles vérifiés</span>
+          <span className="hidden text-sm text-[#777981] sm:block">{publishedHelpArticles.length} articles d’aide</span>
         </div>
         <div className="mt-9 grid gap-px overflow-hidden rounded-lg border border-[#DED9D5] bg-[#DED9D5] sm:grid-cols-2 lg:grid-cols-3">
           {categories.map((category) => {

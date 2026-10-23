@@ -69,6 +69,66 @@ const article = (
 
 export const helpArticles: HelpArticle[] = [
   article({
+    id: "security-account-suspended", slug: "account-suspended", path: "security/account-suspended",
+    title: "Pourquoi mon compte Kobara est-il suspendu ?",
+    description: "Comprendre une restriction de sécurité et demander un examen de votre compte.",
+    summary: "Une suspension peut faire suite à un contrôle de sécurité ou à une décision administrative. Une même pièce d’identité détectée sur deux comptes distincts peut notamment déclencher une suspension pour examen ; ce signal ne suffit pas, à lui seul, à conclure à une fraude.",
+    category: "security",
+    sections: [
+      { title: "Pourquoi une restriction peut apparaître", paragraphs: ["Kobara peut restreindre un compte pendant un examen de conformité, notamment lorsqu’une identité ou une pièce d’identité semble utilisée sur plusieurs comptes. Une suspension peut aussi être décidée par un administrateur. Seule l’équipe de support ou de conformité peut préciser le motif applicable à votre dossier."], notice: "Une suspension ne signifie pas automatiquement que vous êtes considéré comme fraudeur.", noticeTone: "info" },
+      { title: "Que faire maintenant ?", steps: ["Consultez la notification et le message affichés dans votre dashboard.", "Contactez le support depuis votre compte ou l’adresse e-mail qui lui est associée.", "Indiquez la référence du dossier si vous en avez une et décrivez la situation.", "Attendez les instructions de l’équipe avant de relancer une vérification."], notice: "Ne créez pas un autre compte et n’utilisez pas le document d’un tiers pour contourner une restriction. Ne transmettez jamais un mot de passe, une clé secrète ou un code de sécurité au support.", noticeTone: "warning" },
+      { title: "Après le déblocage", paragraphs: ["Le déblocage peut imposer une nouvelle vérification d’identité. L’accès au compte n’équivaut pas à l’activation des paiements et retraits : ceux-ci restent soumis à la validation et aux autres contrôles applicables."], notice: "Le support ne divulgue pas les informations personnelles d’un autre titulaire de compte. Aucun délai ni résultat de déblocage n’est garanti.", noticeTone: "info" },
+    ],
+    keywords: ["compte suspendu", "compte bloqué", "suspension", "débloquer", "sécurité", "kont mwen bloke", "kont sispann"], relatedArticles: ["verification/reverify-after-unblock", "verification/duplicate-identity", "security/how-kobara-protects-account"], audience: ["merchant", "support"], country: ["HT", "international"], paymentMethods: [], plans: ["all"], lastReviewedAt: "2026-10-23", lastUpdatedAt: "2026-10-23",
+  }),
+  article({
+    id: "verification-reverify-after-unblock", slug: "reverify-after-unblock", path: "verification/reverify-after-unblock",
+    title: "Pourquoi dois-je revérifier mon identité après un déblocage ?",
+    description: "Relancer le KYC lorsque la conformité exige une nouvelle vérification.",
+    summary: "Après un déblocage pour examen d’identité, le compte peut exiger une nouvelle vérification. Un ancien dossier approuvé ne remplace pas cette étape.", category: "verification",
+    sections: [
+      { title: "Relancer la vérification", steps: ["Connectez-vous au compte que l’équipe a débloqué.", "Ouvrez Vérifier mon compte dans le dashboard.", "Cliquez sur Revérifier mon identité pour ouvrir la session sécurisée Didit.", "Présentez votre propre document original et suivez les instructions de vérification faciale.", "Attendez le résultat de la nouvelle vérification." ] },
+      { title: "Pendant le traitement", paragraphs: ["Une nouvelle session peut apparaître en attente ou en cours d’examen. Les opérations financières restent soumises aux restrictions du compte jusqu’à validation. Le déblocage administratif ne valide pas automatiquement votre identité." ] },
+      { title: "Si le bouton manque ou si la page reste vide", paragraphs: ["Actualisez la page puis reconnectez-vous si nécessaire. Si le problème persiste, contactez le support avec l’heure approximative, le type d’appareil et une capture sans données sensibles. N’ouvrez pas un second compte."], notice: "Si le compte est toujours suspendu ou en cours de clôture, suivez les instructions du support plutôt que de tenter de contourner la restriction.", noticeTone: "warning" },
+    ],
+    keywords: ["revérification", "reverification", "déblocage", "reverify_required", "pending_reverification", "KYC vide", "Didit", "revérifier"], relatedArticles: ["security/account-suspended", "verification/kyc", "verification/kyc-in-review"], audience: ["merchant", "support"], country: ["HT", "international"], paymentMethods: [], plans: ["all"], lastReviewedAt: "2026-10-23", lastUpdatedAt: "2026-10-23",
+  }),
+  article({
+    id: "verification-duplicate-identity", slug: "duplicate-identity", path: "verification/duplicate-identity",
+    title: "Ma pièce d’identité est utilisée sur deux comptes : que faire ?",
+    description: "Faire examiner un doublon d’identité sans créer de nouveau compte.",
+    summary: "La détection d’une même identité sur deux comptes distincts peut entraîner la suspension des comptes concernés pendant un examen. Seule l’équipe de conformité détermine la suite à donner.", category: "verification",
+    sections: [
+      { title: "Signaler votre situation", paragraphs: ["Contactez le support depuis l’adresse associée à votre compte. Précisez si vous aviez un ancien compte, si vous avez perdu son accès ou si vous soupçonnez une utilisation de votre identité sans votre autorisation. Le support indiquera les justificatifs à fournir par un canal officiel." ] },
+      { title: "Ce qu’il ne faut pas faire", bullets: ["Créer un troisième compte pour essayer de passer le contrôle.", "Utiliser une autre identité ou le document d’un proche.", "Demander ou partager les informations personnelles du titulaire d’un autre compte.", "Publier des photos de pièces d’identité dans une conversation publique." ] },
+      { title: "Résultat de l’examen", paragraphs: ["Selon les conclusions, un compte peut être débloqué avec obligation de revérification, rester restreint ou faire l’objet d’une procédure de clôture. Le support vous communique les instructions propres à votre compte, sans garantir à l’avance la décision."], notice: "Une nouvelle vérification du même compte n’est pas, à elle seule, la création d’un doublon entre deux comptes distincts.", noticeTone: "info" },
+    ],
+    keywords: ["double compte", "doublon", "carte identité", "pièce identité", "document partagé", "usurpation", "deux comptes"], relatedArticles: ["security/account-suspended", "verification/reverify-after-unblock", "verification/kyc"], audience: ["merchant", "support"], country: ["HT", "international"], paymentMethods: [], plans: ["all"], lastReviewedAt: "2026-10-23", lastUpdatedAt: "2026-10-23",
+  }),
+  article({
+    id: "verification-kyc-in-review", slug: "kyc-in-review", path: "verification/kyc-in-review",
+    title: "Pourquoi mon KYC reste-t-il en attente ou en cours d’examen ?",
+    description: "Distinguer une vérification commencée, un examen et une validation définitive.",
+    summary: "Une session commencée ou un dossier transmis n’est pas encore un KYC approuvé. Certains dossiers nécessitent un examen supplémentaire avant la décision.", category: "verification",
+    sections: [
+      { title: "Comprendre le statut", bullets: ["En attente : la vérification est commencée ou son traitement n’est pas terminé.", "En cours d’examen : un contrôle supplémentaire ou une revue manuelle est nécessaire.", "Approuvé : la vérification est validée ; les autres restrictions éventuelles du compte restent distinctes." ] },
+      { title: "Comment avancer", steps: ["Reprenez les instructions de la session sécurisée si elle n’est pas terminée.", "Vérifiez la lisibilité et la validité de votre propre document.", "Consultez les notifications et éventuelles demandes de pièces complémentaires.", "Si le statut reste inchangé, contactez le support avec la référence du dossier ou l’heure de soumission."], notice: "Ne multipliez pas les comptes ou les identités pour accélérer l’examen. Aucun délai de validation n’est garanti dans cet article.", noticeTone: "warning" },
+    ],
+    keywords: ["KYC attente", "pending", "in_review", "dossier examen", "vérification lente", "Didit"], relatedArticles: ["verification/kyc", "verification/reverify-after-unblock", "developers/live-requirements"], audience: ["merchant", "support"], country: ["HT", "international"], paymentMethods: [], plans: ["all"], lastReviewedAt: "2026-10-23", lastUpdatedAt: "2026-10-23",
+  }),
+  article({
+    id: "payments-shopify-payment-link", slug: "shopify-payment-link", path: "payments/shopify-payment-link",
+    title: "Commande Shopify confirmée : où est mon lien de paiement Kobara ?",
+    description: "Comprendre l’e-mail de commande, le lien Kobara et la confirmation du paiement.",
+    summary: "Une confirmation de commande Shopify n’est pas une preuve de paiement. Dans le parcours manuel Kobara, une commande admissible reçoit un lien de paiement par e-mail ; le statut est mis à jour après confirmation du paiement.", category: "payments", subcategory: "Shopify",
+    sections: [
+      { title: "Le parcours du client", steps: ["Le client choisit la méthode manuelle Kobara et valide sa commande Shopify.", "Il consulte l’adresse e-mail saisie lors de la commande, y compris les courriers indésirables.", "Il ouvre le lien Kobara pour vérifier le produit, la référence et le montant à payer.", "Il termine le paiement puis attend sa confirmation ; la commande est ensuite synchronisée."], notice: "Ce parcours ne redirige pas automatiquement depuis le checkout Shopify vers Kobara. Le lien envoyé est valable 24 heures.", noticeTone: "info" },
+      { title: "Vérifications côté marchand", bullets: ["La boutique doit être connectée au bon compte marchand Kobara et celui-ci doit être autorisé à encaisser.", "Le moyen de paiement manuel doit être nommé Kobara dans Shopify.", "La commande doit être admissible, impayée et comporter une adresse e-mail. Les commandes Live HTG et USD sont prises en charge ; une commande Test ordinaire ne collecte pas de fonds réels.", "Pour une commande USD, le lien est créé en HTG au taux configuré par le marchand lors de sa création. Les commandes HTG ne sont pas converties.", "Les liens issus des commandes Shopify se suivent dans la section Shopify du dashboard, pas dans la liste générale des liens de paiement." ] },
+      { title: "Si le lien manque ou ne fonctionne plus", paragraphs: ["Le client peut contacter sa boutique avec le numéro de commande. Le marchand vérifie la commande dans la section Shopify de Kobara, puis contacte le support avec sa référence si nécessaire. Ne marquez pas une commande payée uniquement parce que son e-mail de confirmation est arrivé."], notice: "Le compte de démonstration réservé à la review Shopify ne reçoit pas d’e-mails Kobara : ses liens Test sont ouverts depuis le dashboard.", noticeTone: "info" },
+    ],
+    keywords: ["Shopify", "lien paiement email", "commande confirmée", "paiement pending", "USD HTG", "email non reçu"], relatedArticles: ["payments/payment-status", "balance/availability", "payouts/failed"], audience: ["merchant", "buyer", "support"], country: ["HT", "international"], paymentMethods: ["moncash", "natcash"], plans: ["all"], lastReviewedAt: "2026-10-23", lastUpdatedAt: "2026-10-23",
+  }),
+  article({
     id: "getting-started-what-is-kobara",
     slug: "what-is-kobara",
     path: "what-is-kobara",
