@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
+import { isKycAccountBlocked } from '@/lib/kyc-resolution-policy';
 
 const DEFAULT_DIDIT_WORKFLOW_ID = "50c7c3ca-5bfc-43fe-92d6-6c1471020ace";
 const DIDIT_SESSION_ENDPOINT = "https://verification.didit.me/v3/session/";
@@ -47,9 +48,12 @@ function getClientError(status: number, detail: string) {
 
 export async function POST() {
   try {
-    const { merchant } = await getCurrentUserAndMerchant();
+    const { merchant, userRole } = await getCurrentUserAndMerchant();
     if (!merchant) {
       return NextResponse.json({ error: "Non autorisé. Veuillez vous connecter." }, { status: 401 });
+    }
+    if (userRole !== 'owner' || isKycAccountBlocked(merchant)) {
+      return NextResponse.json({ error: 'Cette vérification nécessite l’autorisation de la conformité.', code: 'KYC_ACCOUNT_RESTRICTED' }, { status: 403 });
     }
 
     const apiKey = process.env.DIDIT_API_KEY;
@@ -111,14 +115,16 @@ export async function POST() {
 
     // Enregistrer ou mettre à jour la session dans la base de données
     const supabase = createAdminClient();
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile, error: profileReadError } = await supabase
       .from('kyc_profiles')
       .select('id')
       .eq('merchant_id', merchant.id)
       .maybeSingle();
+    if (profileReadError) throw new Error('kyc_profile_lookup_failed');
 
+    let profileSaveError;
     if (existingProfile) {
-      await supabase
+      const result = await supabase
         .from('kyc_profiles')
         .update({
           status: 'pending',
@@ -126,8 +132,9 @@ export async function POST() {
           submitted_at: new Date().toISOString(),
         })
         .eq('id', existingProfile.id);
+      profileSaveError = result.error;
     } else {
-      await supabase
+      const result = await supabase
         .from('kyc_profiles')
         .insert({
           merchant_id: merchant.id,
@@ -135,13 +142,19 @@ export async function POST() {
           gemini_review: { didit_session_id: session_id, didit_url: url },
           submitted_at: new Date().toISOString(),
         });
+      profileSaveError = result.error;
     }
+    if (profileSaveError) throw new Error('kyc_session_save_failed');
 
     // Mettre à jour le statut du marchand en cours de vérification
-    await supabase
+    const merchantSave = await supabase
       .from('merchants')
       .update({ kyc_status: 'pending' })
-      .eq('id', merchant.id);
+      .eq('id', merchant.id)
+      .or('status.is.null,status.neq.suspended')
+      .or('account_access.is.null,account_access.not.in.(suspended,closure_pending,closure_pending_payout,closed,permanently_closed)')
+      .select('id').maybeSingle();
+    if (merchantSave.error || !merchantSave.data) throw new Error('kyc_merchant_state_changed');
 
     return NextResponse.json({
       success: true,

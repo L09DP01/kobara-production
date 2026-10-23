@@ -13,6 +13,7 @@ import { normalizeSixDigitCode } from '@/lib/two-factor';
 import { getClientIp, withdrawalsLimiter } from '@/lib/server/security/rate-limit';
 import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PayPalService } from '@/lib/server/payments/paypal';
+import { getWithdrawalExchangeRate } from '@/lib/withdrawal-currency';
 import {
   isNowPaymentsConfigured,
   quoteNowPaymentsPayout,
@@ -95,7 +96,7 @@ export async function requestWithdrawal(
   }
   const providerConfig = normalizedSourceCurrency === 'USD' ? await getPaymentProviderConfig() : null;
   const limitAmountHtg = normalizedSourceCurrency === 'USD'
-    ? Number(amount) * Number(providerConfig?.paypal_htg_per_usd || 130)
+    ? Number(amount) * getWithdrawalExchangeRate(normalizedMethod, Number(providerConfig?.paypal_htg_per_usd || 130))
     : Number(amount);
 
   const accessCheck = await canCreateWithdrawal(merchant.id, limitAmountHtg, 'dashboard');

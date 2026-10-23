@@ -4,7 +4,7 @@ import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { PaymService } from '@/lib/server/paym/paym.service';
 import { BazikService } from '@/lib/server/bazik/bazik.service';
 import { notifyWithdrawalCreated, notifyAdminWithdrawalCreated, notifyWithdrawalSuccess, notifyWithdrawalFailed } from '@/lib/server/notifications';
-import { calculateWithdrawalQuote } from '@/lib/withdrawal-currency';
+import { calculateWithdrawalQuote, getWithdrawalExchangeRate } from '@/lib/withdrawal-currency';
 import { PayPalService } from '@/lib/server/payments/paypal';
 import {
   createNowPaymentsPayout,
@@ -150,7 +150,7 @@ export const WithdrawalService = {
 
     // Déterminer le provider et figer le taux utilisé dans le retrait.
     const config = await getPaymentProviderConfig();
-    const exchangeRate = Number(config.paypal_htg_per_usd || 130);
+    const exchangeRate = getWithdrawalExchangeRate(normalizedMethod, Number(config.paypal_htg_per_usd || 130));
     if (!Number.isFinite(exchangeRate) || exchangeRate <= 0) {
       return { success: false, error: 'Le taux de conversion HTG/USD est indisponible.' };
     }

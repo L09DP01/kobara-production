@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { getHaitianMobileWallet, normalizeHaitianPhoneNumber } from '../src/lib/payment-routing.ts';
-import { calculateWithdrawalQuote } from '../src/lib/withdrawal-currency.ts';
+import { calculateWithdrawalQuote, getWithdrawalExchangeRate } from '../src/lib/withdrawal-currency.ts';
 import { getWithdrawalUserMessage } from '../src/lib/withdrawal-error-message.ts';
 
 const immediateUsdMigration = readFileSync(
@@ -178,10 +178,10 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
   });
 
   await t.test('converts from either account to any withdrawal method', () => {
-    const htgToPaypal = calculateWithdrawalQuote({ amount: 13000, method: 'PayPal', sourceCurrency: 'HTG', exchangeRate: 130 });
-    assert.equal(htgToPaypal.fees, 260);
+    const htgToPaypal = calculateWithdrawalQuote({ amount: 14200, method: 'PayPal', sourceCurrency: 'HTG', exchangeRate: 130 });
+    assert.equal(htgToPaypal.fees, 0);
     assert.equal(htgToPaypal.payoutCurrency, 'USD');
-    assert.equal(htgToPaypal.payoutAmount, 98);
+    assert.equal(htgToPaypal.payoutAmount, 100);
 
     const usdToMoncash = calculateWithdrawalQuote({ amount: 100, method: 'MonCash', sourceCurrency: 'USD', exchangeRate: 130 });
     assert.equal(usdToMoncash.fees, 5);
@@ -191,6 +191,29 @@ test('Withdrawal System: Fee Calculation & Accounting Invariants', async (t) => 
     const usdToPaypal = calculateWithdrawalQuote({ amount: 100, method: 'PayPal', sourceCurrency: 'USD', exchangeRate: 130 });
     assert.equal(usdToPaypal.payoutAmount, 98);
   });
+});
+
+test('Zelle and PayPal withdrawal quotes use 142 regardless of the general payment rate', () => {
+  for (const method of ['zelle', ' Zelle ', 'paypal', 'PayPal']) {
+    for (const standardRate of [130, 140, 145]) {
+      assert.equal(getWithdrawalExchangeRate(method, standardRate), 142);
+      const htg = calculateWithdrawalQuote({ amount: 14200, method, sourceCurrency: 'HTG', exchangeRate: standardRate });
+      assert.equal(htg.exchangeRate, 142);
+      assert.equal(htg.feeRate, 0);
+      assert.equal(htg.fees, 0);
+      assert.equal(htg.netSourceAmount, 14200);
+      assert.equal(htg.payoutAmount, 100);
+      const usd = calculateWithdrawalQuote({ amount: 100, method, sourceCurrency: 'USD', exchangeRate: standardRate });
+      assert.equal(usd.exchangeRate, 142);
+      assert.equal(usd.feeRate, 0.02);
+      assert.equal(usd.fees, 2);
+      assert.equal(usd.payoutAmount, 98);
+      const minimum = calculateWithdrawalQuote({ amount: 1420, method, sourceCurrency: 'HTG', exchangeRate: standardRate });
+      assert.equal(minimum.payoutAmount, 10);
+    }
+  }
+  assert.equal(getWithdrawalExchangeRate('moncash', 130), 130);
+  assert.equal(getWithdrawalExchangeRate('natcash', 145), 145);
 });
 
 test('Withdrawal API: public route contract', async (t) => {

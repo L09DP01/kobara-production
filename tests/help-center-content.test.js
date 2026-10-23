@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { publishedHelpArticles, getHelpArticle, getHelpCategory, getHelpArticleHref } from '../src/lib/help-center-content.ts';
 
 const newPaths = ['security/account-suspended', 'verification/reverify-after-unblock',
-  'verification/duplicate-identity', 'verification/kyc-in-review', 'payments/shopify-payment-link'];
+  'verification/duplicate-identity', 'verification/kyc-in-review', 'payments/shopify-payment-link', 'payouts/zelle-paypal'];
 
 test('new support articles are published, categorized and reachable with valid related links', () => {
   assert.equal(new Set(publishedHelpArticles.map(item => item.path)).size, publishedHelpArticles.length);
@@ -45,6 +45,16 @@ test('Shopify article distinguishes order confirmation from payment and document
   assert.match(text, /ne redirige pas automatiquement/);
   assert.match(text, /taux configuré par le marchand/);
   assert.match(text, /pas dans la liste générale/);
+});
+
+test('Zelle and PayPal article distinguishes source-currency fees and manual payout availability', () => {
+  const text = JSON.stringify(getHelpArticle('payouts/zelle-paypal'));
+  assert.match(text, /142 HTG pour 1 USD/);
+  assert.match(text, /sans frais de retrait supplémentaires/);
+  assert.match(text, /Depuis le compte USD, les frais de retrait sont de 2 %/);
+  assert.match(text, /100 USD débités − 2 USD de frais = 98 USD/);
+  assert.match(text, /traitement de Zelle et PayPal est manuel/);
+  assert.match(text, /pas Zelle ou PayPal/);
 });
 
 test('public help API exposes suspension and verification articles to search consumers', async () => {

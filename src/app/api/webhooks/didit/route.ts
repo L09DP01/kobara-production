@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { activateFreePlanAfterKyc } from "@/lib/server/plans";
 import { createNotification, notifyAdminKycSubmission } from "@/lib/server/notifications";
+import { canApplyKycSession } from '@/lib/kyc-resolution-policy';
 
 // Canonicalisation : floats entiers (1.0 -> 1)
 function shortenFloats(v: unknown): unknown {
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
     const ts = Number(tsHeader);
 
     const webhookSecret = process.env.DIDIT_WEBHOOK_SECRET;
+    if (!webhookSecret) return new NextResponse('Webhook indisponible', { status: 503 });
 
     // 2. Fraîcheur temporelle : rejeter tout événement de plus de 300s (anti-rejeu)
     if (webhookSecret && (!ts || Math.abs(Date.now() / 1000 - ts) > 300)) {
@@ -151,13 +153,19 @@ export async function POST(req: NextRequest) {
     // Récupérer le marchand concerné
     const { data: merchant } = await supabase
       .from('merchants')
-      .select('id, business_name, email, phone, kyc_status')
+      .select('id, business_name, email, phone, kyc_status, account_access, status')
       .eq('id', merchantId)
       .maybeSingle();
 
     if (!merchant) {
       console.warn(`[Didit Webhook] Marchand introuvable pour ID ${merchantId}`);
       return new NextResponse("ok", { status: 200 });
+    }
+    const currentProfile = await supabase.from('kyc_profiles')
+      .select('gemini_review, metadata').eq('merchant_id', merchantId).maybeSingle();
+    if (currentProfile.error) throw new Error('kyc_session_lookup_failed');
+    if (!canApplyKycSession(merchant, currentProfile.data, session_id)) {
+      return new NextResponse('ok', { status: 200 });
     }
 
     // Extraire les alertes / warnings des tableaux pluriels de décision V3
@@ -181,19 +189,21 @@ export async function POST(req: NextRequest) {
     });
 
     if (fraudAnalysis.isFraud && fraudAnalysis.severity === 'critical') {
-      console.warn(`[Didit Webhook] FRAUDE CRITIQUE D'IDENTITÉ détectée pour ${merchantId}. Deux comptes suspendus.`);
+      console.warn('[Didit Webhook] Fraude critique détectée.', { action: fraudAnalysis.actionTaken });
       
       // Notification neutre de sécurité au client A (sans révéler l'identité de l'autre compte)
       await createNotification(
         merchantId,
         'security_alert',
-        'Vérification de sécurité requise',
-        'Votre compte a été temporairement suspendu pour vérification de sécurité. Notre équipe de conformité examine votre dossier.',
+        fraudAnalysis.actionTaken === 'closed_duplicate_account' ? 'Compte bloqué après contrôle d’identité' : 'Vérification de sécurité requise',
+        fraudAnalysis.actionTaken === 'closed_duplicate_account'
+          ? 'Votre compte a été bloqué et fait l’objet d’une procédure de clôture après un contrôle d’identité. Contactez le support Kobara pour demander un examen. Les fonds éventuels restent soumis à la procédure de restitution.'
+          : 'Votre compte a été temporairement suspendu pour vérification de sécurité. Notre équipe de conformité examine votre dossier.',
         merchant.email
       );
 
       // Si un compte B est lié, notifier également le compte B
-      if (fraudAnalysis.relatedMerchantId && fraudAnalysis.relatedMerchantId !== merchantId) {
+      if (fraudAnalysis.actionTaken === 'suspended_both_accounts' && fraudAnalysis.relatedMerchantId && fraudAnalysis.relatedMerchantId !== merchantId) {
         const { data: relatedMerchant } = await supabase
           .from('merchants')
           .select('email')
@@ -227,11 +237,17 @@ export async function POST(req: NextRequest) {
       return new NextResponse("ok", { status: 200 });
     }
 
+    if (['restricted', 'placed_in_review'].includes(fraudAnalysis.actionTaken)) {
+      await supabase.from('kyc_events').insert({ merchant_id: merchantId,
+        event_type: `didit.${dedupeKey}`, payload: { session_id, fraud_case_id: fraudAnalysis.fraudCaseId, status: 'in_review' } });
+      return new NextResponse('ok', { status: 200 });
+    }
+
     // 7. Application de la décision selon les statuts de session Didit
     switch (diditStatus) {
       case "Approved": {
         // Validation KYC complète : Restauration de l'accès opérationnel (active)
-        await supabase
+        const approval = await supabase
           .from('merchants')
           .update({
             account_access: 'active',
@@ -239,7 +255,13 @@ export async function POST(req: NextRequest) {
             kyc_verified_at: new Date().toISOString(),
             current_environment: 'live',
           })
-          .eq('id', merchantId);
+          .eq('id', merchantId)
+          .or('status.is.null,status.neq.suspended')
+          .or('account_access.is.null,account_access.not.in.(suspended,closure_pending,closure_pending_payout,closed,permanently_closed)')
+          .eq('kyc_status', merchant.kyc_status)
+          .select('id').maybeSingle();
+        if (approval.error) throw new Error('kyc_approval_save_failed');
+        if (!approval.data) return new NextResponse('ok', { status: 200 });
 
         await supabase
           .from('kyc_profiles')

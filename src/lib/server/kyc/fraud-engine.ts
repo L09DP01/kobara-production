@@ -2,7 +2,8 @@ import 'server-only';
 
 import crypto from 'crypto';
 import { createAdminClient } from '@/utils/supabase/admin';
-import { notifyAdminWithdrawalCreated } from '@/lib/server/notifications';
+import { createNotification } from '@/lib/server/notifications';
+import { getResolvedIdentityContexts, isResolvedDocumentMatch, isResolvedSessionMatch } from '@/lib/kyc-resolution-policy';
 
 export type KycFraudSeverity = 'low' | 'medium' | 'high' | 'critical';
 
@@ -27,7 +28,8 @@ export interface KycFraudAnalysisResult {
   faceMatch: boolean;
   deviceMatch: boolean;
   ipMatch: boolean;
-  actionTaken: 'none' | 'logged' | 'placed_in_review' | 'restricted' | 'suspended_both_accounts';
+  actionTaken: 'none' | 'logged' | 'placed_in_review' | 'restricted' | 'suspended_both_accounts' | 'suspended_current_account' | 'closed_duplicate_account';
+  protectedOwnerMerchantId?: string;
   fraudCaseId?: string;
   rejectionReason?: string;
 }
@@ -74,6 +76,18 @@ export class KycFraudEngine {
   }): Promise<KycFraudAnalysisResult> {
     const supabase = createAdminClient();
     const { merchantId, sessionId, decision } = input;
+    const resolvedCases = await supabase.from('kyc_fraud_cases').select('*')
+      .or(`primary_merchant_id.eq.${merchantId},related_merchant_id.eq.${merchantId}`)
+      .in('status', ['resolved', 'false_positive']);
+    if (resolvedCases.error) throw new Error('kyc_resolution_lookup_failed');
+    const relatedIds = [...new Set([merchantId, ...(resolvedCases.data || []).flatMap((row: any) => [row.primary_merchant_id, row.related_merchant_id]).filter(Boolean)])];
+    const historical = await supabase.from('kyc_identity_fingerprints')
+      .select('merchant_id, document_fingerprint, created_at').in('merchant_id', relatedIds);
+    if (historical.error) throw new Error('kyc_identity_history_lookup_failed');
+    const previousProfiles = await supabase.from('kyc_profiles')
+      .select('merchant_id, gemini_review, metadata, updated_at').in('merchant_id', relatedIds);
+    if (previousProfiles.error) throw new Error('kyc_session_history_lookup_failed');
+    const resolvedContexts = getResolvedIdentityContexts(merchantId, resolvedCases.data || [], historical.data || [], previousProfiles.data || []);
 
     const signals: KycFraudSignal[] = [];
     let riskScore = 0;
@@ -83,6 +97,7 @@ export class KycFraudEngine {
     let ipMatch = false;
     let relatedMerchantId: string | null = null;
     let relatedSessionId: string | null = null;
+    let establishedOwner: { id: string; email?: string } | null = null;
 
     // --- 1. Extraction et Analyse Documentaire (Fingerprint) ---
     const idVerifications = Array.isArray(decision?.id_verifications) ? decision.id_verifications : [];
@@ -104,6 +119,9 @@ export class KycFraudEngine {
       for (const w of warnings) {
         const code = String(w.code || w.name || w || '').toUpperCase();
         if (code.includes('DUPLICATE') || code.includes('REUSED_DOCUMENT') || code.includes('MATCHED_USER')) {
+          const previousSession = w.related_session_id || w.matched_session_id;
+          if (currentDocFingerprint && resolvedContexts.some(context =>
+            context.fingerprints.includes(currentDocFingerprint!) && context.sessionIds.includes(previousSession))) continue;
           signals.push({
             source: 'identity',
             code,
@@ -135,24 +153,78 @@ export class KycFraudEngine {
 
     // Protection Kobara Indépendante : Recherche de la même empreinte de document dans notre base
     if (currentDocFingerprint) {
-      const { data: existingFingerprint } = await supabase
+      const { data: existingFingerprints, error: fingerprintError } = await supabase
         .from('kyc_identity_fingerprints')
-        .select('merchant_id, status')
+        .select('merchant_id, status, document_fingerprint, created_at')
         .eq('document_fingerprint', currentDocFingerprint)
-        .neq('merchant_id', merchantId)
-        .maybeSingle();
+        .neq('merchant_id', merchantId);
+      if (fingerprintError) throw new Error('kyc_fingerprint_lookup_failed');
+      // Archived fraud evidence still protects other merchants; only this adjudicated pair is excluded.
+      let existingFingerprint = (existingFingerprints || []).find((row: any) =>
+        !isResolvedDocumentMatch(resolvedContexts, row.merchant_id, currentDocFingerprint!));
+      if (existingFingerprints?.length) {
+        const candidates = [...new Set([merchantId, ...existingFingerprints.map((row: any) => row.merchant_id)])];
+        const ownerCases = await supabase.from('kyc_fraud_cases').select('*')
+          .or(candidates.flatMap(id => [`primary_merchant_id.eq.${id}`, `related_merchant_id.eq.${id}`]).join(','))
+          .in('status', ['resolved', 'false_positive']);
+        if (ownerCases.error) throw new Error('kyc_identity_owner_lookup_failed');
+        const possibleOwners = [...new Set((ownerCases.data || []).flatMap((row: any) => [row.primary_merchant_id, row.related_merchant_id]).filter(Boolean))];
+        const ownerIds = possibleOwners.filter(id => getResolvedIdentityContexts(id, ownerCases.data || [], existingFingerprints)
+          .some(context => context.fingerprints.includes(currentDocFingerprint!)));
+        const ownerRows = ownerIds.length ? await supabase.from('merchants')
+          .select('id, email, status, account_access, kyc_status, kyc_verified_at').in('id', ownerIds)
+          .eq('account_access', 'active') : { data: [], error: null };
+        if (ownerRows.error) throw new Error('kyc_verified_owner_lookup_failed');
+        const verifiedOwners = (ownerRows.data || []).filter((row: any) => {
+          if (row.status === 'suspended' || ['suspended', 'pending_reverification'].includes(row.kyc_status)) return false;
+          const verifiedAt = Date.parse(row.kyc_verified_at);
+          const confirmedSinceResolution = Number.isFinite(verifiedAt) && getResolvedIdentityContexts(row.id, ownerCases.data || [], existingFingerprints)
+            .some(context => context.fingerprints.includes(currentDocFingerprint!) && (ownerCases.data || [])
+              .some((resolved: any) => resolved.id === context.caseId && Date.parse(resolved.resolved_at) <= verifiedAt));
+          return row.kyc_status === 'approved' || confirmedSinceResolution;
+        });
+        if (verifiedOwners.length === 1) establishedOwner = verifiedOwners[0];
+        if (establishedOwner?.id === merchantId || verifiedOwners.length > 1) {
+          existingFingerprint = undefined;
+          documentMatch = false;
+          for (let index = signals.length - 1; index >= 0; index--) {
+            const signal = signals[index];
+            if (signal.source === 'identity' && /DUPLICATE|REUSED_DOCUMENT|MATCHED_USER/.test(signal.code)) {
+              riskScore -= 100;
+              signals.splice(index, 1);
+            }
+          }
+          if (verifiedOwners.length > 1) {
+            signals.push({ source: 'identity', code: 'IDENTITY_OWNERSHIP_REVIEW', severity: 'high', description: 'Plusieurs décisions de propriété nécessitent une revue du compte demandeur.' });
+            riskScore += 60;
+          }
+        }
+      }
 
       if (existingFingerprint) {
         documentMatch = true;
-        relatedMerchantId = existingFingerprint.merchant_id;
+        relatedMerchantId = establishedOwner?.id || existingFingerprint.merchant_id;
         signals.push({
           source: 'identity',
           code: 'SAME_DOCUMENT_EXACT_MATCH',
           severity: 'critical',
           description: `Même pièce d'identité utilisée sur un autre compte marchand (${existingFingerprint.merchant_id}).`,
-          relatedMerchantId: existingFingerprint.merchant_id,
+          relatedMerchantId: relatedMerchantId || undefined,
         });
         riskScore += 100;
+      } else if (resolvedContexts.some(context => context.fingerprints.includes(currentDocFingerprint!))) {
+        // An unscoped provider warning is not proof of a new conflicting account.
+        // Keep it for manual review instead of repeating a resolved dual suspension.
+        for (const signal of signals) {
+          if (signal.source === 'identity' && signal.severity === 'critical' && !signal.relatedSessionId
+            && /DUPLICATE|REUSED_DOCUMENT|MATCHED_USER/.test(signal.code)) {
+            signal.severity = 'medium';
+            signal.description = 'Doublon documentaire sans session liée : vérifier le dossier administratif déjà résolu.';
+            riskScore -= 60;
+          }
+        }
+        documentMatch = signals.some(signal => signal.source === 'identity' && signal.severity === 'critical'
+          && /DUPLICATE|REUSED_DOCUMENT|MATCHED_USER/.test(signal.code));
       }
     }
 
@@ -168,9 +240,16 @@ export class KycFraudEngine {
         const isPossible = code.includes('POSSIBLE') || code.includes('POTENTIAL') || code.includes('LIKELY');
 
         const relSession = w.related_session_id || w.matched_session_id;
+        if ((isConfirmed || isPossible) && isResolvedSessionMatch(resolvedContexts, relSession)) continue;
         if (relSession) relatedSessionId = relSession;
 
         if (isConfirmed) {
+          if (establishedOwner?.id === merchantId) {
+            signals.push({ source: 'face', code: 'NEW_FACE_MATCH_REVIEW', severity: 'medium',
+              description: 'Nouvelle correspondance biométrique à examiner sans suspendre le propriétaire pour un doublon documentaire.', relatedSessionId: relSession });
+            riskScore += 40;
+            continue;
+          }
           signals.push({
             source: 'face',
             code,
@@ -304,7 +383,7 @@ export class KycFraudEngine {
       const reasonCodes = signals.map(s => s.code);
       const reasonDesc = signals.map(s => s.description).join(' | ');
 
-      const { data: newCase } = await supabase
+      const { data: newCase, error: caseInsertError } = await supabase
         .from('kyc_fraud_cases')
         .insert({
           case_type: caseType,
@@ -320,24 +399,62 @@ export class KycFraudEngine {
           ip_match: ipMatch,
           risk_score: riskScore,
           reason_codes: reasonCodes,
-          evidence: { signals, decision_summary: decision?.status },
+          evidence: { signals, decision_summary: decision?.status, document_fingerprint: currentDocFingerprint },
           action_taken: 'pending_suspension',
         })
         .select('id')
         .single();
+      if (caseInsertError || !newCase) throw new Error('kyc_fraud_case_save_failed');
+
+      if (establishedOwner && establishedOwner.id !== merchantId && documentMatch) {
+        const actor = await supabase.from('merchants').select('id, available_balance, available_balance_usd').eq('id', merchantId).single();
+        if (actor.error || !actor.data) throw new Error('kyc_duplicate_account_lookup_failed');
+        const hasFunds = Number(actor.data.available_balance || 0) > 0 || Number(actor.data.available_balance_usd || 0) > 0;
+        const ownerAlert = await createNotification(establishedOwner.id, 'security_alert', 'Tentative d’utilisation de votre identité',
+          'Une tentative de vérification avec votre pièce d’identité a été détectée sur un autre compte. Votre compte reste actif et n’a pas été suspendu par cette détection. Si vous ne reconnaissez pas cette activité, contactez le support Kobara. Ne partagez aucun code de sécurité.',
+          establishedOwner.email, `identity-reuse:${establishedOwner.id}:${sessionId}`);
+        if (ownerAlert && !ownerAlert.created && !ownerAlert.deduplicated) throw new Error('kyc_owner_alert_save_failed');
+        const closed = await supabase.from('merchants').update({ status: 'suspended', kyc_status: 'suspended',
+          account_access: hasFunds ? 'closure_pending_payout' : 'permanently_closed', updated_at: new Date().toISOString(),
+        }).eq('id', merchantId);
+        if (closed.error) throw new Error('kyc_duplicate_account_closure_failed');
+        const profile = await supabase.from('kyc_profiles').update({ status: 'suspended',
+          rejection_reason: 'Compte bloqué après contrôle d’identité. Contactez le support pour demander un examen.',
+        }).eq('merchant_id', merchantId);
+        if (profile.error) throw new Error('kyc_duplicate_profile_closure_failed');
+        const saved = await supabase.from('kyc_fraud_cases').update({ status: 'confirmed_fraud', action_taken: 'closed_duplicate_account',
+          primary_verdict: 'fraudulent', related_verdict: 'legitimate',
+          evidence: { signals, document_fingerprint: currentDocFingerprint, identity_owner_merchant_id: establishedOwner.id },
+          payout_status: hasFunds ? 'pending_instructions' : 'none',
+        }).eq('id', newCase.id);
+        if (saved.error) throw new Error('kyc_duplicate_case_closure_failed');
+        await supabase.from('audit_logs').insert({ merchant_id: merchantId, action: 'kyc_duplicate_account_closed',
+          entity_type: 'fraud_case', entity_id: newCase.id,
+          metadata: { protected_owner_merchant_id: establishedOwner.id, session_id: sessionId, funds_preserved: hasFunds } });
+        return { isFraud: true, severity: 'critical', score: riskScore, signals, primaryMerchantId: merchantId,
+          relatedMerchantId: establishedOwner.id, protectedOwnerMerchantId: establishedOwner.id,
+          documentMatch, faceMatch, deviceMatch, ipMatch, actionTaken: 'closed_duplicate_account', fraudCaseId: newCase.id };
+      }
 
       if (newCase) {
         fraudCaseId = newCase.id;
+        const relatedState = relatedMerchantId && relatedMerchantId !== merchantId
+          ? await supabase.from('merchants').select('account_access').eq('id', relatedMerchantId).maybeSingle()
+          : { data: null, error: null };
+        if (relatedState.error) throw new Error('kyc_related_account_lookup_failed');
+        const relatedAlreadyClosed = ['closure_pending', 'closure_pending_payout', 'closed', 'permanently_closed'].includes(relatedState.data?.account_access || '');
 
         // 2. Suspension transactionnelle et atomique des DEUX comptes (A et B)
-        await supabase.rpc('suspend_duplicate_identity_accounts', {
+        const suspension = await supabase.rpc('suspend_duplicate_identity_accounts', {
           p_merchant_id_a: merchantId,
-          p_merchant_id_b: relatedMerchantId || merchantId,
+          p_merchant_id_b: relatedAlreadyClosed ? merchantId : relatedMerchantId || merchantId,
           p_fraud_case_id: fraudCaseId,
           p_reason: `Fraude d'identité critique détectée: ${reasonDesc}`,
         });
+        if (suspension.error) throw new Error('kyc_suspension_failed');
 
-        actionTaken = 'suspended_both_accounts';
+        actionTaken = relatedAlreadyClosed ? 'suspended_current_account' : 'suspended_both_accounts';
+        if (relatedAlreadyClosed) await supabase.from('kyc_fraud_cases').update({ action_taken: actionTaken }).eq('id', fraudCaseId);
 
         // 3. Alerte d'urgence aux administrateurs
         try {
@@ -413,7 +530,7 @@ export class KycFraudEngine {
           ip_match: ipMatch,
           risk_score: riskScore,
           reason_codes: signals.map(s => s.code),
-          evidence: { signals },
+          evidence: { signals, document_fingerprint: currentDocFingerprint },
           action_taken: overallSeverity === 'high' ? 'restricted' : 'placed_in_review',
         })
         .select('id')
@@ -491,55 +608,81 @@ export class KycFraudEngine {
     if (caseErr || !fraudCase) {
       throw new Error(`Cas de fraude #${fraudCaseId} introuvable.`);
     }
+    if (!['legitimate', 'fraudulent'].includes(primaryVerdict)
+      || !['legitimate', 'fraudulent', 'confirmed_duplicate'].includes(relatedVerdict)) throw new Error('invalid_fraud_verdict');
 
     const primaryId = fraudCase.primary_merchant_id;
     const relatedId = fraudCase.related_merchant_id;
 
-    const { data: pMerchant } = await supabase
+    const { data: pMerchant, error: primaryError } = await supabase
       .from('merchants')
-      .select('id, business_name, email, available_balance, account_access, kyc_status')
+      .select('id, business_name, email, available_balance, available_balance_usd, account_access, kyc_status')
       .eq('id', primaryId)
       .single();
+    if (primaryError || !pMerchant) throw new Error('kyc_primary_merchant_not_found');
 
     let rMerchant = null;
     if (relatedId && relatedId !== primaryId) {
-      const { data: rm } = await supabase
+      const { data: rm, error: relatedError } = await supabase
         .from('merchants')
-        .select('id, business_name, email, available_balance, account_access, kyc_status')
+        .select('id, business_name, email, available_balance, available_balance_usd, account_access, kyc_status')
         .eq('id', relatedId)
         .maybeSingle();
+      if (relatedError || !rm) throw new Error('kyc_related_merchant_not_found');
       rMerchant = rm;
     }
 
     const now = new Date();
     const deadline190d = new Date(now.getTime() + 190 * 24 * 60 * 60 * 1000).toISOString();
+    const ids = [primaryId, ...(rMerchant ? [rMerchant.id] : [])];
+    const fingerprints = await supabase.from('kyc_identity_fingerprints')
+      .select('merchant_id, document_fingerprint').in('merchant_id', ids);
+    const oldProfiles = await supabase.from('kyc_profiles')
+      .select('id, merchant_id, gemini_review, metadata, document_front_url, document_back_url, selfie_url').in('merchant_id', ids);
+    if (fingerprints.error || oldProfiles.error) throw new Error('kyc_resolution_archive_failed');
+    const allFingerprints = [...new Set((fingerprints.data || []).map((row: any) => row.document_fingerprint))];
+    const caseFingerprint = fraudCase.evidence?.document_fingerprint;
+    const resolvedIdentity = {
+      fingerprints: typeof caseFingerprint === 'string' ? [caseFingerprint]
+        : fraudCase.document_match && allFingerprints.length === 1 ? allFingerprints : [],
+      session_ids: [...new Set([fraudCase.primary_session_id, fraudCase.related_session_id,
+        ...(oldProfiles.data || []).map((row: any) => row.gemini_review?.didit_session_id || row.metadata?.didit_session_id)].filter(Boolean))],
+      isolated_profiles: oldProfiles.data || [],
+      isolated_at: now.toISOString(),
+    };
+    const write = async (query: PromiseLike<{ error: unknown }>) => {
+      const result = await query;
+      if (result.error) throw new Error('kyc_resolution_write_failed');
+    };
 
     // --- 2. Traitement du Compte Principal (A) ---
     if (primaryVerdict === 'legitimate') {
       // A est le propriétaire légitime -> Passage en re-vérification obligatoire
-      await supabase.from('merchants').update({
+      await write(supabase.from('merchants').update({
+        status: 'active',
         account_access: 'reverify_required',
         kyc_status: 'pending_reverification',
         updated_at: now.toISOString(),
-      }).eq('id', primaryId);
+      }).eq('id', primaryId));
 
       // Révoquer le profil KYC actuel de A pour forcer une nouvelle session Didit propre
-      await supabase.from('kyc_profiles').update({
+      await write(supabase.from('kyc_profiles').update({
         status: 'pending',
         rejection_reason: 'Dossier débloqué par la conformité. Veuillez procéder à une nouvelle vérification d’identité Didit.',
         updated_at: now.toISOString(),
-      }).eq('merchant_id', primaryId);
+      }).eq('merchant_id', primaryId));
 
     } else {
       // A est dupliqué/frauduleux -> Clôture
       const pBalance = Number(pMerchant?.available_balance || 0);
-      const pAccess = pBalance > 0 ? 'closure_pending_payout' : 'closure_pending';
+      const pAccess = pBalance > 0 || Number(pMerchant?.available_balance_usd || 0) > 0 ? 'closure_pending_payout' : 'permanently_closed';
 
-      await supabase.from('merchants').update({
+      await write(supabase.from('merchants').update({
+        status: 'suspended',
         account_access: pAccess,
         kyc_status: 'suspended',
         updated_at: now.toISOString(),
-      }).eq('id', primaryId);
+      }).eq('id', primaryId));
     }
 
     // --- 3. Traitement du Compte Lié (B) ---
@@ -547,29 +690,32 @@ export class KycFraudEngine {
     if (rMerchant) {
       if (relatedVerdict === 'legitimate') {
         // B est le propriétaire légitime -> Passage en re-vérification obligatoire
-        await supabase.from('merchants').update({
+        await write(supabase.from('merchants').update({
+          status: 'active',
           account_access: 'reverify_required',
           kyc_status: 'pending_reverification',
           updated_at: now.toISOString(),
-        }).eq('id', rMerchant.id);
+        }).eq('id', rMerchant.id));
 
-        await supabase.from('kyc_profiles').update({
+        await write(supabase.from('kyc_profiles').update({
           status: 'pending',
           rejection_reason: 'Dossier débloqué par la conformité. Veuillez procéder à une nouvelle vérification d’identité Didit.',
           updated_at: now.toISOString(),
-        }).eq('merchant_id', rMerchant.id);
+        }).eq('merchant_id', rMerchant.id));
 
       } else {
         // B est dupliqué -> Clôture et restitution si solde > 0
         const rBalance = Number(rMerchant.available_balance || 0);
-        const rAccess = rBalance > 0 ? 'closure_pending_payout' : 'closure_pending';
-        bPayoutStatus = rBalance > 0 ? 'pending_instructions' : 'none';
+        const hasRelatedFunds = rBalance > 0 || Number(rMerchant.available_balance_usd || 0) > 0;
+        const rAccess = hasRelatedFunds ? 'closure_pending_payout' : 'permanently_closed';
+        bPayoutStatus = hasRelatedFunds ? 'pending_instructions' : 'none';
 
-        await supabase.from('merchants').update({
+        await write(supabase.from('merchants').update({
+          status: 'suspended',
           account_access: rAccess,
           kyc_status: 'suspended',
           updated_at: now.toISOString(),
-        }).eq('id', rMerchant.id);
+        }).eq('id', rMerchant.id));
       }
     }
 
@@ -578,18 +724,39 @@ export class KycFraudEngine {
     const isFalsePositive = primaryVerdict === 'legitimate' && relatedVerdict === 'legitimate';
     const caseStatus = isFalsePositive ? 'false_positive' : isBothFraud ? 'confirmed_fraud' : 'resolved';
 
-    await supabase.from('kyc_fraud_cases').update({
+    await write(supabase.from('kyc_fraud_cases').update({
       status: caseStatus,
       primary_verdict: primaryVerdict,
       related_verdict: relatedVerdict,
       resolution_note: note,
       resolved_by: adminUserId,
       resolved_at: now.toISOString(),
+      evidence: { ...(fraudCase.evidence || {}), resolved_identity: resolvedIdentity },
       payout_status: bPayoutStatus,
       payout_amount: rMerchant ? Number(rMerchant.available_balance || 0) : 0,
       payout_deadline_at: bPayoutStatus !== 'none' ? deadline190d : null,
       updated_at: now.toISOString(),
-    }).eq('id', fraudCaseId);
+    }).eq('id', fraudCaseId));
+
+    await write(supabase.from('kyc_identity_fingerprints').update({ status: 'archived', updated_at: now.toISOString() }).in('merchant_id', ids));
+    for (const old of oldProfiles.data || []) {
+      const legitimate = old.merchant_id === primaryId ? primaryVerdict === 'legitimate' : relatedVerdict === 'legitimate';
+      await write(supabase.from('kyc_profiles').update({
+        status: legitimate ? 'pending' : 'suspended', gemini_review: {},
+        metadata: { ...(old.metadata || {}), didit_session_id: null },
+        document_front_url: null, document_back_url: null, selfie_url: null,
+        updated_at: now.toISOString(),
+      }).eq('id', old.id));
+    }
+    const oldSignals = Array.isArray(fraudCase.evidence?.signals) ? fraudCase.evidence.signals : [];
+    const oldReason = `Fraude d'identité critique détectée: ${oldSignals.map((signal: any) => signal.description).join(' | ')}`;
+    for (const id of ids.filter(id => id === primaryId ? primaryVerdict === 'legitimate' : relatedVerdict === 'legitimate')) {
+      await write(supabase.from('merchant_restrictions').update({
+        lifted_by: adminUserId, lifted_at: now.toISOString(), lift_reason: note,
+      }).eq('merchant_id', id).eq('restriction_type', 'duplicate_identity_suspension')
+        .eq('reason', oldReason).is('lifted_at', null)
+        .lte('created_at', fraudCase.updated_at || fraudCase.created_at));
+    }
 
     // Audit Log de la décision administrative
     await supabase.from('audit_logs').insert({

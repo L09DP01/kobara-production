@@ -120,7 +120,7 @@ export function WithdrawalsClient({
     const isLocalWalletMethod = method === 'MonCash' || method === 'NatCash';
     const grossLocalAmountHtg = accountCurrency === 'HTG'
       ? Number(amount)
-      : Number(amount) * exchangeRate;
+      : Number(amount) * quote.exchangeRate;
     if (grossLocalAmountHtg > 75000) {
       setErrorMsg('Le montant maximal par retrait est de 75 000 HTG ou son équivalent en USD.');
       return;
@@ -441,7 +441,7 @@ export function WithdrawalsClient({
                         {accountCurrency !== payoutCurrency && (
                           <div className="flex justify-between text-xs text-slate-500">
                             <span>Taux appliqué</span>
-                            <span>1 USD = {exchangeRate.toLocaleString('fr-FR')} HTG</span>
+                            <span>1 USD = {quote.exchangeRate.toLocaleString('fr-FR')} HTG</span>
                           </div>
                         )}
                         <div className="flex justify-between font-bold text-white mt-2 pt-2 border-t border-white/10">
