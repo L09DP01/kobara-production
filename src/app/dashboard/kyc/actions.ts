@@ -6,8 +6,9 @@ import { createKycProfile, calculateKycRiskScore, createKycAuditLog } from "@/li
 
 export async function uploadKycDocument(formData: FormData, documentType: string, documentCountry: string, fullName: string) {
   try {
-    const { merchant } = await getCurrentUserAndMerchant();
+    const { merchant, userRole } = await getCurrentUserAndMerchant();
     if (!merchant) return { error: "Non autorisé. Marchand introuvable." };
+    if (userRole !== 'owner' || merchant.identity_owner_merchant_id) return { error: 'La validation de cette activité est gérée séparément.' };
 
     const frontFile = formData.get('front') as File;
     const backFile = formData.get('back') as File | null;

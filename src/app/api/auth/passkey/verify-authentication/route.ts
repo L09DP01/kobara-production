@@ -38,7 +38,7 @@ export async function POST(req: Request) {
           .from('merchants')
           .select('id')
           .eq('user_id', user.id)
-          .maybeSingle();
+          .order('created_at').order('id').limit(1).maybeSingle();
 
         if (merchant) {
           const { data: settings } = await supabase

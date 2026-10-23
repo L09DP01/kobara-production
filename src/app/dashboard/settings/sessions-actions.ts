@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { parseUserAgent } from "@/lib/utils/parse-user-agent";
 import crypto from "crypto";
+import { auth } from '@/auth';
 
 type LoginMethod = 'password' | 'passkey' | 'mobile-sso';
 
@@ -267,47 +268,40 @@ export async function revokeOtherSessions(currentToken: string) {
   return { success: true };
 }
 
-export async function ensureCurrentSessionIsAllowed(method: LoginMethod = 'password') {
-  const token = await recordCurrentSession(method);
-  if (!token) return { allowed: true };
-
-  const { user, merchant } = await getCurrentUserAndMerchant();
+export async function ensureAccountSessionIsAllowed() {
+  const authSession = await auth();
+  const user = authSession?.user;
+  if (!user?.id) return { allowed: false };
+  const { userAgent, ip } = await getRequestMeta();
+  const token = await getCurrentSessionToken(user.id, userAgent, ip);
   const adminClient = createAdminClient();
 
-  const { data: session } = await adminClient
+  const { data: session, error } = await adminClient
     .from('merchant_sessions')
     .select('revoked_at, status, is_active, expires_at')
-    .eq('merchant_id', merchant.id)
     .eq('user_id', user.id)
     .eq('session_token', token)
     .maybeSingle();
 
+  if (error) return { allowed: false };
   if (!session) return { allowed: true };
 
   const status = resolveSessionStatus(session);
   return { allowed: status === 'active', status };
 }
 
+export async function ensureCurrentSessionIsAllowed(method: LoginMethod = 'password') {
+  const check = await ensureAccountSessionIsAllowed();
+  if (!check.allowed) return check;
+  await recordCurrentSession(method);
+  return check;
+}
+
 export async function getCurrentSessionStatus() {
   try {
-    const { user, merchant } = await getCurrentUserAndMerchant();
-    const { userAgent, ip } = await getRequestMeta();
-    const token = await getCurrentSessionToken(user.id, userAgent, ip);
-    const adminClient = createAdminClient();
-
-    const { data: session } = await adminClient
-      .from('merchant_sessions')
-      .select('revoked_at, status, is_active, expires_at')
-      .eq('merchant_id', merchant.id)
-      .eq('user_id', user.id)
-      .eq('session_token', token)
-      .maybeSingle();
-
-    if (!session) return { active: true, status: 'active' };
-
-    const status = resolveSessionStatus(session);
-    return { active: status === 'active', status };
+    const check = await ensureAccountSessionIsAllowed();
+    return { active: check.allowed, status: check.status || (check.allowed ? 'active' : 'revoked') };
   } catch {
-    return { active: true, status: 'active' };
+    return { active: false, status: 'revoked' };
   }
 }

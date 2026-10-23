@@ -38,7 +38,8 @@ async function getAppOrigin() {
 
 export async function generateHandoffToken() {
   try {
-    const { merchant } = await getCurrentUserAndMerchant();
+    const { merchant, userRole } = await getCurrentUserAndMerchant();
+    if (userRole !== 'owner' || merchant.identity_owner_merchant_id) return { error: 'La validation de cette activité est gérée séparément.' };
     const supabase = createAdminClient();
 
     // Generate a secure token UUID

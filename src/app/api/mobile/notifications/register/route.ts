@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       .from("merchants")
       .select("id")
       .eq("user_id", payload.sub)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });

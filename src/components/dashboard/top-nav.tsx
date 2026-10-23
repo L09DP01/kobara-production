@@ -7,17 +7,55 @@ import { performFullLogout } from '@/lib/utils/logout-client';
 import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from './actions';
 import { siteConfig } from '@/config/site';
 import { MerchantReferralDialog, type MerchantReferralSummary } from './merchant-referral-dialog';
+import { Check, ChevronDown, Loader2, Plus } from 'lucide-react';
+import { switchBusinessAction } from '@/app/dashboard/businesses/actions';
+import { NewBusinessDialog } from './new-business-dialog';
 
-export default function TopNav({ onToggleSidebar, merchant, user, initialNotifications = [], accessibleMerchants = [], userRole = 'owner', referralSummary = null }: { onToggleSidebar: () => void, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string, referralSummary?: MerchantReferralSummary | null }) {
+const EMPTY_NOTIFICATIONS: any[] = [];
+
+export default function TopNav({ onToggleSidebar, merchant, user, initialNotifications = EMPTY_NOTIFICATIONS, accessibleMerchants = [], userRole = 'owner', referralSummary = null }: { onToggleSidebar: () => void, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string, referralSummary?: MerchantReferralSummary | null }) {
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isReferralOpen, setIsReferralOpen] = useState(false);
+  const [isNewBusinessOpen, setIsNewBusinessOpen] = useState(false);
+  const [switchingBusiness, setSwitchingBusiness] = useState<string | null>(null);
+  const [businessError, setBusinessError] = useState('');
   const [notifications, setNotifications] = useState<any[]>(initialNotifications);
   
   const profileRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { setNotifications(initialNotifications); }, [initialNotifications]);
+  useEffect(() => {
+    const onBusinessChange = (event: StorageEvent) => {
+      if (event.key === 'kobara_business_context' && event.newValue && event.newValue !== merchant?.id) window.location.assign('/dashboard');
+    };
+    window.addEventListener('storage', onBusinessChange);
+    return () => window.removeEventListener('storage', onBusinessChange);
+  }, [merchant?.id]);
+  useEffect(() => {
+    function onEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        if (profileRef.current?.contains(document.activeElement)) profileButtonRef.current?.focus();
+        setIsProfileOpen(false); setIsNotifOpen(false);
+      }
+    }
+    document.addEventListener('keydown', onEscape);
+    return () => document.removeEventListener('keydown', onEscape);
+  }, []);
+
+  const switchBusiness = async (id: string) => {
+    if (switchingBusiness || id === merchant?.id) return;
+    setSwitchingBusiness(id); setBusinessError('');
+    try {
+      const result = await switchBusinessAction(id);
+      if (result.error) { setBusinessError(result.error); setSwitchingBusiness(null); return; }
+      try { localStorage.setItem('kobara_business_context', id); } catch { /* Storage can be disabled. */ }
+      window.location.assign('/dashboard');
+    } catch { setBusinessError('Impossible de changer de business. Réessayez.'); setSwitchingBusiness(null); }
+  };
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -200,11 +238,15 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
           
           <div ref={profileRef} className="relative sm:ml-1">
             <button 
+              ref={profileButtonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex min-h-10 items-center gap-3 rounded-lg transition-colors duration-150 hover:bg-white/5 focus:outline-none sm:px-2"
+              aria-expanded={isProfileOpen}
+              aria-controls="business-switcher"
+              aria-label="Choisir un business"
+              className="flex min-h-10 items-center gap-3 rounded-lg transition-colors duration-150 hover:bg-white/5 focus-visible:outline focus-visible:outline-orange-400 sm:px-2"
             >
-              <div className="hidden sm:block text-right">
-                <p className="text-sm font-bold text-white leading-tight">{merchant?.business_name || 'Business'}</p>
+              <div className="hidden max-w-48 sm:block text-right">
+                <p className="truncate text-sm font-bold text-white leading-tight">{merchant?.business_name || 'Business'}</p>
                 <p className="text-[11px] font-medium text-slate-400 leading-tight">Marchand</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-[#314158] bg-slate-100 font-bold text-slate-700">
@@ -214,35 +256,36 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                   merchant?.business_name ? merchant.business_name.charAt(0).toUpperCase() : 'U'
                 )}
               </div>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
             </button>
 
             {isProfileOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-surface-card border border-border-subtle rounded-xl shadow-lg overflow-hidden z-50 py-2">
-                <div className="px-4 py-3 border-b border-border-subtle mb-2">
-                  <p className="text-body-sm font-medium text-text-primary truncate">{merchant?.business_name || 'Business'} <span className="ml-2 text-[10px] bg-white/10 text-slate-300 px-1.5 py-0.5 rounded">{userRole === 'owner' ? 'Propriétaire' : userRole === 'admin' ? 'Administrateur' : 'Développeur'}</span></p>
-                  <p className="text-[12px] text-text-secondary truncate">{merchant?.email || 'email@example.com'}</p>
+              <div id="business-switcher" className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-[#314158] bg-[#111C2C] py-2 text-white shadow-xl">
+                <div className="mb-2 border-b border-slate-700 px-4 py-3">
+                  <p className="truncate text-sm font-medium text-white">{merchant?.business_name || 'Business'} <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-300">{userRole === 'owner' ? 'Propriétaire' : userRole === 'admin' ? 'Administrateur' : 'Développeur'}</span></p>
+                  {merchant?.email && <p className="truncate text-xs text-slate-400">{merchant.email}</p>}
                 </div>
 
-                {accessibleMerchants && accessibleMerchants.length > 1 && (
-                  <div className="px-2 py-2 border-b border-border-subtle mb-2">
-                    <p className="px-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Changer de compte</p>
+                <div className="mb-2 border-b border-slate-700 px-2 py-2">
+                    <p className="mb-2 px-2 text-xs font-semibold text-slate-400">Mes business</p>
+                    <div className="max-h-[min(40dvh,320px)] overflow-y-auto">
                     {accessibleMerchants.map((m: any) => (
                       <button
                         key={m.id}
-                        onClick={() => {
-                          document.cookie = `kobara_active_merchant=${m.id}; path=/; max-age=31536000`;
-                          window.location.href = '/dashboard';
-                        }}
-                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-between ${m.id === merchant?.id ? 'bg-orange-500/10 text-orange-400 font-bold' : 'text-slate-300 hover:bg-white/5'}`}
+                        onClick={() => switchBusiness(m.id)}
+                        disabled={!!switchingBusiness}
+                        aria-current={m.id === merchant?.id ? 'true' : undefined}
+                        className={`flex min-h-16 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-orange-400 disabled:opacity-70 ${m.id === merchant?.id ? 'bg-orange-500/10 text-orange-400' : 'text-slate-200 hover:bg-white/5'}`}
                       >
-                        <span className="truncate">{m.business_name}</span>
-                        <span className="text-[10px] bg-white/5 text-slate-400 px-1.5 py-0.5 rounded ml-2 shrink-0">
-                          {m.role === 'owner' ? 'Propriétaire' : m.role === 'admin' ? 'Admin' : 'Développeur'}
-                        </span>
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-600 bg-slate-800 text-xs font-bold text-white">{m.logo_url ? <img src={m.logo_url} alt="" className="h-full w-full object-cover" /> : String(m.business_name || 'Business').split(/\s+/).slice(0, 2).map((word: string) => word[0]).join('').toUpperCase()}</span>
+                        <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{m.business_name}</span><span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-[10px] ${m.kyc_status === 'approved' && m.current_environment === 'live' && !m.shopify_review_mode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-300'}`}>{m.kyc_status === 'approved' && m.current_environment === 'live' && !m.shopify_review_mode ? 'Production' : 'Test'}</span></span>
+                        {switchingBusiness === m.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : m.id === merchant?.id ? <Check className="h-4 w-4 shrink-0 text-orange-400" aria-label="Business actif" /> : null}
                       </button>
                     ))}
-                  </div>
-                )}
+                    </div>
+                    {userRole === 'owner' && <button type="button" onClick={() => { setIsProfileOpen(false); setIsNewBusinessOpen(true); }} className="mt-2 flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-semibold text-orange-400 hover:bg-orange-500/10"><span className="flex h-8 w-8 items-center justify-center rounded-md border border-dashed border-orange-500/60"><Plus className="h-4 w-4" /></span>Ajouter un business</button>}
+                    {businessError && <p role="alert" className="px-3 py-2 text-xs text-red-300">{businessError}</p>}
+                </div>
                 
                 <div className="flex flex-col px-2">
                   {referralSummary && userRole === 'owner' && (
@@ -258,11 +301,11 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                       <span className="material-symbols-outlined text-[16px]">chevron_right</span>
                     </button>
                   )}
-                  <Link href="/settings" className="px-3 py-2 text-body-sm text-text-primary hover:bg-surface-container-low rounded-lg transition-colors flex items-center gap-2">
+                  <Link href="/settings" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-white transition-colors hover:bg-white/5">
                     <span className="material-symbols-outlined text-[18px]">account_circle</span>
                     Mon profil
                   </Link>
-                  <div className="h-px bg-border-subtle my-2 mx-1"></div>
+                  <div className="mx-1 my-2 h-px bg-slate-700"></div>
                   <button 
                     onClick={handleLogout}
                     disabled={isLoggingOut}
@@ -278,6 +321,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
         </div>
       </div>
     </header>
+    <NewBusinessDialog open={isNewBusinessOpen} onOpenChange={setIsNewBusinessOpen} />
     {referralSummary && (
       <MerchantReferralDialog open={isReferralOpen} onOpenChange={setIsReferralOpen} summary={referralSummary} />
     )}

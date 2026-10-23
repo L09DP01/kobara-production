@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     if (errorResponse) return errorResponse;
     if (!payload || !payload.sub) return NextResponse.json({ error: "Token invalide." }, { status: 401 });
 
-    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub).single();
+    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub).order('created_at').order('id').limit(1).single();
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });
     if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, role, name } = body;
 
-    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub).single();
+    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub).order('created_at').order('id').limit(1).single();
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });
     if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 
@@ -71,7 +71,7 @@ export async function DELETE(req: NextRequest) {
     const id = url.searchParams.get("id");
     if (!id) return NextResponse.json({ error: "ID manquant." }, { status: 400 });
 
-    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub as string).single();
+    const { data: merchant } = await supabaseAdmin.from('merchants').select('id, kyc_status').eq('user_id', payload.sub as string).order('created_at').order('id').limit(1).single();
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable." }, { status: 404 });
     if (merchant.kyc_status !== 'approved') return NextResponse.json({ error: "Verification KYC requise.", code: "KYC_REQUIRED" }, { status: 403 });
 

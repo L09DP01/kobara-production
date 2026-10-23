@@ -62,6 +62,7 @@ export async function completeOnboarding(formData: {
     .from('merchants')
     .select('id')
     .eq('user_id', user.id)
+    .order('created_at').order('id').limit(1)
     .maybeSingle();
 
   let error;

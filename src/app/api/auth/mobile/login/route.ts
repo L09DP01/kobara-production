@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       .from("merchants")
       .select("id, user_id, business_name, business_slug, logo_url, email, phone, address, category, status, available_balance, pending_balance, currency")
       .eq("user_id", user.id)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     // Déterminer si le profil est complet
     const merchantProfileComplete = merchant

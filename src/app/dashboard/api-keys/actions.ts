@@ -9,10 +9,10 @@ import { notifyApiKeyRevoked } from "@/lib/server/notifications";
 
 export async function generateApiKey(name: string) {
   try {
-    const { user, merchant } = await getCurrentUserAndMerchant();
+    const { user, merchant, userRole } = await getCurrentUserAndMerchant();
 
     // For API keys, the user should be owner/admin. Let's assume standard role for now as per MVP.
-    const role = 'owner';
+    const role = userRole;
     const merchantId = merchant.id;
 
     // Apply permission logic
@@ -77,7 +77,8 @@ export async function generateApiKey(name: string) {
 
 export async function revokeApiKey(id: string) {
   try {
-    const { user, merchant, supabase } = await getCurrentUserAndMerchant();
+    const { user, merchant, supabase, userRole } = await getCurrentUserAndMerchant();
+    if (!['owner', 'admin'].includes(userRole || '')) return { error: 'Accès refusé.' };
 
     // Verify the key belongs to this merchant (via RLS-protected SELECT)
     const { data: keyInfo } = await supabase

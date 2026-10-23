@@ -15,6 +15,8 @@ export async function markNotificationAsReadAction(id: string) {
 }
 
 export async function markAllNotificationsAsReadAction(merchantId: string) {
+  const { merchant } = await getCurrentUserAndMerchant();
+  if (merchant.id !== merchantId) return { error: 'Business non autorisé.' };
   const supabase = createAdminClient();
   const { error } = await supabase.from('notifications').update({ read_at: new Date().toISOString() }).eq('merchant_id', merchantId).is('read_at', null);
   if (error) {

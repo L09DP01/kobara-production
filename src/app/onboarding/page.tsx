@@ -18,6 +18,7 @@ export default async function OnboardingPage() {
     .from('merchants')
     .select('id, phone, category')
     .eq('user_id', user.id)
+    .order('created_at').order('id').limit(1)
     .maybeSingle();
 
   if (merchant && merchant.phone && merchant.category) {

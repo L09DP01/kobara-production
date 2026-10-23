@@ -3,6 +3,7 @@ import { createAdminClient } from "@/utils/supabase/admin";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { resolveMerchantContext, merchantSwitcherOptions } from '@/lib/server/merchant-context';
 
 export default async function CustomersLayout({
   children,
@@ -27,30 +28,12 @@ export default async function CustomersLayout({
   const supabase = createAdminClient();
   const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
 
-  // Fetch all owned merchants
-  const { data: owned } = await supabase.from('merchants').select('*').eq('user_id', user.id);
-  if (owned) accessibleMerchants.push(...owned.map((m: any) => ({ ...m, role: 'owner' })));
+  const context = await resolveMerchantContext(user.id, activeMerchantId);
+  accessibleMerchants = context.accessibleMerchants;
+  merchant = context.merchant;
+  userRole = context.userRole || 'owner';
 
-  // Fetch all member merchants
-  const { data: memberships } = await supabase.from('merchant_members').select('role, merchants(*)').eq('user_id', user.id).eq('status', 'active');
-  if (memberships) {
-    accessibleMerchants.push(...memberships.map((m: any) => ({ ...m.merchants, role: m.role || 'developer' })));
-  }
-
-  // Determine current merchant
-  if (activeMerchantId) {
-    const selected = accessibleMerchants.find((m: any) => m.id === activeMerchantId);
-    if (selected) {
-      merchant = selected;
-      userRole = selected.role;
-    }
-  }
-
-  if (!merchant && accessibleMerchants.length > 0) {
-    merchant = accessibleMerchants[0];
-    userRole = accessibleMerchants[0].role;
-  }
-
+  if (!merchant && activeMerchantId) redirect('/businesses');
   if (!merchant) {
     redirect("/onboarding");
   }
@@ -77,7 +60,7 @@ export default async function CustomersLayout({
   }
 
   return (
-    <DashboardLayoutClient merchant={merchant ?? undefined} user={dbUser} isGuest={!merchant} initialNotifications={notifications} accessibleMerchants={accessibleMerchants} userRole={userRole}>
+    <DashboardLayoutClient merchant={merchant ?? undefined} user={dbUser} isGuest={!merchant} initialNotifications={notifications} accessibleMerchants={merchantSwitcherOptions(accessibleMerchants)} userRole={userRole}>
       {children}
     </DashboardLayoutClient>
   );

@@ -222,6 +222,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               .from('merchants')
               .select('business_name')
               .eq('user_id', user.id!)
+              .order('created_at').order('id').limit(1)
               .maybeSingle();
 
             await sendLoginNotificationEmail({

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, context: { params: Promise<{ cod
       .from('merchants')
       .select('id')
       .eq('user_id', session.user.id)
-      .maybeSingle();
+      .order('created_at').order('id').limit(1).maybeSingle();
 
     if (merchant) {
       const { error } = await supabase.rpc('accept_merchant_referral_code', {

@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       .from('merchants')
       .select('id, kyc_status')
       .eq('user_id', payload.sub)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (sender && sender.id === merchant.id) {
       return NextResponse.json({ error: "Vous ne pouvez pas vous transférer de l'argent à vous-même." }, { status: 400 });

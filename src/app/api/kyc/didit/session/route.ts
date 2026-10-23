@@ -52,6 +52,9 @@ export async function POST() {
     if (!merchant) {
       return NextResponse.json({ error: "Non autorisé. Veuillez vous connecter." }, { status: 401 });
     }
+    if (merchant.identity_owner_merchant_id) {
+      return NextResponse.json({ error: 'L’identité est gérée sur le compte principal ; cette activité nécessite une validation séparée.', code: 'BUSINESS_REVIEW_REQUIRED' }, { status: 409 });
+    }
     if (userRole !== 'owner' || isKycAccountBlocked(merchant)) {
       return NextResponse.json({ error: 'Cette vérification nécessite l’autorisation de la conformité.', code: 'KYC_ACCOUNT_RESTRICTED' }, { status: 403 });
     }

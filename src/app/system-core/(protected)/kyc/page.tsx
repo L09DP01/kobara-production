@@ -7,13 +7,14 @@ import { activateFreePlanAfterKyc } from "@/lib/server/plans";
 import { requireAdmin } from "@/lib/auth/require-admin";
 
 export default async function AdminKYCPage() {
+  await requireAdmin(['super_admin', 'compliance']);
   const supabase = createAdminClient();
 
   const { data: rawProfiles } = await supabase
     .from('kyc_profiles')
     .select(`
       *,
-      merchants!inner ( id, business_name, email, kyc_status )
+      merchants!inner ( * )
     `)
     .eq('merchants.kyc_status', 'in_review')
     .order('created_at', { ascending: false });
@@ -105,6 +106,17 @@ export default async function AdminKYCPage() {
     const merchantId = formData.get('merchant_id') as string;
     const session = await requireAdmin(['super_admin', 'compliance']);
     const adminClient = createAdminClient();
+    const profileCheck = await adminClient.from('kyc_profiles').select('id').eq('id', id).eq('merchant_id', merchantId).maybeSingle();
+    if (profileCheck.error || !profileCheck.data) throw new Error('kyc_profile_not_found');
+    const business = await adminClient.from('merchants').select('identity_owner_merchant_id').eq('id', merchantId).single();
+    if (business.error) throw new Error('merchant_lookup_failed');
+    if (business.data.identity_owner_merchant_id) {
+      const result = await adminClient.rpc('review_additional_business', { p_merchant_id: merchantId, p_admin_id: session.user.id, p_approved: true, p_note: 'Activité validée par la conformité.' });
+      if (result.error) throw new Error('business_approval_failed');
+      revalidatePath('/system-core/kyc');
+      revalidatePath('/dashboard', 'layout');
+      return;
+    }
     
     // Update KYC profile
     await adminClient.from('kyc_profiles').update({ 
@@ -153,6 +165,15 @@ export default async function AdminKYCPage() {
     const reason = formData.get('reason') as string || 'Document invalide ou illisible (Vérification manuelle)';
     const session = await requireAdmin(['super_admin', 'compliance']);
     const adminClient = createAdminClient();
+    const business = await adminClient.from('merchants').select('identity_owner_merchant_id').eq('id', merchantId).single();
+    if (business.error) throw new Error('merchant_lookup_failed');
+    if (business.data.identity_owner_merchant_id) {
+      const result = await adminClient.rpc('review_additional_business', { p_merchant_id: merchantId, p_admin_id: session.user.id, p_approved: false, p_note: reason });
+      if (result.error) throw new Error('business_rejection_failed');
+      revalidatePath('/system-core/kyc');
+      revalidatePath('/dashboard', 'layout');
+      return;
+    }
     
     // Update KYC profile
     await adminClient.from('kyc_profiles').update({ 
@@ -219,6 +240,16 @@ export default async function AdminKYCPage() {
                 </div>
               </div>
 
+              {p.merchants?.identity_owner_merchant_id && <section className="space-y-3 border-b border-slate-800 p-4 text-sm sm:p-6">
+                <h3 className="font-bold text-orange-400">Nouvelle activité d’un propriétaire existant</h3>
+                <Link href={`/system-core/merchants/${p.merchants.identity_owner_merchant_id}`} className="inline-flex text-blue-400 underline">Consulter le compte portant l’identité KYC</Link>
+                <p className="whitespace-pre-wrap break-words text-slate-200">{p.merchants.business_review_json?.description}</p>
+                <dl className="grid gap-3 text-slate-300 sm:grid-cols-2">
+                  <div><dt className="text-slate-500">Activité</dt><dd>{p.merchants.category}</dd></div>
+                  <div><dt className="text-slate-500">Adresse</dt><dd className="break-words">{p.merchants.address}</dd></div>
+                  <div className="sm:col-span-2"><dt className="text-slate-500">Site déclaré</dt><dd className="break-all">{p.merchants.business_review_json?.website || 'Non renseigné'}</dd></div>
+                </dl>
+              </section>}
               <div className="grid grid-cols-1 gap-6 p-4 sm:p-6 md:grid-cols-2">
                 <div className="space-y-4">
                   <h3 className="text-xs font-bold text-slate-500 tracking-wider flex items-center gap-2">

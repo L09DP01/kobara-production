@@ -72,3 +72,14 @@ test('new approval restores the approved screen and members remain excluded', as
   assert.match(member, /Accès restreint/);
   assert.doesNotMatch(member, /data-kyc-start/);
 });
+
+test('additional business reuses its owner identity and displays activity review instead of a new identity submission', async () => {
+  for (const status of ['pending', 'approved', 'rejected']) {
+    const html = await renderPage({ identity_owner_merchant_id: 'owner-business', business_name: 'Academie Express',
+      business_verification_status: status, kyc_status: status === 'approved' ? 'approved' : 'in_review',
+      business_review_json: { description: 'Formation et services numeriques' } });
+    assert.match(html, /Validation de l’activité/);
+    assert.match(html, /Aucune nouvelle pièce d’identité/);
+    assert.doesNotMatch(html, /data-kyc-start|Lancer la vérification/);
+  }
+});

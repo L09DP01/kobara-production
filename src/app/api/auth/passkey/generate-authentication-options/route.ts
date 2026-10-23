@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       // 1. Get user by email if provided
       const { data: user } = await supabase.from('users').select('id, email').eq('email', email).maybeSingle();
       if (user) {
-        const { data: merchant } = await supabase.from('merchants').select('id').eq('user_id', user.id).maybeSingle();
+        const { data: merchant } = await supabase.from('merchants').select('id').eq('user_id', user.id).order('created_at').order('id').limit(1).maybeSingle();
         if (merchant) {
           const { data: settings } = await supabase.from('settings').select('security_json').eq('merchant_id', merchant.id).maybeSingle();
           securityObject = settings?.security_json || {};

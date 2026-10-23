@@ -3,6 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 import { ApiKeySecurity } from "@/lib/server/security/api-keys";
 import { auth } from "@/auth";
 import { createAdminClient } from "@/utils/supabase/admin";
+import { cookies } from 'next/headers';
+import { resolveMerchantContext, MERCHANT_CONTEXT_COOKIE } from '@/lib/server/merchant-context';
 
 export type ApiKeyScope = 'payments:create' | 'payments:read' | 'withdrawals:create';
 
@@ -141,12 +143,8 @@ export async function authenticateApiRequest(request: NextRequest, options: ApiA
   const user = session?.user;
 
   if (user?.id) {
-    const supabaseAdmin = createAdminClient();
-    const { data: merchant } = await supabaseAdmin
-      .from('merchants')
-      .select('id, kyc_status, status, account_access')
-      .eq('user_id', user.id)
-      .single();
+    const selected = (await cookies()).get(MERCHANT_CONTEXT_COOKIE)?.value;
+    const { merchant } = await resolveMerchantContext(user.id, selected, true);
       
     if (merchant?.kyc_status === 'approved' && merchant.status !== 'suspended' && !['suspended', 'permanently_closed'].includes(merchant.account_access || '')) {
       return {

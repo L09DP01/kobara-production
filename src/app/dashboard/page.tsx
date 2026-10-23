@@ -135,6 +135,7 @@ export default async function DashboardPage() {
     .select("*, customers(name, email)")
     .eq("merchant_id", merchant.id)
     .eq("environment", environment)
+    .eq("status", "succeeded")
     .order("created_at", { ascending: false })
     .limit(5);
 

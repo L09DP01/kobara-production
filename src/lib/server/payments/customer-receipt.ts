@@ -7,7 +7,7 @@ import { getPayerReceiptEmail } from '@/lib/payment-notification-policy';
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 export async function sendCustomerPaymentReceipt(payment: any, businessName?: string | null) {
-  if (payment.environment !== 'live' || payment.status !== 'succeeded') return;
+  if (payment.environment !== 'live' || payment.status !== 'succeeded' || !payment.payment_link_id) return;
   const admin = createAdminClient();
   const metadata = payment.metadata || {};
   if (metadata.customer_receipt_sent_at) return;
@@ -35,7 +35,7 @@ export async function sendCustomerPaymentReceipt(payment: any, businessName?: st
   const text = `Votre paiement à ${businessName} est confirmé.\nMontant : ${amount}\nMoyen : ${method}\nRéférence : ${reference}\nMerci pour votre achat.`;
   let sent = false;
   try {
-    const result = await sendEmail({ to: email.trim(), subject, text, idempotencyKey: `customer-receipt-${payment.id}`, html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px;color:#10131D"><h1>${escapeHtml(businessName)}</h1><h2>Paiement confirmé</h2><p>Votre paiement à ${escapeHtml(businessName)} est confirmé.</p><p><strong>${escapeHtml(amount)}</strong></p><p>Moyen : ${escapeHtml(method)}</p><p>Référence : ${escapeHtml(reference)}</p><p>Merci pour votre achat.</p></div>` });
+    const result = await sendEmail({ senderName: businessName, to: email.trim(), subject, text, idempotencyKey: `customer-receipt-${payment.id}`, html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:32px;color:#10131D"><h1>${escapeHtml(businessName)}</h1><h2>Paiement confirmé</h2><p>Votre paiement à ${escapeHtml(businessName)} est confirmé.</p><p><strong>${escapeHtml(amount)}</strong></p><p>Moyen : ${escapeHtml(method)}</p><p>Référence : ${escapeHtml(reference)}</p><p>Merci pour votre achat.</p></div>` });
     sent = result.success;
     if (!sent) throw new Error('Envoi du reçu client échoué');
   } finally {

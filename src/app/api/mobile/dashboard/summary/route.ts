@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
       .from("merchants")
       .select("id, user_id, business_name, business_slug, logo_url, email, phone, address, category, status, kyc_status, plan_slug, available_balance, available_balance_usd, pending_balance, paypal_enabled, has_usd_account")
       .eq("user_id", userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json(

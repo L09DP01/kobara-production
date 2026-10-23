@@ -439,7 +439,7 @@ export async function updatePassword(password: string) {
   }
 
   try {
-    const { data: mData } = await supabase.from('merchants').select('id').eq('user_id', user.id).single();
+    const { merchant: mData } = await getAuthUserAndMerchant();
     if (mData) {
       await notifyPasswordChange(mData.id, user.email);
     }

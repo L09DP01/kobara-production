@@ -187,7 +187,7 @@ export async function signup(formData: FormData) {
     else console.error('Merchant referral link attribution failed:', referralError.message);
   }
   if (!partnerAttributed) {
-    const { data: newMerchant } = await supabase.from('merchants').select('id').eq('user_id', userId).maybeSingle();
+    const { data: newMerchant } = await supabase.from('merchants').select('id').eq('user_id', userId).order('created_at').order('id').limit(1).maybeSingle();
     if (newMerchant) {
       await supabase.from('referral_attributions').insert({
         merchant_id: newMerchant.id, source_type: 'direct', source_reference: 'merchant_signup',

@@ -3,24 +3,25 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getPaymentListStatus } from '@/lib/payment-list-filter';
 
 export function PaymentsFilter({ exportButton }: { exportButton?: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [q, setQ] = useState(searchParams.get('q') || '');
-  const status = searchParams.get('status') || 'all';
+  const status = getPaymentListStatus(searchParams.get('status'), searchParams.get('q'));
 
   const updateFilters = (newQ: string, newStatus: string) => {
     const params = new URLSearchParams();
     if (newQ) params.set('q', newQ);
-    if (newStatus && newStatus !== 'all') params.set('status', newStatus);
+    if (newStatus) params.set('status', newStatus);
     router.push(`/dashboard/payments?${params.toString()}`);
   };
 
   useEffect(() => {
     const timer = setTimeout(() => {
       if (q !== (searchParams.get('q') || '')) {
-         updateFilters(q, status);
+         updateFilters(q, searchParams.get('status') || '');
       }
     }, 400);
     return () => clearTimeout(timer);

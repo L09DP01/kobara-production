@@ -97,7 +97,7 @@ export default function DashboardLayoutClient({
         {hasKycAccess && <TelegramConnectBanner merchantId={merchant?.id} isTelegramLinked={isTelegramLinked} />}
 
         {merchant && merchant.kyc_status !== 'approved' && (
-          <KycRequiredBanner />
+          <KycRequiredBanner businessReview={!!merchant.identity_owner_merchant_id} />
         )}
         <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8">
           {children}

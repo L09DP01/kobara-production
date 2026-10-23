@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       .from('merchants')
       .select('id, email, kyc_status, paypal_enabled, has_usd_account')
       .eq('user_id', userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Marchand introuvable" }, { status: 404 });

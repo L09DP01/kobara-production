@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       .from('merchants')
       .select('id, kyc_status')
       .eq('user_id', userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (senderError || !sender) {
       return NextResponse.json({ error: "Marchand expéditeur introuvable" }, { status: 404 });

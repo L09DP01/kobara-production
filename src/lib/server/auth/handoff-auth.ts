@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { auth } from "@/auth";
+import { cookies } from 'next/headers';
+import { resolveMerchantContext, MERCHANT_CONTEXT_COOKIE } from '@/lib/server/merchant-context';
 
 export async function authenticateHandoffToken(request: NextRequest) {
   const authHeader = request.headers.get("Authorization");
@@ -46,8 +48,8 @@ export async function getKycMerchantId(request: NextRequest) {
   // 1. Try NextAuth Session
   const session = await auth() as any;
   if (session?.user?.id) {
-    const supabase = createAdminClient();
-    const { data: merchant } = await supabase.from('merchants').select('id').eq('user_id', session.user.id).single();
+    const { merchant } = await resolveMerchantContext(session.user.id, (await cookies()).get(MERCHANT_CONTEXT_COOKIE)?.value, true);
+    if (merchant?.identity_owner_merchant_id) return { merchantId: null, error: 'La validation de l’activité est gérée séparément.' };
     if (merchant) return { merchantId: merchant.id, error: null };
   }
 

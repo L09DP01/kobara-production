@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       .from("merchants")
       .select("id, kyc_status")
       .eq("user_id", userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       .from("merchants")
       .select("id, kyc_status")
       .eq("user_id", userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });
@@ -141,7 +141,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
       .from("merchants")
       .select("id, kyc_status")
       .eq("user_id", userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });

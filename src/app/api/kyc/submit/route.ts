@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { auth } from "@/auth";
+import { cookies } from 'next/headers';
+import { resolveMerchantContext, MERCHANT_CONTEXT_COOKIE } from '@/lib/server/merchant-context';
 import { decideKycStatus, KycSignals } from "@/lib/server/kyc/decision-engine";
 import { activateFreePlanAfterKyc } from "@/lib/server/plans";
 import { createNotification } from "@/lib/server/notifications";
@@ -31,8 +33,9 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const { data: merchant } = await supabase.from('merchants').select('id, email, phone, business_name').eq('user_id', session.user.id).single();
+    const { merchant } = await resolveMerchantContext(session.user.id, (await cookies()).get(MERCHANT_CONTEXT_COOKIE)?.value, true);
     if (!merchant) return NextResponse.json({ error: "Marchand introuvable" }, { status: 404 });
+    if (merchant.identity_owner_merchant_id) return NextResponse.json({ error: 'La validation de cette activité nécessite une revue de conformité.' }, { status: 409 });
     const merchantId = merchant.id;
 
     const { data: profile } = await supabase.from('kyc_profiles').select('*').eq('merchant_id', merchantId).single();

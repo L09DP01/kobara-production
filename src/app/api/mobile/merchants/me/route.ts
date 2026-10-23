@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       .from("merchants")
       .select("*")
       .eq("user_id", payload.sub)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable." }, { status: 404 });

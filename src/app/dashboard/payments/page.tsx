@@ -4,6 +4,7 @@ import { PaymentsFilter } from "./payments-filter";
 import ExportCsvButton from "./ExportCsvButton";
 import { getPaymentMethodDisplay } from "@/lib/payment-method-display";
 import { isReviewAccount } from '@/lib/review-account';
+import { getPaymentListStatus } from '@/lib/payment-list-filter';
 
 export default async function PaymentsPage({
   searchParams
@@ -14,7 +15,7 @@ export default async function PaymentsPage({
 
   const queryParams = await searchParams;
   const searchQ = queryParams?.q || '';
-  const filterStatus = queryParams?.status || 'all';
+  const filterStatus = getPaymentListStatus(queryParams?.status, searchQ);
   const pageSize = 50;
   const requestedPage = Number.parseInt(queryParams?.page || '1', 10);
   const currentPage = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
@@ -53,7 +54,7 @@ export default async function PaymentsPage({
   const pageHref = (page: number) => {
     const params = new URLSearchParams();
     if (searchQ) params.set('q', searchQ);
-    if (filterStatus !== 'all') params.set('status', filterStatus);
+    if (queryParams.status) params.set('status', filterStatus);
     params.set('page', String(page));
     return `/payments?${params.toString()}`;
   };

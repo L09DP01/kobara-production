@@ -8,6 +8,8 @@ import { ensureCurrentSessionIsAllowed } from "@/app/dashboard/settings/sessions
 import { getMerchantSubscriptionEntitlement } from '@/lib/server/plans';
 import { SessionInactivityGuard } from '@/components/dashboard/session-inactivity-guard';
 import type { MerchantReferralSummary } from '@/components/dashboard/merchant-referral-dialog';
+import { resolveMerchantContext, merchantSwitcherOptions } from '@/lib/server/merchant-context';
+import Link from 'next/link';
 
 export default async function DashboardLayout({
   children,
@@ -49,41 +51,22 @@ export default async function DashboardLayout({
     const supabase = createAdminClient();
     const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
     
-    // Fetch all owned merchants
-    const { data: owned } = await supabase.from('merchants').select('*').eq('user_id', user.id);
-    if (owned) accessibleMerchants.push(...owned.map((m: any) => ({ ...m, role: 'owner' })));
-    
-    // Fetch all member merchants
-    const { data: memberships } = await supabase.from('merchant_members').select('role, merchants(*)').eq('user_id', user.id).eq('status', 'active');
-    if (memberships) {
-       accessibleMerchants.push(...memberships.map((m: any) => ({ ...m.merchants, role: m.role || 'developer' })));
-    }
-
-    // Determine current merchant
-    if (activeMerchantId) {
-      const selected = accessibleMerchants.find((m: any) => m.id === activeMerchantId);
-      if (selected) {
-         merchant = selected;
-         userRole = selected.role;
-      }
-    }
-    
-    if (!merchant && accessibleMerchants.length > 0) {
-      merchant = accessibleMerchants[0];
-      userRole = accessibleMerchants[0].role;
-    }
+    const context = await resolveMerchantContext(user.id, activeMerchantId);
+    accessibleMerchants = context.accessibleMerchants;
+    merchant = context.merchant;
+    userRole = context.userRole || 'owner';
 
     if (merchant) {
       let isKycApproved = merchant.kyc_status === 'approved';
 
-      if (!isKycApproved) {
-        const { data: kycProfile } = await supabase
-          .from('kyc_profiles')
-          .select('status')
-          .eq('merchant_id', merchant.id)
-          .maybeSingle();
-
-        isKycApproved = kycProfile?.status === 'approved';
+      if (merchant.identity_owner_merchant_id) {
+        const owner = await supabase.from('merchants').select('user_id, kyc_status, status, account_access')
+          .eq('id', merchant.identity_owner_merchant_id).maybeSingle();
+        if (owner.error) throw new Error('business_identity_lookup_failed');
+        isKycApproved = isKycApproved && merchant.business_verification_status === 'approved'
+          && owner.data?.user_id === merchant.user_id && owner.data?.kyc_status === 'approved'
+          && owner.data?.status === 'active' && (owner.data?.account_access || 'active') === 'active';
+        if (!isKycApproved && merchant.kyc_status === 'approved') merchant = { ...merchant, kyc_status: 'in_review' };
       }
 
       if (isKycApproved && (merchant.kyc_status !== 'approved' || merchant.current_environment !== 'live')) {
@@ -159,6 +142,7 @@ export default async function DashboardLayout({
     redirect("/logout");
   }
 
+  if (user && !merchant && cookieStore.get('kobara_active_merchant')?.value) redirect('/businesses');
   if (user && (!merchant || !merchant.phone || !merchant.category)) {
     redirect("/onboarding");
   }
@@ -252,6 +236,7 @@ export default async function DashboardLayout({
     return (
       <>
         <SessionInactivityGuard />
+        {accessibleMerchants.length > 1 && <Link href="/businesses" className="block bg-[#07101D] p-4 text-sm text-orange-400">Changer de business</Link>}
         <ClosurePayoutView
           merchantEmail={merchant.email}
           merchantName={merchant.business_name}
@@ -281,6 +266,7 @@ export default async function DashboardLayout({
     return (
       <>
         <SessionInactivityGuard />
+        {accessibleMerchants.length > 1 && <Link href="/businesses" className="block bg-[#07101D] p-4 text-sm text-orange-400">Changer de business</Link>}
         <SuspendedAccountView
           merchantEmail={merchant.email}
           merchantName={merchant.business_name}
@@ -304,7 +290,7 @@ export default async function DashboardLayout({
         user={dbUser}
         isGuest={!merchant}
         initialNotifications={notifications}
-        accessibleMerchants={accessibleMerchants}
+        accessibleMerchants={merchantSwitcherOptions(accessibleMerchants)}
         userRole={userRole}
         hasPasskey={hasPasskey}
         isTelegramLinked={isTelegramLinked}

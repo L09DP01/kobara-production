@@ -4,7 +4,8 @@ import { getRuntimeEnvironmentValue } from "@/lib/server/runtime-env";
 
 export const createClient = (
   cookieStore: Awaited<ReturnType<typeof cookies>>, 
-  supabaseAccessToken?: string
+  supabaseAccessToken?: string,
+  merchantId?: string
 ) => {
   const supabaseUrl = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_URL");
   const supabaseKey = getRuntimeEnvironmentValue("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")
@@ -19,9 +20,11 @@ export const createClient = (
     supabaseKey,
     {
       global: {
-        headers: supabaseAccessToken ? {
-          Authorization: `Bearer ${supabaseAccessToken}`,
-        } : undefined,
+        headers: {
+          ...(supabaseAccessToken ? { Authorization: `Bearer ${supabaseAccessToken}` } : {}),
+          ...((merchantId || cookieStore.get('kobara_active_merchant')?.value)
+            ? { 'x-kobara-merchant-id': merchantId || cookieStore.get('kobara_active_merchant')!.value } : {}),
+        },
       },
       cookies: {
         getAll() {

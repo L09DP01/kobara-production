@@ -19,7 +19,7 @@ export async function GET(
       .from("merchants")
       .select("id, kyc_status")
       .eq("user_id", userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable.", code: "MERCHANT_NOT_FOUND" }, { status: 404 });

@@ -3,6 +3,7 @@ import { createAdminClient } from "./admin";
 import { createClient } from "./server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { resolveMerchantContext } from '@/lib/server/merchant-context';
 
 export async function getCurrentUserAndMerchant() {
   const session = await auth() as any;
@@ -12,71 +13,10 @@ export async function getCurrentUserAndMerchant() {
     redirect("/login");
   }
 
-  const supabaseAdmin = createAdminClient();
   const cookieStore = await cookies();
   const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
-
-  let merchant = null;
-  let userRole = 'owner';
-
-  // If a specific merchant is selected via switcher
-  if (activeMerchantId) {
-    // Check if user is owner of this merchant
-    const { data: ownerMerchant } = await supabaseAdmin
-      .from("merchants")
-      .select("*")
-      .eq("id", activeMerchantId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-      
-    if (ownerMerchant) {
-      merchant = ownerMerchant;
-      userRole = 'owner';
-    } else {
-      // Check if user is a member of this merchant
-      const { data: membership } = await supabaseAdmin
-        .from('merchant_members')
-        .select('role, merchants(*)')
-        .eq('merchant_id', activeMerchantId)
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .maybeSingle();
-
-      if (membership && membership.merchants) {
-        merchant = membership.merchants as any;
-        userRole = membership.role || 'developer';
-      }
-    }
-  }
-
-  // Fallback if no specific merchant selected or selection is invalid
-  if (!merchant) {
-    // Try their owned merchant
-    const { data: ownedMerchant } = await supabaseAdmin
-      .from("merchants")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (ownedMerchant) {
-      merchant = ownedMerchant;
-      userRole = 'owner';
-    } else {
-      // Try any member merchant
-      const { data: firstMembership } = await supabaseAdmin
-        .from('merchant_members')
-        .select('role, merchants(*)')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .maybeSingle();
-
-      if (firstMembership && firstMembership.merchants) {
-        merchant = firstMembership.merchants as any;
-        userRole = firstMembership.role || 'developer';
-      }
-    }
-  }
+  const { merchant, userRole } = await resolveMerchantContext(user.id, activeMerchantId);
+  if (!merchant && activeMerchantId) redirect('/businesses');
 
   if (!merchant || (userRole === 'owner' && (!merchant.phone || !merchant.category))) {
     redirect("/onboarding");
@@ -86,7 +26,7 @@ export async function getCurrentUserAndMerchant() {
   await expireMerchantOldPayments(merchant.id);
 
   // Create an RLS-enabled client for the current user
-  const supabase = createClient(cookieStore, session?.supabaseAccessToken);
+  const supabase = createClient(cookieStore, session?.supabaseAccessToken, merchant.id);
 
   return { user, merchant, userRole, supabase };
 }

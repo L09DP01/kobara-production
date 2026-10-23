@@ -20,6 +20,27 @@ export default async function KycPage() {
     );
   }
 
+  if (merchant.identity_owner_merchant_id) {
+    const approved = merchant.kyc_status === 'approved' && merchant.business_verification_status === 'approved';
+    const rejected = merchant.business_verification_status === 'rejected';
+    return <section className="mx-auto w-full max-w-2xl space-y-6 py-4 text-white">
+      <div className="flex items-center gap-3"><ShieldCheck className="h-6 w-6 text-orange-400" /><h1 className="text-2xl font-bold">Validation de l’activité</h1></div>
+      <p className="text-sm text-slate-400">{merchant.business_name}</p>
+      <div role="status" className={`border-l-2 py-3 pl-4 ${approved ? 'border-emerald-500' : rejected ? 'border-red-400' : 'border-amber-400'}`}>
+        <h2 className="font-semibold">{approved ? 'Activité approuvée' : rejected ? 'Informations complémentaires nécessaires' : 'Activité en cours d’examen'}</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-300">L’identité du propriétaire est liée à votre compte existant. Aucune nouvelle pièce d’identité n’est demandée pour ce business.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{approved ? 'Les paiements réels sont disponibles pour ce business.' : 'Les paiements réels restent désactivés jusqu’à la validation de cette activité et de l’identité du propriétaire.'}</p>
+        {merchant.business_review_json?.note && <p className="mt-3 text-sm text-slate-300">{merchant.business_review_json.note}</p>}
+      </div>
+      <dl className="divide-y divide-slate-800 text-sm">
+        <div className="py-3"><dt className="text-slate-400">Activité</dt><dd className="mt-1 whitespace-pre-wrap break-words">{merchant.business_review_json?.description}</dd></div>
+        <div className="py-3"><dt className="text-slate-400">Adresse professionnelle</dt><dd className="mt-1 break-words">{merchant.address}</dd></div>
+        <div className="py-3"><dt className="text-slate-400">Site</dt><dd className="mt-1 break-all">{merchant.business_review_json?.website || 'Non renseigné'}</dd></div>
+      </dl>
+      <a href="/support" className="inline-flex rounded-md border border-slate-700 px-4 py-2.5 text-sm hover:bg-white/5">Contacter le support</a>
+    </section>;
+  }
+
   const profile = await getKycStatus();
   const requiresReverification = merchant.account_access === 'reverify_required'
     || merchant.kyc_status === 'pending_reverification';

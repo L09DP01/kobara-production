@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       .from("merchants")
       .select("id, business_name, available_balance, available_balance_usd, kyc_status, paypal_enabled, has_usd_account")
       .eq("user_id", userId)
-      .single();
+      .order('created_at').order('id').limit(1).single();
 
     if (merchantError || !merchant) {
       return NextResponse.json({ error: "Profil marchand introuvable.", code: "MERCHANT_NOT_FOUND" }, { status: 404 });
