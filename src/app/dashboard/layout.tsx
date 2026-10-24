@@ -10,6 +10,7 @@ import { SessionInactivityGuard } from '@/components/dashboard/session-inactivit
 import type { MerchantReferralSummary } from '@/components/dashboard/merchant-referral-dialog';
 import { resolveMerchantContext, merchantSwitcherOptions } from '@/lib/server/merchant-context';
 import Link from 'next/link';
+import { hasBusinessAccess } from '@/lib/business-creation-error';
 
 export default async function DashboardLayout({
   children,
@@ -52,6 +53,7 @@ export default async function DashboardLayout({
     const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
     
     const context = await resolveMerchantContext(user.id, activeMerchantId);
+    if (!activeMerchantId && context.merchant) redirect('/businesses');
     accessibleMerchants = context.accessibleMerchants;
     merchant = context.merchant;
     userRole = context.userRole || 'owner';
@@ -65,7 +67,7 @@ export default async function DashboardLayout({
         if (owner.error) throw new Error('business_identity_lookup_failed');
         isKycApproved = isKycApproved && merchant.business_verification_status === 'approved'
           && owner.data?.user_id === merchant.user_id && owner.data?.kyc_status === 'approved'
-          && owner.data?.status === 'active' && (owner.data?.account_access || 'active') === 'active';
+          && owner.data?.status === 'active' && hasBusinessAccess(owner.data?.account_access);
         if (!isKycApproved && merchant.kyc_status === 'approved') merchant = { ...merchant, kyc_status: 'in_review' };
       }
 
@@ -236,7 +238,7 @@ export default async function DashboardLayout({
     return (
       <>
         <SessionInactivityGuard />
-        {accessibleMerchants.length > 1 && <Link href="/businesses" className="block bg-[#07101D] p-4 text-sm text-orange-400">Changer de business</Link>}
+        {accessibleMerchants.length > 1 && <Link href="/businesses?choose=1" className="block bg-[#07101D] p-4 text-sm text-orange-400">Changer de business</Link>}
         <ClosurePayoutView
           merchantEmail={merchant.email}
           merchantName={merchant.business_name}
@@ -266,7 +268,7 @@ export default async function DashboardLayout({
     return (
       <>
         <SessionInactivityGuard />
-        {accessibleMerchants.length > 1 && <Link href="/businesses" className="block bg-[#07101D] p-4 text-sm text-orange-400">Changer de business</Link>}
+        {accessibleMerchants.length > 1 && <Link href="/businesses?choose=1" className="block bg-[#07101D] p-4 text-sm text-orange-400">Changer de business</Link>}
         <SuspendedAccountView
           merchantEmail={merchant.email}
           merchantName={merchant.business_name}

@@ -29,6 +29,7 @@ export default async function CustomersLayout({
   const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
 
   const context = await resolveMerchantContext(user.id, activeMerchantId);
+  if (!activeMerchantId && context.merchant) redirect('/businesses');
   accessibleMerchants = context.accessibleMerchants;
   merchant = context.merchant;
   userRole = context.userRole || 'owner';

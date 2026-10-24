@@ -6,6 +6,9 @@ Apply `supabase/migrations/20261023204248_multi_business_accounts.sql` to the
 confirmed deployment database before enabling creation in production. The file
 has been executed only against isolated local PostgreSQL fixtures, not live data.
 The creation action returns an unavailable message if the RPC is not installed.
+Then apply `supabase/migrations/20261023225837_fix_multi_business_live_access.sql`.
+This follow-up recognizes existing `live` and `limited_live` access levels as
+unrestricted, without changing KYC approval, restrictions or review requirements.
 
 The Supabase project configured locally must not be assumed to be production.
 Do not run `db push` against an unconfirmed project.
@@ -40,13 +43,29 @@ identity alone does not automatically approve those business reviews again.
 Server-rendered and browser Supabase clients pass `x-kobara-merchant-id`. RLS
 validates that identifier against the signed-in user's ownership or membership;
 an unauthorized/invalid header returns no business, never another user's data.
-Without a selection, the oldest owned business is the stable default. API-key
+Web navigation restores the last selection remembered for that user in the same
+browser. If no accessible selection is remembered, the oldest owned business is
+the stable fallback. API-key
 authentication remains bound to the key's own merchant, independently of cookies.
 
 The selection cookie is an identifier, not an authorization token. Switching uses
 a server action and a full navigation; other open web tabs refresh their context
 using a storage event. Invalid/deleted selections go to `/businesses` for recovery.
 No extra business may be used to revive a revoked account session.
+
+## Telegram
+
+One existing private Telegram connection can manage all businesses owned by the
+linked account. `/business` or **Mes business** opens the selector; `/newbusiness`
+collects activity details and requires `/confirmer` before creation. `/cancel`
+cancels the conversation. Creation uses the same validated server service and
+atomic RPC as the web dashboard, including the rate limit and separate review.
+The active Telegram business is stored in `session_state.active_merchant_id` and
+is independent of the web selection. Every update checks ownership again. A
+switch clears the conversation, including withdrawal/transfer confirmation steps.
+The original merchant link is never reassigned by a switch. Existing notification
+subscriptions remain unchanged. Telegram financial actions remain Live-only;
+pending activities cannot create real payment links.
 
 Existing native-mobile endpoints retain the primary business as their default.
 This change adds a selector to the responsive web dashboard, not to the native

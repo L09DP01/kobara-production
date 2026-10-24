@@ -682,7 +682,7 @@ export default function MessagingClient({ initialAudiences, initialCampaigns }: 
                         onChange={(e) => setBroadcastTelegramChannel(e.target.checked)}
                         className="rounded bg-slate-950 border-slate-700 text-blue-500 focus:ring-blue-500"
                       />
-                      <span>Canal / Forum (@KobaraCommunity)</span>
+                      <span>Canal / Forum (@KobaraCommunauty)</span>
                     </label>
                     <label className="flex items-center gap-2 text-slate-300 cursor-pointer bg-slate-900/60 p-2 rounded-lg border border-slate-800/80">
                       <input

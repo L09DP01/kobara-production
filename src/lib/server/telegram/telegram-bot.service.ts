@@ -24,6 +24,8 @@ import { safeTelegramHistory } from '@/lib/telegram-support-policy';
 import { containsPotentialSecret, redactSecrets } from '@/lib/sensitive-text';
 import { isPrivateTelegramSender } from '@/lib/telegram-webhook-security';
 import { isRetiredTelegramSubscriptionCallback, isRetiredTelegramSubscriptionCommand, isRetiredTelegramSubscriptionState, TELEGRAM_RETIRED_SUBSCRIPTION_MESSAGE } from '@/lib/telegram-retired-subscriptions';
+import { getTelegramBusinessAccount, saveTelegramBusinessState, TelegramBusinesses } from './telegram-businesses';
+import { hasBusinessAccess } from '@/lib/business-creation-error';
 
 export class TelegramBotService {
   /**
@@ -32,6 +34,7 @@ export class TelegramBotService {
   private static getMainKeyboard(): SendMessageOptions['reply_markup'] {
     return {
       keyboard: [
+        [{ text: 'Mes business' }],
         [{ text: '💰 Mon Solde (Live)' }, { text: '🔗 Créer un Lien' }],
         [{ text: '🏦 Transfert B2B' }, { text: '💸 Demander un Retrait' }],
         [{ text: '🎁 Recevez 675 Gdes' }],
@@ -45,18 +48,7 @@ export class TelegramBotService {
    * Récupère le compte marchand associé à un chat_id
    */
   private static async getLinkedMerchant(chatId: string | number) {
-    const supabase = createAdminClient();
-    const { data: link } = await supabase
-      .from('merchant_telegram_accounts')
-      .select('*, merchants(*)')
-      .eq('telegram_chat_id', String(chatId))
-      .maybeSingle();
-
-    if (!link || !link.merchants) return null;
-    return {
-      link,
-      merchant: link.merchants,
-    };
+    return getTelegramBusinessAccount(chatId);
   }
 
   /**
@@ -96,6 +88,8 @@ export class TelegramBotService {
 
     const { link, merchant } = account;
     const sessionState = link.session_state || {};
+    if (text === '/business' || text === '/businesses' || text === 'Mes business') return TelegramBusinesses.show(chatId);
+    if (text === '/newbusiness') return TelegramBusinesses.startCreate(chatId);
 
     // 3. Commande d'annulation / Reset
     if (text === '/cancel' || text.toLowerCase() === 'annuler' || text === '❌ Annuler') {
@@ -357,6 +351,12 @@ L'équipe de sécurité Kobara — https://kobara.app
    * Démarre la création d'un lien de paiement en mode Live
    */
   private static async startCreateLinkFlow(chatId: string | number, messageId?: number) {
+    const account = await this.getLinkedMerchant(chatId);
+    if (!account || account.merchant.kyc_status !== 'approved' || account.merchant.status !== 'active'
+      || !hasBusinessAccess(account.merchant.account_access)) {
+      await TelegramClient.sendMessage(chatId, 'Ce business doit être validé et sans restriction avant de créer un lien de paiement réel.');
+      return { success: true };
+    }
     await this.updateSessionState(chatId, { step: 'link_amount' });
     if (messageId) {
       await TelegramClient.deleteMessage(chatId, messageId);
@@ -589,6 +589,13 @@ L'équipe de sécurité Kobara — https://kobara.app
     const supabase = createAdminClient();
 
     // --- TRANSFERT B2B ---
+    if (state.step === 'business_form' || state.step === 'business_confirm') return TelegramBusinesses.step(chatId, text, state);
+    if (String(state.step || '').startsWith('link_') && (merchant.kyc_status !== 'approved' || merchant.status !== 'active'
+      || !hasBusinessAccess(merchant.account_access))) {
+      await this.updateSessionState(chatId, {});
+      await TelegramClient.sendMessage(chatId, 'La création du lien est annulée : ce business doit être validé et sans restriction.');
+      return { success: true };
+    }
     if (state.step === 'b2b_receiver') {
       const receiverEmail = text.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(receiverEmail)) {
@@ -998,7 +1005,7 @@ L'équipe de sécurité Kobara — https://kobara.app
                 [{ text: 'Support Kobara', url: 'https://kobara.app/dashboard/support' }],
                 [{ text: 'Menu principal', callback_data: 'action:main_menu' }],
                 [{ text: '🟢 Contacter le Support WhatsApp', url: 'https://wa.me/50940035664?text=Bonjour,%20j%27ai%20besoin%20d%27assistance%20avec%20Kobara' }],
-                [{ text: '📢 Rejoindre le Forum / Canal', url: 'https://t.me/KobaraCommunity' }],
+                [{ text: '📢 Rejoindre le Forum / Canal', url: 'https://t.me/KobaraCommunauty' }],
               ],
             },
           }
@@ -1064,6 +1071,8 @@ L'équipe de sécurité Kobara — https://kobara.app
     const { merchant } = account;
 
     const messageId = callbackQuery.message?.message_id;
+    if (data === 'business:create') return TelegramBusinesses.startCreate(chatId);
+    if (data.startsWith('business:switch:')) return TelegramBusinesses.switch(chatId, data.slice('business:switch:'.length));
     if (isRetiredTelegramSubscriptionCallback(data)) return this.showUsagePricing(chatId);
 
     if (data === 'action:main_menu') {
@@ -1420,7 +1429,7 @@ L'équipe de sécurité Kobara — https://kobara.app
           inline_keyboard: [
             [{ text: '🤖 Poser une question à l\'IA', callback_data: 'action:ask_ai' }],
             [{ text: '🟢 Contacter le Support WhatsApp', url: 'https://wa.me/50940035664?text=Bonjour,%20j%27ai%20besoin%20d%27aide%20avec%20mon%20compte%20Kobara' }],
-            [{ text: '📢 Rejoindre le Forum / Canal Telegram', url: 'https://t.me/KobaraCommunity' }],
+            [{ text: '📢 Rejoindre le Forum / Canal Telegram', url: 'https://t.me/KobaraCommunauty' }],
             [{ text: '🌐 Documentation API', url: 'https://docs.kobara.app/docs/quickstart' }],
             [{ text: '🔙 Retour au Menu Principal', callback_data: 'action:main_menu' }],
           ],
@@ -1434,14 +1443,7 @@ L'équipe de sécurité Kobara — https://kobara.app
    * Met à jour la session conversationnelle en base
    */
   private static async updateSessionState(chatId: string | number, state: any) {
-    const supabase = createAdminClient();
-    await supabase
-      .from('merchant_telegram_accounts')
-      .update({
-        session_state: state,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('telegram_chat_id', String(chatId));
+    await saveTelegramBusinessState(chatId, state);
   }
 
   private static escapeHtml(value: unknown) {

@@ -58,16 +58,44 @@ test('switcher options never serialize balances, identity evidence or server fie
   for(const option of options) { assert.equal('available_balance' in option,false); assert.equal('secret_field' in option,false); assert.equal('user_id' in option,false); }
 });
 
+test('automatic resume prefers the last business of this user and discards inaccessible remembered IDs', async () => {
+  const api = context();
+  const businesses = await api.getAccessibleMerchants(userId);
+  assert.equal(api.resumableBusiness(businesses, [child, root]).id, child);
+  assert.equal(api.resumableBusiness(businesses, ['forged', memberId]).id, memberId);
+  assert.equal(api.resumableBusiness(businesses, ['forged']).id, root);
+  assert.equal(api.resumableBusiness([], [child]), undefined);
+});
+
+test('business creation explains pending identity, restrictions and demo accounts without bypassing KYC', () => {
+  const { businessCreationError: message } = load('../src/lib/business-creation-error.ts', {});
+  const owner = { id: root, status: 'active', account_access: 'active', kyc_status: 'approved' };
+  assert.match(message({ ...owner, kyc_status: 'in_review' }, []), /en cours/);
+  assert.match(message({ ...owner, kyc_status: 'not_started' }, []), /Vérifiez votre identité/);
+  assert.match(message({ ...owner, account_access: 'reverify_required' }, []), /restriction/);
+  assert.match(message({ ...owner, shopify_review_mode: true }, []), /démonstration/);
+  assert.match(message({ id: child, identity_owner_merchant_id: root }, []), /introuvable/);
+  assert.match(message({ ...owner, id: child, identity_owner_merchant_id: root }, [owner]), /serveur/);
+  const { hasBusinessAccess } = load('../src/lib/business-creation-error.ts', {});
+  for (const access of ['active', 'live', 'limited_live', null]) assert.equal(hasBusinessAccess(access), true);
+  for (const access of ['suspended', 'closed', 'restricted', 'reverify_required', 'test', 'unknown', '']) assert.equal(hasBusinessAccess(access), false);
+});
+
 function actions({ role='owner', allowed=true, loggedIn=true }={}) {
   const calls=[]; const selected=[];
   const contextApi = context();
-  const api=load('../src/app/dashboard/businesses/actions.ts', {
+  const mocks = {
+    'server-only': {},
     '@/auth': { auth:async()=>loggedIn ? { user:{id:userId},authMethod:'password' } : null },
     'next/headers': { cookies:async()=>({get:()=>({value:role==='owner'?root:memberId}),set:(...args)=>selected.push(args)}) },
     '@/utils/supabase/admin': {createAdminClient:()=>({rpc:async(name,args)=>{calls.push({name,args});return {data:child,error:null};}})},
     '@/lib/server/merchant-context': contextApi,
     '@/lib/business-name': load('../src/lib/business-name.ts',{}),
+    '@/lib/business-creation-error': load('../src/lib/business-creation-error.ts',{}),
     '@/app/dashboard/settings/sessions-actions': {ensureAccountSessionIsAllowed:async()=>({allowed})},
+  };
+  const api=load('../src/app/dashboard/businesses/actions.ts', {
+    ...mocks, '@/lib/server/create-business': load('../src/lib/server/create-business.ts', mocks),
   });
   return {api,calls,selected};
 }
@@ -82,6 +110,8 @@ test('creation uses authenticated owner and validated fields, never client-provi
   assert.equal(h.calls[0].args.p_user_id,userId); assert.equal(h.calls[0].args.p_source_merchant_id,root);
   assert.equal('available_balance' in h.calls[0].args,false); assert.equal('kyc_status' in h.calls[0].args,false);
   assert.equal(h.selected[0][1],child); assert.equal(h.selected[0][2].sameSite,'lax');
+  assert.equal(h.selected[1][0],`kobara_last_business_${userId}`);
+  assert.equal(h.selected[1][1],child); assert.equal(h.selected[1][2].httpOnly,true);
 });
 
 test('invalid details, team members and revoked sessions cannot create a business or change its context', async()=>{

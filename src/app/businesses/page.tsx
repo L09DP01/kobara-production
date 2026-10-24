@@ -1,14 +1,20 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-import { getAccessibleMerchants } from '@/lib/server/merchant-context';
+import { getAccessibleMerchants, lastBusinessCookie, MERCHANT_CONTEXT_COOKIE, resumableBusiness } from '@/lib/server/merchant-context';
+import { cookies } from 'next/headers';
+import { ResumeBusiness } from '@/components/dashboard/resume-business';
 import { switchBusinessAction } from '@/app/dashboard/businesses/actions';
 import { ArrowRight } from 'lucide-react';
 
-export default async function BusinessSelectionPage() {
+export default async function BusinessSelectionPage({ searchParams }: { searchParams: Promise<{ choose?: string }> }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/login');
   const businesses = await getAccessibleMerchants(session.user.id);
   if (!businesses.length) redirect('/onboarding');
+  const store = await cookies();
+  const remembered = [store.get(lastBusinessCookie(session.user.id))?.value, store.get(MERCHANT_CONTEXT_COOKIE)?.value];
+  const last = resumableBusiness(businesses, remembered);
+  if ((await searchParams).choose !== '1') return <ResumeBusiness merchantId={last.id} />;
 
   async function selectBusiness(formData: FormData) {
     'use server';

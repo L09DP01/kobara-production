@@ -16,6 +16,7 @@ export async function getCurrentUserAndMerchant() {
   const cookieStore = await cookies();
   const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
   const { merchant, userRole } = await resolveMerchantContext(user.id, activeMerchantId);
+  if (!activeMerchantId && merchant) redirect('/businesses');
   if (!merchant && activeMerchantId) redirect('/businesses');
 
   if (!merchant || (userRole === 'owner' && (!merchant.phone || !merchant.category))) {

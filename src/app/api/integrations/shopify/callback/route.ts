@@ -23,7 +23,7 @@ function dashboardRedirect(path: string) {
 }
 
 function telegramRedirect() {
-  const username = (process.env.TELEGRAM_BOT_USERNAME || 'KobaraPayBot').replace(/^@/, '');
+  const username = (process.env.TELEGRAM_BOT_USERNAME || 'KobaraBot').replace(/^@/, '');
   return NextResponse.redirect(`https://t.me/${username}`);
 }
 

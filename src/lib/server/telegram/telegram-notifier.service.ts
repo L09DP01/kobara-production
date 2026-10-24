@@ -166,7 +166,7 @@ ${withdrawal.error_message ? `⚠️ <b>Motif :</b> ${withdrawal.error_message}\
     sendToMerchantsDirect?: boolean;
   }) {
     const supabase = createAdminClient();
-    const channelId = process.env.TELEGRAM_COMMUNITY_CHANNEL_ID || '@KobaraCommunity';
+    const channelId = process.env.TELEGRAM_COMMUNITY_CHANNEL_ID || '@KobaraCommunauty';
 
     const announcementText = `
 📢 <b>NOUVELLE ANNONCE KOBARA</b>

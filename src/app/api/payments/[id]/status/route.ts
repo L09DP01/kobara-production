@@ -120,7 +120,7 @@ export async function GET(
     const isTelegramSubscription = payment.metadata?.is_subscription_upgrade
       && payment.metadata?.initiated_from === 'telegram_bot';
     const successRedirect = isTelegramSubscription
-      ? responsePayment.success_url || payment.metadata?.success_url || 'https://t.me/KobaraPayBot'
+      ? responsePayment.success_url || payment.metadata?.success_url || 'https://t.me/KobaraBot'
       : payment.metadata?.is_subscription_upgrade
         ? `/pay/plan-success?payment_id=${encodeURIComponent(paymentId)}`
       : responsePayment.success_url || `/pay/success?reference=${encodeURIComponent(reference)}&amount=${encodeURIComponent(String(responsePayment.amount))}&currency=${encodeURIComponent(responsePayment.currency || 'HTG')}&method=${encodeURIComponent(responsePayment.payment_method || responsePayment.provider || '')}`;

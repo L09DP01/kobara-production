@@ -51,6 +51,7 @@ async function database() {
     GRANT SELECT ON public.payments TO anon;
   `);
   await db.exec(fs.readFileSync(new URL('../supabase/migrations/20261023204248_multi_business_accounts.sql', import.meta.url), 'utf8'));
+  await db.exec(fs.readFileSync(new URL('../supabase/migrations/20261023225837_fix_multi_business_live_access.sql', import.meta.url), 'utf8'));
   await db.query('INSERT INTO users(id) VALUES ($1),($2),($3)', [ids.user,ids.other,ids.member]);
   await db.query('UPDATE users SET email=$1 WHERE id=$2',['owner@example.invalid',ids.user]);
   await db.query('INSERT INTO super_admins(id) VALUES ($1)', [ids.admin]);
@@ -70,6 +71,23 @@ async function identity(db, role, user, business) {
     [role,user || '',JSON.stringify(business ? {'x-kobara-merchant-id':business} : {})]);
   await db.exec(`SET ROLE ${role}`);
 }
+
+test('validated legacy live and limited_live owners can create and approve another business without weakening restrictions', async () => {
+  for (const access of ['live', 'limited_live']) {
+    const db = await database();
+    try {
+      await db.query('UPDATE merchants SET account_access=$1 WHERE id=$2', [access, ids.root]);
+      const id = await create(db);
+      await db.query('SELECT review_additional_business($1,$2,true)', [id, ids.admin]);
+      await db.query("INSERT INTO payments(merchant_id,environment,amount) VALUES ($1,'live',100)", [id]);
+      await db.query('UPDATE merchants SET account_access=$1 WHERE id=$2', [access, ids.root]);
+      assert.equal((await db.query('SELECT kyc_status FROM merchants WHERE id=$1', [id])).rows[0].kyc_status, 'approved');
+      await db.query("UPDATE merchants SET account_access='reverify_required' WHERE id=$1", [ids.root]);
+      await assert.rejects(create(db, ids.request2), /verified_owner_required/);
+      assert.equal((await db.query('SELECT kyc_status FROM merchants WHERE id=$1', [id])).rows[0].kyc_status, 'in_review');
+    } finally { await db.close(); }
+  }
+});
 
 test('additional businesses reuse only the owner reference, start pending with zero funds, and creation is idempotent', async () => {
   const db = await database();

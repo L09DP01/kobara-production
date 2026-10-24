@@ -761,7 +761,7 @@ export async function getTelegramLinkStatusAction() {
     firstName: link?.first_name || null,
     notificationsEnabled: link?.notifications_enabled ?? false,
     linkedAt: link?.linked_at || null,
-    botUsername: process.env.TELEGRAM_BOT_USERNAME || 'KobaraPayBot',
+    botUsername: process.env.TELEGRAM_BOT_USERNAME || 'KobaraBot',
   };
 }
 
@@ -796,7 +796,7 @@ export async function generateTelegramLinkTokenAction() {
     throw new Error("Impossible de générer le lien de connexion Telegram.");
   }
 
-  const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'KobaraPayBot';
+  const botUsername = process.env.TELEGRAM_BOT_USERNAME || 'KobaraBot';
   const telegramUrl = `https://t.me/${botUsername}?start=${token}`;
 
   return {

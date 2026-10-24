@@ -160,12 +160,12 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
             </div>
           </div>
           <a
-            href="https://t.me/KobaraCommunity"
+            href="https://t.me/KobaraCommunauty"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
           >
-            <span>Rejoindre @KobaraCommunity</span>
+            <span>Rejoindre @KobaraCommunauty</span>
             <span className="material-symbols-outlined text-[14px]">open_in_new</span>
           </a>
         </div>

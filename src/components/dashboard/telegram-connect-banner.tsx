@@ -104,7 +104,7 @@ export function TelegramConnectBanner({
               </span>
             </div>
             <p className="mt-1 text-xs text-slate-300 max-w-2xl leading-relaxed">
-              Soyez notifié instantanément de chaque encaissement MonCash & NatCash, créez des liens de paiement, gérez vos retraits sécurisés par OTP et échangez avec les marchands sur le canal officiel <strong>@KobaraCommunity</strong>.
+              Soyez notifié instantanément de chaque encaissement MonCash & NatCash, créez des liens de paiement, gérez vos retraits sécurisés par OTP et échangez avec les marchands sur le canal officiel <strong>@KobaraCommunauty</strong>.
             </p>
           </div>
         </div>
@@ -122,7 +122,7 @@ export function TelegramConnectBanner({
           </button>
 
           <a
-            href="https://t.me/KobaraCommunity"
+            href="https://t.me/KobaraCommunauty"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1.5 rounded-xl border border-blue-500/30 bg-blue-950/40 px-3.5 py-2 text-xs font-bold text-blue-300 hover:bg-blue-900/50 hover:text-white transition-all"

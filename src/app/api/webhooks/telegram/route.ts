@@ -59,7 +59,7 @@ export async function GET(request: Request) {
     service: 'Kobara Telegram Bot Webhook Service',
     status: botToken ? 'ready' : 'token_missing',
     tokenConfigured: !!botToken,
-    botUsername: process.env.TELEGRAM_BOT_USERNAME || 'KobaraPayBot',
+    botUsername: process.env.TELEGRAM_BOT_USERNAME || 'KobaraBot',
     expectedWebhookUrl: webhookUrl,
     telegramBotInfo: botInfo,
     currentTelegramWebhookInfo: currentWebhook,

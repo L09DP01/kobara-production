@@ -3,6 +3,10 @@ import { createAdminClient } from '@/utils/supabase/admin';
 
 export const MERCHANT_CONTEXT_COOKIE = 'kobara_active_merchant';
 export const MERCHANT_CONTEXT_HEADER = 'x-kobara-merchant-id';
+export const lastBusinessCookie = (userId: string) => `kobara_last_business_${userId}`;
+export function resumableBusiness<T extends { id: string }>(businesses: T[], remembered: (string | undefined)[]) {
+  return remembered.map(id => businesses.find(b => b.id === id)).find(Boolean) || businesses[0];
+}
 export const isMerchantId = (value: unknown): value is string => typeof value === 'string'
   && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
