@@ -45,6 +45,8 @@ function fixture() {
   } };
   const mocks = {
     'server-only': {}, '@/utils/supabase/admin': { createAdminClient: () => db },
+    '@/lib/server/business-activation': { maybeActivateAdditionalBusiness: async merchant => merchant },
+    '@/lib/business-status': load('../src/lib/business-status.ts', {}),
     '@/lib/server/merchant-context': {
       getAccessibleMerchants: async () => structuredClone(merchants),
       isMerchantId: value => typeof value === 'string' && /^20000000-0000-4000-8000-00000000000[123]$/.test(value),

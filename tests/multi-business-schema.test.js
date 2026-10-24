@@ -10,7 +10,7 @@ const ids = {
   request: '30000000-0000-4000-8000-000000000001', request2: '30000000-0000-4000-8000-000000000002',
 };
 
-async function database() {
+async function database(autoActivation = false) {
   const db = await PGlite.create();
   await db.exec(`
     CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role BYPASSRLS;
@@ -58,8 +58,99 @@ async function database() {
   await db.query(`INSERT INTO merchants(id,user_id,business_name,business_slug,email,kyc_status,current_environment,available_balance,created_at)
     VALUES ($1,$2,'Academie A','academie-a','owner@example.invalid','approved','live',5000,'2020-01-01'),
       ($3,$4,'Atelier B','atelier-b','other@example.invalid','approved','live',7000,'2020-01-02')`, [ids.root,ids.user,ids.otherRoot,ids.other]);
+  if (autoActivation) await enableAutomaticActivation(db);
   return db;
 }
+
+async function enableAutomaticActivation(db) {
+  await db.exec(`
+    CREATE TABLE public.merchant_restrictions(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),merchant_id uuid,lifted_at timestamptz);
+    CREATE TABLE public.compliance_cases(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),merchant_id uuid,case_status text);
+    CREATE TABLE public.kyc_fraud_cases(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),primary_merchant_id uuid,related_merchant_id uuid,
+      status text,primary_verdict text,related_verdict text);
+    CREATE TABLE public.payment_links(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),merchant_id uuid,environment text DEFAULT 'live');
+  `);
+  await db.query('UPDATE merchants SET kyc_verified_at=now() WHERE id=$1',[ids.root]);
+  await db.query("INSERT INTO kyc_profiles(merchant_id,status,approved_at) VALUES ($1,'approved',now())",[ids.root]);
+  await db.exec(fs.readFileSync(new URL('../supabase/migrations/20261024005601_auto_activate_verified_owner_businesses.sql',import.meta.url),'utf8'));
+}
+
+test('automatic creation reuses approved identity, activates directly in live and produces exactly one audit decision', async () => {
+  const db = await database(true);
+  try {
+    const id = await create(db);
+    const business = (await db.query('SELECT * FROM merchants WHERE id=$1',[id])).rows[0];
+    assert.equal(business.kyc_status,'approved');
+    assert.equal(business.business_verification_status,'approved');
+    assert.equal(business.current_environment,'live');
+    assert.equal(Number(business.available_balance),0);
+    assert.equal(business.business_review_json.decision_source,'verified_kyc_reuse');
+    assert.equal(await create(db),id);
+    assert.equal((await db.query('SELECT auto_activate_additional_business($1,$2) AS ok',[id,ids.user])).rows[0].ok,false);
+    assert.equal((await db.query("SELECT count(*)::int AS count FROM audit_logs WHERE action='business.auto_approved' AND merchant_id=$1",[id])).rows[0].count,1);
+    assert.equal((await db.query('SELECT status FROM kyc_profiles WHERE merchant_id=$1',[id])).rows[0].status,'approved');
+    await db.query("INSERT INTO payments(merchant_id,environment,amount) VALUES ($1,'live',100)",[id]);
+    for (const table of ['payments','withdrawals','api_keys','payment_links']) {
+      await assert.rejects(db.query(`INSERT INTO ${table}(merchant_id,environment) VALUES ($1,'test')`,[id]),/additional_business_production_only/);
+    }
+    await db.query("UPDATE merchants SET current_environment='test' WHERE id=$1",[id]);
+    assert.equal((await db.query('SELECT current_environment FROM merchants WHERE id=$1',[id])).rows[0].current_environment,'live');
+    await db.query("UPDATE merchants SET shopify_review_mode=true WHERE id=$1",[ids.root]);
+    await assert.rejects(create(db,ids.request2),/verified_owner_required/);
+    await db.query("INSERT INTO payments(merchant_id,environment) VALUES ($1,'test')",[ids.root]);
+  } finally { await db.close(); }
+});
+
+test('automatic activation leaves unverified, restricted or flagged owners pending without granting test access', async () => {
+  const db = await database(true);
+  try {
+    await db.query("INSERT INTO merchant_restrictions(merchant_id) VALUES ($1)",[ids.root]);
+    const id = await create(db);
+    const attempt = async () => (await db.query('SELECT auto_activate_additional_business($1,$2) AS ok',[id,ids.user])).rows[0].ok;
+    assert.equal(await attempt(),false);
+    assert.equal((await db.query('SELECT current_environment FROM merchants WHERE id=$1',[id])).rows[0].current_environment,'live');
+    await db.query('UPDATE merchant_restrictions SET lifted_at=now()');
+    await db.query("INSERT INTO compliance_cases(merchant_id,case_status) VALUES ($1,'under_review')",[ids.root]);
+    assert.equal(await attempt(),false);
+    await db.query("UPDATE compliance_cases SET case_status='closed'");
+    await db.query("INSERT INTO kyc_fraud_cases(primary_merchant_id,status) VALUES ($1,'open')",[ids.root]);
+    assert.equal(await attempt(),false);
+    await db.query("UPDATE kyc_fraud_cases SET status='resolved'");
+    await db.query('UPDATE users SET email_verified=false WHERE id=$1',[ids.user]);
+    assert.equal(await attempt(),false);
+    await db.query('UPDATE users SET email_verified=true,is_active=false WHERE id=$1',[ids.user]);
+    assert.equal(await attempt(),false);
+    await db.query('UPDATE users SET is_active=true WHERE id=$1',[ids.user]);
+    await db.query("UPDATE kyc_profiles SET status='pending' WHERE merchant_id=$1",[ids.root]);
+    assert.equal(await attempt(),false);
+    await db.query("UPDATE kyc_profiles SET status='approved' WHERE merchant_id=$1",[ids.root]);
+    await db.query('UPDATE merchants SET kyc_verified_at=NULL WHERE id=$1',[ids.root]);
+    assert.equal(await attempt(),false);
+    await db.query('UPDATE merchants SET kyc_verified_at=now() WHERE id=$1',[ids.root]);
+    assert.equal(await attempt(),true);
+    await db.query("UPDATE merchants SET account_access='reverify_required',kyc_status='pending_reverification' WHERE id=$1",[ids.root]);
+    await db.query("UPDATE merchants SET account_access='live',kyc_status='approved',kyc_verified_at=now() WHERE id=$1",[ids.root]);
+    assert.equal(await attempt(),false);
+    assert.equal((await db.query('SELECT business_verification_status FROM merchants WHERE id=$1',[id])).rows[0].business_verification_status,'pending');
+  } finally { await db.close(); }
+});
+
+test('existing pending activities are automatically checked, manual decisions and legitimate protected owners are preserved', async () => {
+  const db = await database();
+  try {
+    const id = await create(db);
+    await enableAutomaticActivation(db);
+    assert.equal((await db.query('SELECT kyc_status FROM merchants WHERE id=$1',[id])).rows[0].kyc_status,'approved');
+    await db.query("INSERT INTO kyc_fraud_cases(primary_merchant_id,related_merchant_id,status,primary_verdict,related_verdict) VALUES ($1,$2,'confirmed_fraud','fraudulent','legitimate')",[ids.otherRoot,ids.root]);
+    const second = await create(db,ids.request2);
+    assert.equal((await db.query('SELECT kyc_status FROM merchants WHERE id=$1',[second])).rows[0].kyc_status,'approved');
+    await db.query("UPDATE merchants SET business_verification_status='rejected',kyc_status='rejected' WHERE id=$1",[id]);
+    assert.equal((await db.query('SELECT auto_activate_additional_business($1,$2) AS ok',[id,ids.user])).rows[0].ok,false);
+    assert.equal((await db.query('SELECT auto_activate_additional_business($1,$2) AS ok',[second,ids.other])).rows[0].ok,false);
+    await identity(db,'authenticated',ids.user,second);
+    await assert.rejects(db.query('SELECT auto_activate_additional_business($1,$2)',[id,ids.user]),/permission denied/);
+  } finally { await db.close(); }
+});
 
 async function create(db, requestId=ids.request, user=ids.user, source=ids.root) {
   return (await db.query(`SELECT public.create_additional_business($1,$2,$3,'Academie Express','services','+50940000000',

@@ -88,14 +88,16 @@ export async function updatePaymentLink(formData: FormData) {
 
   const amount = amountStr ? parseFloat(amountStr) : null;
 
-  const { error } = await supabase
+  const { error } = await adminClient
     .from('payment_links')
     .update({
       title,
       amount,
       description,
     })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('merchant_id', merchant.id)
+    .eq('environment', 'live');
 
   if (error) {
     console.error("Erreur lors de la modification du lien de paiement:", error);

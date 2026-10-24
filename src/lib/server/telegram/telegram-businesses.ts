@@ -6,6 +6,8 @@ import { getAccessibleMerchants, isMerchantId } from '@/lib/server/merchant-cont
 import { businessSchema, createOwnedBusiness } from '@/lib/server/create-business';
 import { getBusinessNameValidationError } from '@/lib/business-name';
 import { TelegramClient } from './telegram-client';
+import { maybeActivateAdditionalBusiness } from '@/lib/server/business-activation';
+import { businessEnvironmentLabel } from '@/lib/business-status';
 
 const escape = (value: unknown) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const fields = ['business_name', 'category', 'phone', 'address', 'description', 'website'] as const;
@@ -31,12 +33,12 @@ export async function getTelegramBusinessAccount(chatId: string | number) {
   if (userError) throw new Error('telegram_user_lookup_failed');
   if (!user || user.is_active === false) return null;
   const selected = link.session_state?.active_merchant_id;
-  if (!selected || selected === anchor.id) return { link, merchant: anchor, ownerId: anchor.user_id };
+  if (!selected || selected === anchor.id) return { link, merchant: await maybeActivateAdditionalBusiness(anchor), ownerId: anchor.user_id };
   if (!isMerchantId(selected)) return null;
   const { data: merchant, error: merchantError } = await db.from('merchants').select('*')
     .eq('id', selected).eq('user_id', anchor.user_id).maybeSingle();
   if (merchantError) throw new Error('telegram_business_lookup_failed');
-  return merchant ? { link, merchant, ownerId: anchor.user_id } : null;
+  return merchant ? { link, merchant: await maybeActivateAdditionalBusiness(merchant), ownerId: anchor.user_id } : null;
 }
 
 export async function saveTelegramBusinessState(chatId: string | number, state: any, selection?: string, expectedBusinessId?: string) {
@@ -68,7 +70,7 @@ export class TelegramBusinesses {
     await saveTelegramBusinessState(chatId, {}, undefined, account.merchant.id);
     const businesses = (await getAccessibleMerchants(account.ownerId)).filter(b => b.user_id === account.ownerId && b.role === 'owner');
     const buttons = businesses.map(b => [{
-      text: `${b.id === account.merchant.id ? '✓ ' : ''}${String(b.business_name).slice(0, 45)} · ${b.current_environment === 'live' ? 'Production' : 'Test'}`,
+      text: `${b.id === account.merchant.id ? '✓ ' : ''}${String(b.business_name).slice(0, 45)} · ${businessEnvironmentLabel(b)}`,
       callback_data: `business:switch:${b.id}`,
     }]);
     buttons.push([{ text: '+ Ajouter un business', callback_data: 'business:create' }]);
@@ -119,7 +121,7 @@ export class TelegramBusinesses {
         return { success: true };
       }
       await saveTelegramBusinessState(chatId, {}, result.merchantId, account.merchant.id);
-      await TelegramClient.sendMessage(chatId, `Business <b>${escape(state.details.business_name)}</b> créé et sélectionné.\nL’identité du propriétaire est conservée. La nouvelle activité doit être validée avant les paiements réels.\n/business pour revenir à un autre business.`, { parse_mode: 'HTML' });
+      await TelegramClient.sendMessage(chatId, `Business <b>${escape(state.details.business_name)}</b> créé et sélectionné.\nL’identité du propriétaire est conservée. L’activation en Production est automatique si les contrôles KYC et de restriction sont validés.\n/business pour consulter le statut ou changer de business.`, { parse_mode: 'HTML' });
       return { success: true };
     }
     const index = state.field;

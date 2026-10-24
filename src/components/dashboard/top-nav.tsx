@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { businessEnvironmentLabel } from '@/lib/business-status';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { performFullLogout } from '@/lib/utils/logout-client';
@@ -278,7 +279,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                         className={`flex min-h-16 w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-orange-400 disabled:opacity-70 ${m.id === merchant?.id ? 'bg-orange-500/10 text-orange-400' : 'text-slate-200 hover:bg-white/5'}`}
                       >
                         <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-slate-600 bg-slate-800 text-xs font-bold text-white">{m.logo_url ? <img src={m.logo_url} alt="" className="h-full w-full object-cover" /> : String(m.business_name || 'Business').split(/\s+/).slice(0, 2).map((word: string) => word[0]).join('').toUpperCase()}</span>
-                        <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{m.business_name}</span><span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-[10px] ${m.kyc_status === 'approved' && m.current_environment === 'live' && !m.shopify_review_mode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-300'}`}>{m.kyc_status === 'approved' && m.current_environment === 'live' && !m.shopify_review_mode ? 'Production' : 'Test'}</span></span>
+                        <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{m.business_name}</span><span className={`mt-1 inline-flex rounded px-1.5 py-0.5 text-[10px] ${m.kyc_status === 'approved' && m.current_environment === 'live' && !m.shopify_review_mode ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-300'}`}>{businessEnvironmentLabel(m)}</span></span>
                         {switchingBusiness === m.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : m.id === merchant?.id ? <Check className="h-4 w-4 shrink-0 text-orange-400" aria-label="Business actif" /> : null}
                       </button>
                     ))}

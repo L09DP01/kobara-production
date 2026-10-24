@@ -21,7 +21,7 @@ export function NewBusinessDialog({ open, onOpenChange }: { open: boolean; onOpe
       const result = await createBusinessAction({ ...Object.fromEntries(form), requestId: requestId.current });
       if (result.error) { setError(result.error); setPending(false); return; }
       try { localStorage.setItem('kobara_business_context', result.merchantId!); } catch { /* Storage can be disabled. */ }
-      window.location.assign('/dashboard/kyc');
+      window.location.assign('/dashboard');
     } catch { setError('Connexion interrompue. Vous pouvez réessayer.'); setPending(false); }
   }
 
@@ -29,7 +29,7 @@ export function NewBusinessDialog({ open, onOpenChange }: { open: boolean; onOpe
     <DialogContent className="max-h-[90dvh] overflow-y-auto border-slate-700 bg-[#111C2C] text-white sm:max-w-xl">
       <DialogHeader className="border-slate-700 bg-transparent text-left">
         <DialogTitle>Ajouter un business</DialogTitle>
-        <DialogDescription className="pr-5 text-sm text-slate-400">Identité du propriétaire conservée. Validation de la nouvelle activité avant les paiements réels.</DialogDescription>
+        <DialogDescription className="pr-5 text-sm text-slate-400">Identité du propriétaire conservée. Activation automatique en Production après contrôle de la vérification et des restrictions.</DialogDescription>
       </DialogHeader>
       <form onSubmit={submit} className="space-y-4 p-5">
         <label className="block text-sm font-medium">Nom du business<input name="business_name" autoComplete="organization" required maxLength={255} className={fieldClass} /></label>

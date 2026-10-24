@@ -27,9 +27,9 @@ export default async function KycPage() {
       <div className="flex items-center gap-3"><ShieldCheck className="h-6 w-6 text-orange-400" /><h1 className="text-2xl font-bold">Validation de l’activité</h1></div>
       <p className="text-sm text-slate-400">{merchant.business_name}</p>
       <div role="status" className={`border-l-2 py-3 pl-4 ${approved ? 'border-emerald-500' : rejected ? 'border-red-400' : 'border-amber-400'}`}>
-        <h2 className="font-semibold">{approved ? 'Activité approuvée' : rejected ? 'Informations complémentaires nécessaires' : 'Activité en cours d’examen'}</h2>
+        <h2 className="font-semibold">{approved ? 'Activité active en Production' : rejected ? 'Informations complémentaires nécessaires' : 'Contrôle automatique en attente'}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">L’identité du propriétaire est liée à votre compte existant. Aucune nouvelle pièce d’identité n’est demandée pour ce business.</p>
-        <p className="mt-2 text-sm leading-6 text-slate-300">{approved ? 'Les paiements réels sont disponibles pour ce business.' : 'Les paiements réels restent désactivés jusqu’à la validation de cette activité et de l’identité du propriétaire.'}</p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">{approved ? 'Les paiements réels et les retraits sont disponibles selon les conditions de votre compte.' : 'L’activation en Production est automatique lorsque l’identité du propriétaire est validée et qu’aucune restriction ni alerte en cours ne bloque le compte. Sinon, les paiements réels et les retraits restent désactivés.'}</p>
         {merchant.business_review_json?.note && <p className="mt-3 text-sm text-slate-300">{merchant.business_review_json.note}</p>}
       </div>
       <dl className="divide-y divide-slate-800 text-sm">

@@ -11,6 +11,7 @@ import type { MerchantReferralSummary } from '@/components/dashboard/merchant-re
 import { resolveMerchantContext, merchantSwitcherOptions } from '@/lib/server/merchant-context';
 import Link from 'next/link';
 import { hasBusinessAccess } from '@/lib/business-creation-error';
+import { maybeActivateAdditionalBusiness } from '@/lib/server/business-activation';
 
 export default async function DashboardLayout({
   children,
@@ -56,6 +57,9 @@ export default async function DashboardLayout({
     if (!activeMerchantId && context.merchant) redirect('/businesses');
     accessibleMerchants = context.accessibleMerchants;
     merchant = context.merchant;
+    if (merchant && context.userRole === 'owner') merchant = await maybeActivateAdditionalBusiness(merchant);
+    const currentMerchant = merchant;
+    if (currentMerchant) accessibleMerchants = accessibleMerchants.map(item => item.id === currentMerchant.id ? { ...item, ...currentMerchant } : item);
     userRole = context.userRole || 'owner';
 
     if (merchant) {

@@ -9,6 +9,9 @@ The creation action returns an unavailable message if the RPC is not installed.
 Then apply `supabase/migrations/20261023225837_fix_multi_business_live_access.sql`.
 This follow-up recognizes existing `live` and `limited_live` access levels as
 unrestricted, without changing KYC approval, restrictions or review requirements.
+Finally apply `supabase/migrations/20261024005601_auto_activate_verified_owner_businesses.sql`
+to enable automatic activation. It also checks existing pending activities using
+the same rules. None of these migrations is executed against production by tests.
 
 The Supabase project configured locally must not be assumed to be production.
 Do not run `db push` against an unconfirmed project.
@@ -24,13 +27,24 @@ No keys, balances, integrations or identity documents are copied to a new busine
 Adding a business requires an authenticated, non-revoked owner session and a
 verified, unrestricted primary identity. A new business references that identity
 using `identity_owner_merchant_id`; it does not start another Didit session.
-The new activity is initially in review, with no live collection access. Test is
-an environment label, not an exemption from business verification or an automatic
-grant of simulation privileges.
+The new activity is checked automatically in the creation transaction. The owner
+must have an active, email-verified account, an approved merchant KYC with a verified
+timestamp and an approved KYC profile. Active restrictions or open compliance/fraud
+cases prevent approval. A confirmed legitimate identity owner is not penalized for
+a closed fraudulent duplicate account. Incomplete evidence leaves the business in
+review. No new document analysis or language-model assertion can grant access.
+
+Eligible activities are activated directly in Production. Other activities stay
+blocked, not in a usable Test environment. The Test badge is reserved for the
+Shopify demonstration account. Additional-business test payments, withdrawals,
+API keys and payment links are rejected by database guards. Existing in-flight
+financial records remain settleable for audit and accounting purposes.
 
 System Core > KYC shows the activity description, address and declared website,
 plus the primary identity reference. Compliance can approve/reject it separately.
-Approval is atomic and requires the primary owner to remain verified. Rejection
+Automatic approval is audited as `business.auto_approved` with policy version
+`verified_owner_v1` and decision source `verified_kyc_reuse`. Approval is atomic
+and requires the primary owner to remain verified. Rejection
 and owner reverification keep live access disabled. The support link handles any
 request for additional evidence; documents are not duplicated automatically.
 

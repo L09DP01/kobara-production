@@ -16,7 +16,7 @@ with sync_playwright() as p:
         expect(page.get_by_text("Mes business", exact=True)).to_be_visible()
         expect(page.locator("#business-switcher button[aria-current='true']")).to_have_count(1)
         expect(page.locator("#business-switcher").get_by_text("Production", exact=True)).to_have_count(2)
-        expect(page.locator("#business-switcher").get_by_text("Test", exact=True)).to_have_count(1)
+        expect(page.locator("#business-switcher").get_by_text("En validation", exact=True)).to_have_count(1)
         box = page.locator("#business-switcher").bounding_box()
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
         page.screenshot(path=str(output / f"menu-{width}.png"), full_page=True)

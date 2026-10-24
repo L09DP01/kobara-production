@@ -4,6 +4,7 @@ import { createClient } from "./server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolveMerchantContext } from '@/lib/server/merchant-context';
+import { maybeActivateAdditionalBusiness } from '@/lib/server/business-activation';
 
 export async function getCurrentUserAndMerchant() {
   const session = await auth() as any;
@@ -15,7 +16,9 @@ export async function getCurrentUserAndMerchant() {
 
   const cookieStore = await cookies();
   const activeMerchantId = cookieStore.get('kobara_active_merchant')?.value;
-  const { merchant, userRole } = await resolveMerchantContext(user.id, activeMerchantId);
+  const context = await resolveMerchantContext(user.id, activeMerchantId);
+  const userRole = context.userRole;
+  const merchant = context.merchant && userRole === 'owner' ? await maybeActivateAdditionalBusiness(context.merchant) : context.merchant;
   if (!activeMerchantId && merchant) redirect('/businesses');
   if (!merchant && activeMerchantId) redirect('/businesses');
 
