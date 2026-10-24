@@ -280,10 +280,12 @@ export class CampaignService {
 
       try {
         const sendResult = await sendEmail({
+          kind: 'marketing',
           to: recipient.recipient_email,
           subject: campaign.subject,
           text: campaign.content,
           html: campaign.content_html || undefined,
+          idempotencyKey: `campaign-recipient-${recipient.id}`,
         });
 
         if (sendResult.success) {

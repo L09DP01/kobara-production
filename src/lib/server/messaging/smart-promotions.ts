@@ -59,7 +59,7 @@ export async function sendSmartPromotions() {
         const unsubscribe = `https://kobara.app/promotions/unsubscribe?token=${promotionToken(recipient.id, promotionSecret())}`;
         const text = `${copy.body}\n\nOuvrir Kobara : ${PROMOTION_SEGMENTS[segment].cta}\n\nNe plus recevoir de promotions : ${unsubscribe}`;
         const escape = (s: string) => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-        const delivery = await sendEmail({ to: recipient.email, subject: copy.subject, text,
+        const delivery = await sendEmail({ to: recipient.email, subject: copy.subject, text, kind: 'marketing',
           html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:24px;color:#10131d"><p style="white-space:pre-wrap;line-height:1.7">${escape(copy.body)}</p><p><a href="${PROMOTION_SEGMENTS[segment].cta}">Ouvrir Kobara</a></p><p style="font-size:12px"><a href="${unsubscribe}">Se désabonner des promotions</a></p></div>`,
           replyTo: 'support@kobara.app', idempotencyKey: `smart-promotion-${recipient.id}` });
         const { error: saveError } = await db.from('smart_promotion_recipients').update({ status: delivery.success ? 'sent' : 'failed', sent_at: delivery.success ? new Date().toISOString() : null }).eq('id', recipient.id).eq('lease_token', recipient.lease_token);

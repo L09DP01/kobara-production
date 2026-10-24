@@ -4,7 +4,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 
 export function getRuntimeEnvironmentValue(name: string): string {
   try {
-    const env = getCloudflareContext().env as Partial<Record<string, unknown>>;
+    const env = getCloudflareContext().env as unknown as Partial<Record<string, unknown>>;
     const value = env[name];
     if (typeof value === 'string' && value.trim()) {
       return value.trim();

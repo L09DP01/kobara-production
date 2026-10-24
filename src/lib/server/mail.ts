@@ -1,6 +1,5 @@
 import { isReviewAccount, isReviewEmail } from '@/lib/review-account';
-// Module d'envoi d'e-mails pour Kobara utilisant Resend
-// Fonctionne de manière native sur les environnements Edge et Serverless comme Vercel
+// Transactional mail uses Cloudflare first; Resend handles fallback and marketing.
 
 type EmailTemplateProps = {
   subject: string;
@@ -127,7 +126,7 @@ export function emailSenderWithName(configuredSender: string, senderName?: strin
 }
 
 async function sendEmailCore(
-  { to, subject, html, text, replyTo, idempotencyKey, senderName }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string },
+  { to, subject, html, text, replyTo, idempotencyKey, senderName, kind = 'transactional' }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing' },
 ): Promise<{ success: boolean; error?: string }> {
   if (isReviewEmail(to)) return { success: true };
   // Suppress interactive mail (invitations, support, settings) initiated by reviewers.
@@ -144,15 +143,12 @@ async function sendEmailCore(
     if (error) return { success: false, error: 'Vérification du contexte e-mail indisponible' };
     if (merchants?.some(isReviewAccount)) return { success: true };
   }
-  const separator = "─".repeat(56);
-  console.log(`
-┌${separator}┐
-│ 📧 [KOBARA EMAIL LOG]                                  │
-│                                                        │
-│ Destinataire : ${to.padEnd(39)} │
-│ Sujet        : ${subject.padEnd(39)} │
-└${separator}┘
-  `);
+  if (kind === 'transactional') {
+    const { tryCloudflareEmail } = await import('./email/cloudflare');
+    const result = await tryCloudflareEmail({ to, subject, html, text, replyTo, senderName });
+    if (result.status === 'accepted') return { success: true };
+    if (result.status === 'failed') return { success: false, error: result.error };
+  }
 
   if (!process.env.RESEND_API_KEY) {
     console.log(`[INFO] Clé RESEND_API_KEY manquante. L'e-mail a été généré en mode développement.`);
@@ -172,6 +168,7 @@ async function sendEmailCore(
   };
 
   const maxRetries = 4;
+  const deliveryKey = idempotencyKey || `kobara-email-${crypto.randomUUID()}`;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const res = await scheduleEmailSend(() =>
@@ -180,7 +177,7 @@ async function sendEmailCore(
           headers: {
             'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
             'Content-Type': 'application/json',
-            ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+            'Idempotency-Key': deliveryKey,
           },
           body: JSON.stringify(payload)
         })
@@ -330,12 +327,12 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
 }
 
 // Fonction générique (pour la rétrocompatibilité)
-export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey, senderName }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string }) {
+export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey, senderName, kind }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing' }) {
   const generatedHtml = html || renderEmailTemplate({
     subject,
     paragraphs: text.split('\n\n').filter(p => p.trim() !== '')
   });
-  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName });
+  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName, kind });
 }
 
 export async function sendBulkEmail({

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ProfileSettings } from './components/ProfileSettings';
 import { SecuritySettings } from './components/SecuritySettings';
@@ -17,6 +17,9 @@ export function SettingsClient({ user, merchant, settings, members, paymentMetho
   const validTabs: Tab[] = ['profile', 'paymentMethods', 'payouts', 'security', 'notifications', 'team'];
   const requestedTab = validTabs.includes(initialTab as Tab) ? initialTab as Tab : 'profile';
   const [activeTab, setActiveTab] = useState<Tab>(!kycApproved || (userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab)) ? 'profile' : requestedTab);
+  useEffect(() => {
+    setActiveTab(!kycApproved || (userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab)) ? 'profile' : requestedTab);
+  }, [requestedTab, kycApproved, userRole]);
 
   const tabs: { id: Tab, label: string, icon: any, desc: string, ownerOnly?: boolean }[] = [
     { id: 'profile', label: 'Profil Entreprise', icon: Store, desc: 'Logo, nom, adresse' },
