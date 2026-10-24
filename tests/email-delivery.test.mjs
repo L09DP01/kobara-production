@@ -84,3 +84,10 @@ test('guide destinations exist and marketing remains explicitly classified', () 
     assert.match(read('src/lib/server/messaging/' + file), /kind: 'marketing'/);
   }
 });
+
+test('clean CI builds generate Workers binding types before Next compilation', () => {
+  const scripts = JSON.parse(read('package.json')).scripts;
+  assert.ok(scripts.prebuild.startsWith('npm run cf:typegen &&'));
+  assert.match(scripts['cf:typegen'], /wrangler types --env-interface CloudflareEnv/);
+  assert.match(scripts['cf:typegen'], /--strict-vars false cloudflare-env\.d\.ts/);
+});
