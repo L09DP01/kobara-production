@@ -54,7 +54,7 @@ export function getHaitianMobileWallet(phoneNumber?: string | null): HaitianMobi
   if (!normalized) return null;
 
   const nationalNumber = normalized.slice(3);
-  if (/^(22|32|33|35|40|41|42|43|55)/.test(nationalNumber)) return 'natcash';
+  if (/^(22|32|33|35|40|41|42|43|55|56)/.test(nationalNumber)) return 'natcash';
   if (/^(30|31|34|36|37|38|44|46|47|48)/.test(nationalNumber)
       || /^(390|391|392|393|394|399|490|491|492|493|494)/.test(nationalNumber)) {
     return 'moncash';

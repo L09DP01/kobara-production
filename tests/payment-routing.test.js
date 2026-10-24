@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   createPaymReference,
+  getHaitianMobileWallet,
   getRecordedPaymentProcessor,
   isValidPaymReference,
   normalizeHaitianPhoneNumber,
@@ -32,6 +33,21 @@ const bazik = {
   active_provider: 'bazik',
   sms_gateway_enabled: true,
 };
+
+test('Natcom prefixes 55 and 56 route to NatCash in national and international formats', () => {
+  for (const prefix of ['55', '56']) {
+    for (const national of [`${prefix}000000`, `${prefix}999999`]) {
+      for (const phone of [national, `509${national}`, `+509 ${national.slice(0, 2)} ${national.slice(2, 5)} ${national.slice(5)}`]) {
+        assert.equal(getHaitianMobileWallet(phone), 'natcash', phone);
+      }
+    }
+  }
+  for (const phone of ['5500000', '560000000', '+180956000000', '57000000', '54000000']) {
+    assert.equal(getHaitianMobileWallet(phone), null, phone);
+  }
+  assert.equal(getHaitianMobileWallet('37000000'), 'moncash');
+  assert.equal(getHaitianMobileWallet('40000000'), 'natcash');
+});
 
 test('API payment providers are case-insensitive', () => {
   const basePayload = { amount: 1000, currency: 'HTG' };
