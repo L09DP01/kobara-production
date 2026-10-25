@@ -19,8 +19,8 @@ export function NewBusinessDialog({ open, onOpenChange }: { open: boolean; onOpe
     requestId.current ||= crypto.randomUUID();
     try {
       const result = await createBusinessAction({ ...Object.fromEntries(form), requestId: requestId.current });
-      if (result.error) { setError(result.error); setPending(false); return; }
-      try { localStorage.setItem('kobara_business_context', result.merchantId!); } catch { /* Storage can be disabled. */ }
+      if (!('merchantId' in result) || !result.merchantId) { setError(result.error || 'Création du business non confirmée.'); setPending(false); return; }
+      try { localStorage.setItem('kobara_business_context', result.merchantId); } catch { /* Storage can be disabled. */ }
       window.location.assign('/dashboard');
     } catch { setError('Connexion interrompue. Vous pouvez réessayer.'); setPending(false); }
   }
