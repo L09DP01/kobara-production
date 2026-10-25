@@ -6,6 +6,7 @@ import ts from 'typescript';
 import { createHmac } from 'node:crypto';
 import React from 'react';
 import * as reviewAccount from '../src/lib/review-account.ts';
+import * as emailTemplates from '../src/lib/server/email/template.ts';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { canCollectShopifyOrder, isMatchingShopifyPayment, shopifyOrderAmount, shopifyOrderId, shopifyCollectionAmount, SHOPIFY_USD_HTG_RATE, shopifyProductName, matchesShopifyCollectionAmount, shopifyExchangeRate, isValidShopifyRate } from '../src/lib/shopify-policy.ts';
 
@@ -82,6 +83,7 @@ function load(file, mocks = {}) {
   const compiled = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } });
   const module = { exports: {} };
   const defaults = {
+    './email/template': emailTemplates,
     '@/lib/server/shopify-install': { finishShopifyInstall: async () => null, getShopifyInstallHandoff: async () => null, SHOPIFY_INSTALL_COOKIE: '__Host-kobara_shopify_install' },
     'next/headers': { cookies: async () => ({ get: () => undefined }) },
   };

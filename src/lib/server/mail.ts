@@ -1,4 +1,5 @@
 import { isReviewAccount, isReviewEmail } from '@/lib/review-account';
+import { escapeEmailHtml, renderKobaraEmail } from './email/template';
 // Transactional mail uses Cloudflare first; Resend handles fallback and marketing.
 
 type EmailTemplateProps = {
@@ -11,80 +12,12 @@ type EmailTemplateProps = {
 };
 
 function renderEmailTemplate({ subject, greeting, paragraphs, cta, secondaryInfo, alertType }: EmailTemplateProps) {
-  let headerBg = '#F9FAFB';
-  let headerColor = '#E53E3E'; // Rouge Kobara
-  
-  if (alertType === 'warning') {
-    headerBg = '#FFFBEB';
-    headerColor = '#D97706';
-  } else if (alertType === 'critical') {
-    headerBg = '#FEF2F2';
-    headerColor = '#DC2626';
-  }
-
-  const pStyle = "color: #4B5563; font-size: 16px; line-height: 1.6; margin-bottom: 20px;";
-
-  const greetingHtml = greeting ? `<p style="${pStyle} font-weight: 600; color: #111827;">${greeting}</p>` : '';
-  const paragraphsHtml = paragraphs.map(p => `<p style="${pStyle}">${p}</p>`).join('');
-  
-  const ctaHtml = cta ? `
-    <div style="text-align: center; margin: 32px 0;">
-      <a href="${cta.url}" style="background-color: ${headerColor}; color: #ffffff; font-weight: 600; text-decoration: none; padding: 14px 28px; border-radius: 8px; display: inline-block; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-        ${cta.text}
-      </a>
-    </div>
-  ` : '';
-
-  const secondaryHtml = secondaryInfo && secondaryInfo.length > 0 ? `
-    <div style="background-color: #F3F4F6; border-radius: 8px; padding: 16px; margin-top: 32px;">
-      ${secondaryInfo.map(info => `
-        <div style="margin-bottom: 8px; font-size: 14px;">
-          <strong style="color: #374151;">${info.label}:</strong> <span style="color: #6B7280;">${info.value}</span>
-        </div>
-      `).join('')}
-    </div>
-  ` : '';
-
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${subject}</title>
-</head>
-<body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased;">
-  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-    
-    <!-- Card -->
-    <div style="background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); border: 1px solid #E5E7EB;">
-      
-      <!-- Header -->
-      <div style="background-color: ${headerBg}; padding: 32px 40px; text-align: center; border-bottom: 1px solid #E5E7EB;">
-        <h1 style="color: ${headerColor}; font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -0.5px;">Kobara</h1>
-      </div>
-
-      <!-- Body -->
-      <div style="padding: 40px;">
-        <h2 style="color: #111827; font-size: 22px; font-weight: 700; margin-top: 0; margin-bottom: 24px;">${subject}</h2>
-        
-        ${greetingHtml}
-        ${paragraphsHtml}
-        ${ctaHtml}
-        ${secondaryHtml}
-        
-      </div>
-    </div>
-    
-    <!-- Footer -->
-    <div style="text-align: center; margin-top: 32px;">
-      <p style="color: #9CA3AF; font-size: 14px; margin: 0;">© ${new Date().getFullYear()} Kobara App. Tous droits réservés.</p>
-      <p style="color: #9CA3AF; font-size: 14px; margin: 8px 0 0 0;">Infrastructure de paiement pour Haïti.</p>
-    </div>
-  </div>
-</body>
-</html>
-  `;
+  const escape = escapeEmailHtml;
+  return `<h1>${escape(subject)}</h1>${greeting ? `<p>${escape(greeting)}</p>` : ''}
+    ${paragraphs.map(paragraph => `<p>${escape(paragraph)}</p>`).join('')}
+    ${secondaryInfo?.length ? `<table>${secondaryInfo.map(info => `<tr><td>${escape(info.label)}</td><td><strong>${escape(info.value)}</strong></td></tr>`).join('')}</table>` : ''}
+    ${cta ? `<p style="text-align:center"><a href="${escape(cta.url)}" style="display:inline-block;background:#ff7a1a">${escape(cta.text)}</a></p><p>${escape(cta.url)}</p>` : ''}
+    ${alertType === 'critical' ? '<blockquote>Si vous ne reconnaissez pas cette activité, contactez immédiatement le support Kobara.</blockquote>' : ''}`;
 }
 
 // Rate limiting & Queue pour l'API Resend
@@ -143,6 +76,7 @@ async function sendEmailCore(
     if (error) return { success: false, error: 'Vérification du contexte e-mail indisponible' };
     if (merchants?.some(isReviewAccount)) return { success: true };
   }
+  html = renderKobaraEmail({ subject, text, html, kind });
   if (kind === 'transactional') {
     const { tryCloudflareEmail } = await import('./email/cloudflare');
     const result = await tryCloudflareEmail({ to, subject, html, text, replyTo, senderName });
@@ -310,7 +244,7 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
     subject,
     greeting: "Invitation d'équipe Kobara",
     paragraphs: [
-      `L'entreprise <strong>${businessName}</strong> vous a invité(e) à rejoindre son équipe sur Kobara en tant que <strong>${roleLabel}</strong>.`,
+      `L'entreprise ${businessName} vous a invité(e) à rejoindre son équipe sur Kobara en tant que ${roleLabel}.`,
       "En acceptant cette invitation, vous aurez accès au tableau de bord, aux intégrations API et aux statistiques de l'entreprise en toute sécurité."
     ],
     cta: {
@@ -328,10 +262,7 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
 
 // Fonction générique (pour la rétrocompatibilité)
 export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey, senderName, kind }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing' }) {
-  const generatedHtml = html || renderEmailTemplate({
-    subject,
-    paragraphs: text.split('\n\n').filter(p => p.trim() !== '')
-  });
+  const generatedHtml = html || '';
   return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName, kind });
 }
 
@@ -349,10 +280,7 @@ export async function sendBulkEmail({
   idempotencyKey: string;
 }) {
   const emails = [...new Set(recipients.map((email) => email.trim().toLowerCase()).filter(Boolean))];
-  const generatedHtml = html || renderEmailTemplate({
-    subject,
-    paragraphs: text.split('\n\n').filter((paragraph) => paragraph.trim() !== ''),
-  });
+  const generatedHtml = renderKobaraEmail({ subject, text, html, kind: 'marketing' });
 
   if (!process.env.RESEND_API_KEY) {
     return process.env.NODE_ENV === 'production'
