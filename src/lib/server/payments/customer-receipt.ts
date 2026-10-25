@@ -29,6 +29,13 @@ export async function sendCustomerPaymentReceipt(payment: any, businessName?: st
     console.warn('[Email] Customer receipt skipped.', { paymentId: payment.id, reason: !email ? 'payer_email_missing' : 'business_name_missing' });
     return;
   }
+  const { data: link, error: linkError } = await admin.from('payment_links')
+    .select('title, description, metadata, slug').eq('id', payment.payment_link_id)
+    .eq('merchant_id', payment.merchant_id).maybeSingle();
+  if (linkError) throw linkError;
+  const product = [metadata.product_name, link?.metadata?.product_name, link?.title, link?.description, payment.description]
+    .find(value => typeof value === 'string' && value.trim());
+  const description = typeof product === 'string' ? product.trim() : undefined;
   const claimedAt = new Date().toISOString();
   if (metadata.customer_receipt_claimed_at && Date.now() - Date.parse(metadata.customer_receipt_claimed_at) < 600_000) return;
   const claimedMetadata = { ...metadata, customer_receipt_claimed_at: claimedAt };
@@ -42,13 +49,18 @@ export async function sendCustomerPaymentReceipt(payment: any, businessName?: st
   const reference = String(payment.kobara_reference || payment.id);
   const method = getPaymentMethodLabel(payment);
   const subject = `Paiement confirmé - ${businessName}`;
-  const text = `Votre paiement à ${businessName} est confirmé.\nMontant : ${amount}\nMoyen : ${method}\nRéférence : ${reference}\nMerci pour votre achat.`;
+  const date = payment.paid_at && Number.isFinite(Date.parse(payment.paid_at))
+    ? new Date(payment.paid_at).toLocaleString('fr-FR', { timeZone: 'America/Port-au-Prince', dateStyle: 'long', timeStyle: 'short' }) : undefined;
+  const text = `Votre paiement à ${businessName} est confirmé.\nMontant : ${amount}\nMoyen : ${method}\nRéférence : ${reference}${date ? `\nDate : ${date}` : ''}${description ? `\nProduit : ${description}` : ''}\nMerci pour votre achat.`;
   let sent = false;
   try {
     const result = await sendEmail({ senderName: businessName, to: email.trim(), subject, text, idempotencyKey: `customer-receipt-${payment.id}`,
-      presentation: { type: 'transaction', status: payment.status, amount: amounts.gross, currency: amounts.currency,
-        reference, method, merchantName: businessName,
-        ...(payment.paid_at && Number.isFinite(Date.parse(payment.paid_at)) ? { date: new Date(payment.paid_at).toLocaleString('fr-FR', { timeZone: 'America/Port-au-Prince' }) } : {}),
+      presentation: { type: 'transaction', source: 'payment_link', status: payment.status, amount: amounts.gross, currency: amounts.currency,
+        reference, method, merchantName: businessName, date, description,
+        intro: `Votre transaction auprès de ${businessName} a été effectuée avec succès.`,
+        notice: 'Votre paiement a bien été enregistré. Conservez cette référence pour vos dossiers.',
+        ...(typeof link?.slug === 'string' && /^[a-zA-Z0-9_-]+$/.test(link.slug)
+          ? { action: { url: `https://pay.kobara.app/${link.slug}`, label: 'Voir la transaction' } } : {}),
       },
       html: `<h1>${escapeHtml(businessName)}</h1><h2>Paiement confirmé</h2><p>Votre paiement à ${escapeHtml(businessName)} est confirmé.</p><p><strong>${escapeHtml(amount)}</strong></p><p>Moyen : ${escapeHtml(method)}</p><p>Référence : ${escapeHtml(reference)}</p><p>Merci pour votre achat.</p>` });
     sent = result.success;

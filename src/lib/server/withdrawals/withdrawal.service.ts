@@ -368,7 +368,7 @@ export const WithdrawalService = {
     if (isUsdOrManual) {
       try {
         if (merchantEmail) {
-          await notifyWithdrawalCreated(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+          await notifyWithdrawalCreated(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
         }
         await notifyAdminWithdrawalCreated(merchantId, payoutAmount, method, undefined, normalizedReceiver, undefined, payoutCurrency, total, normalizedSourceCurrency);
       } catch (e) {
@@ -395,7 +395,7 @@ export const WithdrawalService = {
 
       try {
         if (merchantEmail) {
-          await notifyWithdrawalSuccess(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+          await notifyWithdrawalSuccess(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
         }
         await notifyAdminWithdrawalCreated(merchantId, payoutAmount, method, undefined, normalizedReceiver, undefined, payoutCurrency, total, normalizedSourceCurrency);
       } catch (e) {
@@ -435,7 +435,7 @@ export const WithdrawalService = {
 
           try {
             if (merchantEmail) {
-              await notifyWithdrawalSuccess(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+              await notifyWithdrawalSuccess(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
             }
             await notifyAdminWithdrawalCreated(merchantId, payoutAmount, method, undefined, normalizedReceiver, undefined, payoutCurrency, total, normalizedSourceCurrency);
           } catch (e) {
@@ -462,7 +462,7 @@ export const WithdrawalService = {
 
         try {
           if (merchantEmail) {
-            await notifyWithdrawalFailed(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+            await notifyWithdrawalFailed(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
           }
         } catch (e) {
           console.error('[WithdrawalService] Notification error:', e);
@@ -494,7 +494,7 @@ export const WithdrawalService = {
             });
 
             if (merchantEmail) {
-              await notifyWithdrawalSuccess(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+              await notifyWithdrawalSuccess(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
             }
 
             return {
@@ -510,7 +510,7 @@ export const WithdrawalService = {
             });
 
             if (merchantEmail) {
-              await notifyWithdrawalFailed(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+              await notifyWithdrawalFailed(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
             }
 
             return {
@@ -527,7 +527,7 @@ export const WithdrawalService = {
         // Notification d'attente seulement si le statut reste réellement indéterminé
         try {
           if (merchantEmail) {
-            await notifyWithdrawalCreated(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+            await notifyWithdrawalCreated(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
           }
         } catch (e) {}
 
@@ -565,7 +565,7 @@ export const WithdrawalService = {
             });
 
             if (merchantEmail) {
-              await notifyWithdrawalSuccess(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+              await notifyWithdrawalSuccess(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
             }
 
             return {
@@ -589,7 +589,7 @@ export const WithdrawalService = {
           });
 
           if (merchantEmail) {
-            await notifyWithdrawalFailed(merchantId, merchantEmail, total, undefined, normalizedSourceCurrency);
+            await notifyWithdrawalFailed(merchantId, merchantEmail, total, withdrawalId, normalizedSourceCurrency);
           }
 
           return {

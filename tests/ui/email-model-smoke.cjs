@@ -7,12 +7,22 @@ const { pathToFileURL } = require('node:url');
   const root = path.resolve(__dirname, '../..');
   const { renderKobaraEmail } = await import(pathToFileURL(path.join(root, 'src/lib/server/email/template.ts')).href);
   const cases = [
-    { subject: 'Code de connexion', text: 'Bonjour Camille, confirmez votre connexion.', presentation: { type: 'otp', code: '123456', expiresInMinutes: 10 } },
+    { subject: 'Code de connexion', text: 'Bonjour Camille, confirmez votre connexion.', presentation: { type: 'otp', purpose: 'login', intro: 'Une connexion depuis un nouvel appareil nécessite votre confirmation. Saisissez ce code sur l’écran de connexion Kobara.', code: '123456', expiresInMinutes: 10 } },
     { subject: 'Information importante pour votre compte', text: 'Bonjour Camille, retrouvez les informations de votre compte.' },
     ...['pending', 'approved', 'succeeded', 'failed', 'rejected', 'cancelled'].map(status => ({
-      subject: 'Votre paiement', text: 'Bonjour Camille, voici votre operation de demonstration.',
-      presentation: { type: 'transaction', status, amount: 4500, currency: 'HTG', reference: 'DEMO-1', merchantName: 'Boutique Exemple', action: { url: 'https://example.com/payment', label: 'Consulter' } },
+      subject: 'Votre paiement', text: 'Bonjour, votre transaction a ete enregistree.',
+      presentation: { type: 'transaction', source: 'payment_link', status, amount: 2500, currency: 'HTG', reference: 'KBR-DEMO-00251', date: '25 octobre 2026, 10:30', method: 'MonCash', merchantName: 'Boutique Demonstration', description: 'Formation en ligne', intro: 'Bonjour, votre transaction a ete enregistree aupres de Boutique Demonstration.', notice: status === 'succeeded' ? 'Votre paiement a bien ete enregistre. Conservez cette reference pour vos dossiers.' : undefined, action: { url: 'https://example.com/payment', label: 'Voir la transaction' } },
     })),
+    { subject: 'Votre retrait', text: 'Votre retrait a ete execute avec succes.', presentation: { type: 'transaction', operation: 'withdrawal', status: 'succeeded', amount: 2500, currency: 'HTG', reference: 'WTH-DEMO-00128', date: '25 octobre 2026, 10:30', method: 'MonCash', merchantName: 'Boutique Demonstration', description: 'Retrait vers MonCash', notice: 'Votre retrait a bien ete execute. Conservez cette reference pour vos dossiers.', action: { url: 'https://example.com/withdrawal', label: 'Voir le retrait' } } },
+    ...[
+      ['security', 'Mot de passe modifié', 'Le mot de passe de votre compte a été modifié. Si vous ne reconnaissez pas cette action, contactez le support.'],
+      ['verification', 'Votre dossier est en cours d’examen', 'Nous avons reçu vos documents. Consultez votre tableau de bord pour suivre votre vérification.'],
+      ['support', 'Réponse de l’assistant Kobara', 'Bonjour Camille, vérifiez que votre webhook est accessible et répond avec un code HTTP 200.'],
+      ['invitation', 'Rejoignez Boutique Démonstration', 'Vous êtes invité à rejoindre cette entreprise. Votre accès sera limité aux autorisations du rôle attribué.'],
+      ['classic', 'Information concernant votre compte', 'Bonjour Camille,\n\nRetrouvez les informations de votre compte dans votre tableau de bord.\n\nL’équipe Kobara'],
+      ['internal', 'Un dossier nécessite une revue manuelle', 'Dossier DEMO-1042\nMotif : vérification complémentaire nécessaire.'],
+      ['marketing', 'Les nouveautés Kobara', 'Bonjour Camille, retrouvez les nouveautés pour votre activité.'],
+    ].map(([purpose, subject, text]) => ({ subject, text, kind: purpose === 'marketing' ? 'marketing' : 'transactional', presentation: { type: 'message', purpose }, ...(purpose === 'marketing' ? { html: '<h1>Les nouveautés Kobara</h1><p>Retrouvez les nouveautés pour votre activité.</p><a href="https://example.com/unsubscribe?token=demo">Se désabonner</a>' } : {}) })),
   ];
   const browser = await chromium.launch({ headless: true, channel: 'chrome' });
   try {

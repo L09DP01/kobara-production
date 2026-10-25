@@ -131,6 +131,7 @@ async function beginEmailVerification(contact: Record<string, any>, conversation
   await sendEmail({
     to: email,
     subject: 'Code de vérification Support Kobara',
+    presentation: { type: 'otp', code, expiresInMinutes: 10, purpose: 'support', intro: 'Confirmez que vous êtes le titulaire du compte dans votre conversation avec le support WhatsApp Kobara.' },
     text: `Votre code de vérification pour la conversation WhatsApp Kobara est ${code}. Il expire dans 10 minutes. Si vous n’avez pas demandé ce code, ignorez cet e-mail.`,
   });
   await admin.from('whatsapp_contacts').update({ email, updated_at: new Date().toISOString() }).eq('id', contact.id);

@@ -1,5 +1,6 @@
 import { sendEmail } from './mail';
 import type { EmailPresentation } from './email/template';
+import { getWithdrawalReceiptPresentation } from './email/withdrawal-receipt';
 import { createAdminClient } from '@/utils/supabase/admin';
 
 export async function createNotification(
@@ -49,7 +50,9 @@ export async function createNotification(
         to: emailDest,
         subject: title,
         text: message,
-        presentation: options?.presentation,
+        presentation: options?.presentation || (type === 'security_alert'
+          ? { type: 'message', purpose: 'security' }
+          : type.startsWith('kyc_') ? { type: 'message', purpose: 'verification' } : undefined),
       });
       emailSent = emailResult.success;
       emailError = emailResult.error;
@@ -272,8 +275,8 @@ export async function notifyKycReminder(merchantId: string, email: string, remin
   return createNotification(
     merchantId,
     'kyc_reminder',
-    'Terminez la verification de votre compte Kobara',
-    `Votre tableau de bord Production reste verrouille jusqu'a la validation de votre verification KYC. Connectez-vous pour terminer les etapes restantes : https://dashboard.kobara.app/kyc`,
+    'Terminez la vérification de votre compte Kobara',
+    `Votre vérification d’identité n’est pas terminée. Consultez les étapes restantes dans votre tableau de bord : https://dashboard.kobara.app/kyc\n\nLes paiements réels restent soumis à la validation de votre identité et de votre activité.`,
     email,
     reminderDate ? `kyc-reminder-${reminderDate}` : undefined,
     { forceEmail: true },
@@ -297,7 +300,7 @@ export async function notifyKycSuccess(merchantId: string, email: string) {
     merchantId,
     'kyc_success',
     'Vérification KYC validée',
-    `Félicitations ! Votre vérification d'identité (KYC) a été validée. Votre compte est maintenant entièrement opérationnel.`,
+    `Votre vérification d’identité (KYC) a été validée. Consultez votre tableau de bord pour vérifier l’état de votre activité et les fonctionnalités disponibles : https://dashboard.kobara.app/kyc`,
     email
   );
 }
@@ -344,7 +347,7 @@ export async function notifyWithdrawalSuccess(merchantId: string, email: string,
     `Votre retrait de ${amount} ${currency} a été effectué avec succès.`,
     email,
     withdrawalId,
-    { presentation: { type: 'transaction', status: 'succeeded', amount, currency, reference: withdrawalId } }
+    { presentation: await getWithdrawalReceiptPresentation(merchantId, withdrawalId) || { type: 'transaction', operation: 'withdrawal', status: 'succeeded', amount, currency, reference: withdrawalId } }
   );
 }
 
@@ -357,7 +360,7 @@ export async function notifyWithdrawalFailed(merchantId: string, email: string, 
     `Votre retrait de ${amount} ${currency} a échoué. Le montant a été recrédité sur votre solde ${currency}.`,
     email,
     withdrawalId,
-    { presentation: { type: 'transaction', status: 'failed', amount, currency, reference: withdrawalId } }
+    { presentation: await getWithdrawalReceiptPresentation(merchantId, withdrawalId) || { type: 'transaction', operation: 'withdrawal', status: 'failed', amount, currency, reference: withdrawalId } }
   );
 }
 
@@ -370,7 +373,7 @@ export async function notifyWithdrawalCreated(merchantId: string, email: string,
     `Votre demande de retrait de ${amount} ${currency} a été reçue et est en cours de traitement.`,
     email,
     withdrawalId,
-    { presentation: { type: 'transaction', status: 'pending', amount, currency, reference: withdrawalId } }
+    { presentation: await getWithdrawalReceiptPresentation(merchantId, withdrawalId) || { type: 'transaction', operation: 'withdrawal', status: 'pending', amount, currency, reference: withdrawalId } }
   );
 }
 
@@ -379,14 +382,14 @@ export async function notifyB2BTransferSent(senderId: string, email: string, amo
   const title = "Transfert B2B Envoyé";
   const message = `Vous avez envoyé avec succès un transfert B2B de ${amount.toLocaleString('fr-FR')} HTG à ${receiverEmail}.`;
   await createNotification(senderId, 'b2b.sent', title, message, email, undefined,
-    { presentation: { type: 'transaction', status: 'succeeded', amount, currency: 'HTG' } });
+    { presentation: { type: 'transaction', operation: 'transfer', status: 'succeeded', amount, currency: 'HTG' } });
 }
 
 export async function notifyB2BTransferReceived(receiverId: string, email: string, amount: number, senderName: string) {
   const title = "Transfert B2B Reçu";
   const message = `Vous avez reçu un transfert B2B de ${amount.toLocaleString('fr-FR')} HTG de la part de ${senderName}.`;
   await createNotification(receiverId, 'b2b.received', title, message, email, undefined,
-    { presentation: { type: 'transaction', status: 'succeeded', amount, currency: 'HTG' } });
+    { presentation: { type: 'transaction', operation: 'transfer', status: 'succeeded', amount, currency: 'HTG' } });
 }
 
 // ---------------------------------------------------------------------------

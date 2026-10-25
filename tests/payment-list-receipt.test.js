@@ -13,7 +13,7 @@ test('payment list defaults to success, search opens all, explicit filters win',
   assert.equal(getPaymentListStatus('invalid'), 'succeeded');
 });
 
-function receiptHarness(current = { id: 'unit-payment', merchant_id: 'unit-merchant', status: 'succeeded', environment: 'live', payment_link_id: 'unit-link', metadata: { customer_email: 'payer@example.invalid' } }) {
+function receiptHarness(current = { id: 'unit-payment', merchant_id: 'unit-merchant', status: 'succeeded', environment: 'live', payment_link_id: 'unit-link', metadata: { customer_email: 'payer@example.invalid' } }, link = null) {
   const emails = [];
   let queries = 0;
   const query = {
@@ -23,7 +23,7 @@ function receiptHarness(current = { id: 'unit-payment', merchant_id: 'unit-merch
   };
   const mocks = {
     'server-only': {},
-    '@/utils/supabase/admin': { createAdminClient: () => ({ from() { queries++; return query; } }) },
+    '@/utils/supabase/admin': { createAdminClient: () => ({ from(table) { queries++; return table === 'payment_links' ? { ...query, maybeSingle: async () => ({ data: link, error: null }) } : query; } }) },
     '@/lib/server/mail': { sendEmail: async email => { emails.push(email); return { success: true }; } },
     '@/lib/payment-settlement': { getSettlementAmounts: () => ({ gross: 100, currency: 'HTG' }), getPaymentMethodLabel: () => 'MonCash' },
     '@/lib/payment-notification-policy': { getPayerReceiptEmail: metadata => metadata.customer_email },
@@ -69,6 +69,18 @@ test('receipt uses fresh metadata and never resends an already delivered receipt
   const h = receiptHarness({ ...payment, merchant_id: 'unit-merchant', payment_link_id: 'unit-link', metadata: { customer_email: 'payer@example.invalid', customer_receipt_sent_at: '2026-01-01' } });
   await h.send({ ...payment, payment_link_id: 'unit-link' }, 'Boutique Demo');
   assert.equal(h.emails.length, 0);
+});
+
+test('receipt uses product on the linked payment, actual reference, method and paid date', async () => {
+  const h = receiptHarness({ ...payment, merchant_id: 'unit-merchant', payment_link_id: 'unit-link', kobara_reference: 'KBR-REAL-1', paid_at: '2026-10-25T14:30:00Z' }, { title: 'Titre secondaire', metadata: { product_name: 'Formation Kobara' }, slug: 'valid-link' });
+  await h.send({ ...payment, payment_link_id: 'unit-link' }, 'Boutique Demo');
+  const data = h.emails[0].presentation;
+  assert.equal(data.reference, 'KBR-REAL-1');
+  assert.equal(data.method, 'MonCash');
+  assert.equal(data.description, 'Formation Kobara');
+  assert.match(data.date, /25 octobre 2026/);
+  assert.equal(data.action.url, 'https://pay.kobara.app/valid-link');
+  assert.match(h.emails[0].text, /Formation Kobara/);
 });
 
 test('customer receipt is attempted even if merchant notification throws', async () => {

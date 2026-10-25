@@ -172,18 +172,19 @@ async function sendEmailCore(
 // ------------------------------------------------------------------
 
 export async function sendWelcomeEmail({ to, verificationLink }: { to: string; verificationLink: string }) {
-  const subject = "Activez votre compte Kobara";
-  const text = `Bonjour,\n\nMerci de vous être inscrit sur Kobara. Pour activer votre compte marchand et commencer à accepter des paiements MonCash, veuillez cliquer sur ce lien : ${verificationLink}\n\nCe lien est valide pendant 24 heures.`;
+  const subject = "Confirmez votre adresse e-mail Kobara";
+  const text = `Bonjour,\n\nBienvenue sur Kobara. Confirmez votre adresse e-mail pour poursuivre la configuration de votre compte : ${verificationLink}\n\nCe lien est valable pendant 24 heures. La réception de paiements réels reste soumise à la validation de votre identité et de votre activité.`;
   
   const html = renderEmailTemplate({
     subject,
     greeting: "Bienvenue sur Kobara !",
     paragraphs: [
       "Merci d'avoir choisi Kobara comme infrastructure de paiement pour votre entreprise.",
-      "Pour activer votre compte marchand et commencer à générer des liens de paiement MonCash, vous devez d'abord vérifier votre adresse e-mail."
+      "Confirmez votre adresse e-mail pour poursuivre la configuration de votre compte marchand.",
+      "La réception de paiements réels reste soumise à la validation de votre identité et de votre activité."
     ],
     cta: {
-      text: "Activer mon compte",
+      text: "Confirmer mon adresse e-mail",
       url: verificationLink
     },
     secondaryInfo: [
@@ -191,12 +192,12 @@ export async function sendWelcomeEmail({ to, verificationLink }: { to: string; v
     ]
   });
 
-  return sendEmailCore({ to, subject, html, text });
+  return sendEmailCore({ to, subject, html, text, presentation: { type: 'message', purpose: 'security', context: 'Bienvenue sur Kobara' } });
 }
 
 export async function sendPasswordResetEmail({ to, resetLink }: { to: string; resetLink: string }) {
   const subject = "Réinitialisation de votre mot de passe Kobara";
-  const text = `Vous avez demandé la réinitialisation de votre mot de passe Kobara. Cliquez sur ce lien : ${resetLink}`;
+  const text = `Une demande de réinitialisation du mot de passe de votre compte Kobara a été reçue. Choisissez un nouveau mot de passe : ${resetLink}\n\nCe lien expire dans 1 heure. Si vous n’avez pas fait cette demande, ignorez cet e-mail : votre mot de passe reste inchangé.`;
   
   const html = renderEmailTemplate({
     subject,
@@ -220,16 +221,17 @@ export async function sendPasswordResetEmail({ to, resetLink }: { to: string; re
 }
 
 export async function sendSecurityAlertEmail({ to, title, message, ipAddress, time }: { to: string; title: string; message: string; ipAddress?: string; time?: string }) {
-  const subject = `Alerte de sécurité: ${title}`;
-  const text = `Alerte Kobara: ${message}\nIP: ${ipAddress}\nHeure: ${time}`;
+  const subject = `Alerte de sécurité : ${title}`;
+  const details = [
+    ...(ipAddress ? [{ label: 'Adresse IP', value: ipAddress }] : []),
+    ...(time ? [{ label: 'Date et heure', value: time }] : []),
+  ];
+  const text = [message, ...details.map(detail => `${detail.label} : ${detail.value}`), 'Si vous ne reconnaissez pas cette activité, contactez immédiatement le support Kobara.'].join('\n\n');
   
   const html = renderEmailTemplate({
     subject: title,
     paragraphs: [message],
-    secondaryInfo: [
-      { label: "Adresse IP", value: ipAddress || "Inconnue" },
-      { label: "Date & Heure", value: time || new Date().toLocaleString() }
-    ],
+    secondaryInfo: details,
     alertType: 'critical'
   });
 
@@ -246,7 +248,7 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
     greeting: "Invitation d'équipe Kobara",
     paragraphs: [
       `L'entreprise ${businessName} vous a invité(e) à rejoindre son équipe sur Kobara en tant que ${roleLabel}.`,
-      "En acceptant cette invitation, vous aurez accès au tableau de bord, aux intégrations API et aux statistiques de l'entreprise en toute sécurité."
+      "Votre accès sera limité aux autorisations du rôle qui vous est attribué. Vérifiez le nom de l’entreprise et le rôle ci-dessous avant d’accepter cette invitation."
     ],
     cta: {
       text: "Accepter l'invitation",

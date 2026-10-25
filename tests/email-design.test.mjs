@@ -2,6 +2,35 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderKobaraEmail, emailAppearance } from '../src/lib/server/email/template.ts';
 
+test('message purposes have contextual labels without inventing a transaction status', () => {
+  for (const purpose of ['classic', 'security', 'verification', 'support', 'invitation', 'marketing', 'internal']) {
+    const html = renderKobaraEmail({ subject: 'Information', text: 'Bonjour Camille, votre message.', presentation: { type: 'message', purpose, heading: 'Votre dossier', context: 'Référence DEMO-1' } });
+    assert.match(html, new RegExp(`data-purpose="${purpose}"`));
+    assert.match(html, /Votre dossier/);
+    assert.match(html, /Référence DEMO-1/);
+    assert.doesNotMatch(html, /MESSAGE DE KOBARA|Paiement réussi|MONTANT DE LA TRANSACTION/);
+    assert.equal(html.includes('jamais votre mot de passe'), purpose === 'security');
+    assert.equal(html.includes('Ne pas transférer en dehors'), purpose === 'internal');
+  }
+});
+
+test('classic messages preserve paragraphs and unsafe CTA links are not buttons', () => {
+  const html = renderKobaraEmail({ subject: 'Information', text: '', html: '<p>Bonjour,</p><p>Votre courrier.</p><p><strong>2500 HTG</strong></p><a style="background:orange" href="https://user:password@example.com">Consulter</a>' });
+  assert.match(html, /Bonjour,/);
+  assert.match(html, /Votre courrier/);
+  assert.doesNotMatch(html, /href="https:\/\/user:password|<p[^>]*><p/);
+});
+
+test('plain alert details become readable rows without changing their values', () => {
+  const html = renderKobaraEmail({ subject: '[KYC EN ATTENTE] Dossier', text: 'Entreprise : Boutique Démonstration\nStatut KYC : EN ATTENTE\nScore : 72/100\n━━━━━━━━━━━━━━━━\nExamen manuel nécessaire.' });
+  assert.match(html, /<table role="presentation"/);
+  assert.match(html, /Boutique Démonstration/);
+  assert.match(html, /EN ATTENTE/);
+  assert.match(html, /72\/100/);
+  assert.match(html, /Examen manuel nécessaire/);
+  assert.doesNotMatch(html, /━━━━━━━━/);
+});
+
 test('security emails keep the exact selectable OTP and expiry', () => {
   const html = renderKobaraEmail({ subject: 'Code de vérification de connexion', text: '482913\nExpire dans 10 minutes.' });
   assert.match(html, /<code[^>]*>482913<\/code>/);
@@ -51,10 +80,24 @@ test('explicit OTP model uses real expiry and matching logo backgrounds', () => 
   assert.ok(html.indexOf('logo2.png') > html.indexOf('background:#101a34;color:#c9d2e4'));
 });
 
+test('OTP purposes use the actual code expiry and action-specific safety guidance', () => {
+  for (const purpose of ['login', 'withdrawal', 'transfer', 'support', 'admin']) {
+    const html = renderKobaraEmail({ subject: 'Code de vérification', text: 'Legacy content 654321', presentation: { type: 'otp', purpose, code: '654321', expiresInMinutes: purpose === 'admin' ? 5 : 10, internal: purpose === 'admin', intro: 'Confirmez uniquement votre propre demande.', details: [{ label: 'Référence', value: '<DEMO>' }] } });
+    assert.equal((html.match(/>654321<\/code>/g) || []).length, 1);
+    assert.match(html, new RegExp(`Valable pendant ${purpose === 'admin' ? 5 : 10} minutes`));
+    assert.match(html, /&lt;DEMO&gt;/);
+    assert.match(html, /Usage unique/);
+    assert.doesNotMatch(html, /Legacy content/);
+    assert.equal(html.includes('conversation WhatsApp'), purpose === 'support');
+    assert.equal(html.includes('Ne partagez ce code'), purpose !== 'support');
+  }
+  assert.throws(() => renderKobaraEmail({ subject: 'Code', text: '', presentation: { type: 'otp', code: 'invalid', expiresInMinutes: 5 } }), /Invalid OTP/);
+});
+
 test('transaction state comes from backend data, not a misleading subject', () => {
   const html = renderKobaraEmail({ subject: 'Paiement reçu', text: 'Votre opération.', presentation: { type: 'transaction', status: 'failed', amount: 123.45, currency: 'HTG', reference: 'DEMO-1', merchantName: '<Boutique>', action: { url: 'javascript:alert(1)', label: 'Payer' } } });
   assert.match(html, /data-template="transaction"/);
-  assert.match(html, /Échoué/);
+  assert.match(html, /échoué/i);
   assert.match(html, /#b42335/);
   assert.match(html, /123,45 HTG/);
   assert.match(html, /&lt;Boutique&gt;/);
@@ -63,5 +106,27 @@ test('transaction state comes from backend data, not a misleading subject', () =
     const rendered = renderKobaraEmail({ subject: 'Opération', text: '', presentation: { type: 'transaction', status, action: { url: 'https://pay.example/valid', label: 'Consulter' } } });
     assert.match(rendered, /href="https:\/\/pay.example\/valid"/);
     assert.doesNotMatch(rendered, /Détails de la transaction|MONTANT DE LA TRANSACTION|\{\{/);
+  }
+});
+
+test('API receipts hide product description while link receipts show it', () => {
+  const input = { subject: 'Paiement', text: '', presentation: { type: 'transaction', status: 'succeeded', description: 'Formation privee', amount: 2500, currency: 'HTG' } };
+  const api = renderKobaraEmail({ ...input, presentation: { ...input.presentation, source: 'api' } });
+  const link = renderKobaraEmail({ ...input, presentation: { ...input.presentation, source: 'payment_link' } });
+  assert.doesNotMatch(api, /Description|Formation privee/);
+  assert.match(link, /Description/);
+  assert.match(link, /Formation privee/);
+  assert.match(link, /2\s500,00 HTG/);
+});
+
+test('withdrawal receipt uses withdrawal wording and never claims approval is completed', () => {
+  for (const status of ['pending', 'approved', 'succeeded', 'failed']) {
+    const html = renderKobaraEmail({ subject: 'Retrait', text: 'Details du retrait.', presentation: { type: 'transaction', operation: 'withdrawal', status, amount: 2500, currency: 'HTG' } });
+    assert.match(html, /Retrait/);
+    assert.doesNotMatch(html, /Paiement réussi|Votre paiement est confirmé/);
+    if (status === 'approved') {
+      assert.match(html, /exécution en attente/);
+      assert.doesNotMatch(html, /Retrait réussi/);
+    }
   }
 });

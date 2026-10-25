@@ -238,7 +238,7 @@ L'équipe de sécurité Kobara
     await sendEmail({
       to: params.userEmail,
       subject: emailSubject,
-      presentation: { type: 'otp', code: rawOtp, expiresInMinutes: 10 },
+      presentation: { type: 'otp', code: rawOtp, expiresInMinutes: 10, purpose: 'login', intro: 'Une connexion depuis un nouvel appareil ou une nouvelle adresse IP nécessite votre confirmation. Saisissez ce code sur l’écran de connexion Kobara.', details: [{ label: 'Réseau', value: `${params.context.ipMasked} (${params.context.countryCode})` }, { label: 'Appareil', value: params.context.userAgent.substring(0, 80) }] },
       text: emailBody,
       html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">

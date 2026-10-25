@@ -121,7 +121,7 @@ L'équipe de sécurité Kobara
       await sendEmail({
         to: params.userEmail,
         subject: emailSubject,
-        presentation: { type: 'otp', code: rawOtp, expiresInMinutes: 10 },
+        presentation: { type: 'otp', code: rawOtp, expiresInMinutes: 10, purpose: isB2B ? 'transfer' : 'withdrawal', intro: `Une demande de ${operationLabel} a été initiée sur votre compte. Vérifiez les détails, puis saisissez ce code sur l’écran de confirmation Kobara.`, details: [{ label: 'Montant', value: amountText }, { label: 'Méthode', value: methodText }] },
         text: emailBody,
         html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">

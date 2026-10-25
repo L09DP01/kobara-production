@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
           const { data: mData } = await supabase.from('merchants').select('email').eq('id', withdrawal.merchant_id).single();
           if (mData?.email) {
             const { notifyWithdrawalSuccess } = await import('@/lib/server/notifications');
-            await notifyWithdrawalSuccess(withdrawal.merchant_id, mData.email, Number(withdrawal.total || withdrawal.amount));
+            await notifyWithdrawalSuccess(withdrawal.merchant_id, mData.email, Number(withdrawal.total || withdrawal.amount), withdrawal.id, withdrawal.currency || 'HTG');
           }
         } else if (isFailure) {
           await supabase.rpc('fail_and_refund_withdrawal', {
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
           const { data: mData } = await supabase.from('merchants').select('email').eq('id', withdrawal.merchant_id).single();
           if (mData?.email) {
             const { notifyWithdrawalFailed } = await import('@/lib/server/notifications');
-            await notifyWithdrawalFailed(withdrawal.merchant_id, mData.email, Number(withdrawal.total || withdrawal.amount));
+            await notifyWithdrawalFailed(withdrawal.merchant_id, mData.email, Number(withdrawal.total || withdrawal.amount), withdrawal.id, withdrawal.currency || 'HTG');
           }
         }
 

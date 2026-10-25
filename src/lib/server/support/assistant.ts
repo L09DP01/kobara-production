@@ -78,6 +78,7 @@ export async function replyToSupportTicket(ticketId: string) {
     const delivery = await sendEmail({
       to: ticket.requester_email, subject: `[${ticket.public_id}] Assistance Kobara`,
       text: answer, html: htmlText(answer), replyTo: 'support@kobara.app', idempotencyKey: `support-first-reply-${messageId}`,
+      presentation: { type: 'message', purpose: 'support', heading: 'Réponse de l’assistant Kobara', context: `Demande ${ticket.public_id || ticket.id} · Réponse automatique` },
     });
     if (!delivery.success) {
       clientDeliveryFailed = true;
@@ -91,6 +92,7 @@ export async function replyToSupportTicket(ticketId: string) {
       to: process.env.SUPPORT_AI_ALERT_EMAIL || process.env.SUPPORT_EMAIL || 'support@kobara.app',
       subject: `[${ticket.public_id}] Suivi humain requis`, text: summary, html: htmlText(summary),
       idempotencyKey: `support-handoff-${messageId}`,
+      presentation: { type: 'message', purpose: 'internal', heading: 'Une demande nécessite un suivi humain', context: `Demande ${ticket.public_id || ticket.id}` },
     });
   }
 }
