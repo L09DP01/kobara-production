@@ -2,6 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderKobaraEmail, emailAppearance } from '../src/lib/server/email/template.ts';
 
+test('all email variants support dark palettes and official logo fallback', () => {
+  for (const presentation of [undefined, { type: 'otp', code: '123456', expiresInMinutes: 10 }, { type: 'transaction', status: 'failed', amount: 2500, currency: 'HTG' }]) {
+    const html = renderKobaraEmail({ subject: 'Information', text: 'Contenu réel conservé.', presentation });
+    assert.match(html, /name="color-scheme" content="light dark"/);
+    assert.match(html, /@media\(prefers-color-scheme:dark\)/);
+    assert.match(html, /\[data-ogsc\]/);
+    assert.match(html, /class="email-logo-dark"/);
+    assert.match(html, /mso-hide:all/);
+    assert.match(html, /email-logo-light/);
+    assert.match(html, /Contenu réel conservé/);
+    assert.doesNotMatch(html, /<script/);
+  }
+});
+
 test('message purposes have contextual labels without inventing a transaction status', () => {
   for (const purpose of ['classic', 'security', 'verification', 'support', 'invitation', 'marketing', 'internal']) {
     const html = renderKobaraEmail({ subject: 'Information', text: 'Bonjour Camille, votre message.', presentation: { type: 'message', purpose, heading: 'Votre dossier', context: 'Référence DEMO-1' } });
@@ -77,7 +91,7 @@ test('explicit OTP model uses real expiry and matching logo backgrounds', () => 
   assert.match(html, /Valable pendant 12 minutes/);
   assert.doesNotMatch(html, /5 minutes|Super Admin|\{\{/);
   assert.ok(html.indexOf('logo.png') < html.indexOf('background:#101a34;color:#c9d2e4'));
-  assert.ok(html.indexOf('logo2.png') > html.indexOf('background:#101a34;color:#c9d2e4'));
+  assert.ok(html.lastIndexOf('logo2.png') > html.indexOf('background:#101a34;color:#c9d2e4'));
 });
 
 test('OTP purposes use the actual code expiry and action-specific safety guidance', () => {

@@ -1,4 +1,4 @@
-import { parseDocument } from 'htmlparser2';
+import { DomUtils, parseDocument } from 'htmlparser2';
 
 type EmailNode = ReturnType<typeof parseDocument>['children'][number];
 export type EmailDesign = {
@@ -187,6 +187,73 @@ function messagePurpose(appearance: ReturnType<typeof emailAppearance>, kind?: E
   return 'classic';
 }
 
+const darkSurfaces: Record<string, string> = {
+  '#f4f6fa': '#0e1117', '#ffffff': '#181c25', '#fafbfe': '#242b38',
+  '#f8f9fd': '#242b38', '#f6f8fc': '#242b38', '#f6f5f2': '#242b38',
+  '#fff4df': '#3c3020', '#e7f7ef': '#12392f', '#fff0f1': '#42212b',
+  '#eef1f6': '#2a3342', '#fff4ed': '#382a23', '#fff5ed': '#382a23', '#fff4e9': '#382a23',
+};
+const darkText: Record<string, string> = {
+  '#101a34': '#f1f5fa', '#101d39': '#f1f5fa', '#102044': '#f1f5fa', '#161923': '#f1f5fa',
+  '#555b6c': '#c4ccda', '#596579': '#c4ccda', '#7b8495': '#b7c2d2', '#7a8496': '#b7c2d2',
+  '#8992a2': '#b7c2d2', '#68758a': '#b7c2d2', '#44536e': '#c4ccda',
+  '#9b503b': '#ffba91', '#9a4a30': '#ffba91', '#b84a00': '#ffba91', '#e64c26': '#ffba91',
+  '#70422f': '#f4c6ab', '#75421c': '#f4c6ab',
+  '#a85a10': '#f5ca83', '#087b56': '#65ddb0', '#b42335': '#ffabb7',
+};
+
+function withDarkMode(html: string) {
+  const document = parseDocument(html);
+  const rules = new Map<string, string>();
+  const visit = (node: EmailNode) => {
+    if ('attribs' in node) {
+      const classes = (node.attribs.class || '').split(/\s+/).filter(Boolean);
+      // Only our generated, sanitized inline palette is translated, never message content.
+      for (const declaration of (node.attribs.style || '').split(';')) {
+        const colon = declaration.indexOf(':');
+        const property = declaration.slice(0, colon).trim();
+        const value = declaration.slice(colon + 1).trim().toLowerCase();
+        const target = property === 'color' ? darkText[value]
+          : ['background', 'background-color'].includes(property) ? darkSurfaces[value] : undefined;
+        if (target) {
+          const name = `dm-${property}-${value.slice(1)}`;
+          classes.push(name);
+          rules.set(name, `${property}:${target}!important`);
+        }
+        if (/^border(?:-(?:top|bottom|left|right))?$/.test(property) && /#e[0-9a-f]{5}$/.test(value)) {
+          const name = `dm-${property}`;
+          classes.push(name);
+          rules.set(name, `${property}-color:#394255!important`);
+        }
+      }
+      if (node.name === 'img' && node.attribs.src === 'https://kobara.app/logo.png') {
+        classes.push('email-logo-light');
+        const alternative = parseDocument('<img />').children[0];
+        if ('attribs' in alternative && node.parent) {
+          alternative.attribs = { ...node.attribs, src: 'https://kobara.app/logo2.png', class: 'email-logo-dark', style: `${node.attribs.style};display:none;mso-hide:all` };
+          alternative.parent = node.parent;
+          const siblings = node.parent.children;
+          siblings.splice(siblings.indexOf(node) + 1, 0, alternative);
+        }
+      }
+      node.attribs.class = [...new Set(classes)].join(' ');
+    }
+    if ('children' in node) [...node.children].forEach(visit);
+  };
+  document.children.forEach(visit);
+  const selectors = [...rules].map(([name, declaration]) => [name, declaration] as const);
+  selectors.push(['email-logo-light', 'display:none!important'], ['email-logo-dark', 'display:block!important']);
+  const media = selectors.map(([name, declaration]) => `.${name}{${declaration}}`).join('');
+  const outlook = selectors.map(([name, declaration]) => `[data-ogsc] .${name},[data-ogsb] .${name}{${declaration}}`).join('');
+  const head = DomUtils.findOne(node => node.name === 'head', document.children, true);
+  if (head) {
+    const stylesheet = parseDocument(`<style>:root{color-scheme:light dark;supported-color-schemes:light dark}@media(prefers-color-scheme:dark){${media}}${outlook}</style>`).children[0];
+    stylesheet.parent = head;
+    head.children.push(stylesheet);
+  }
+  return DomUtils.getOuterHTML(document, { encodeEntities: 'utf8' });
+}
+
 function transactionContent(subject: string, text: string, data: Extract<EmailPresentation, { type: 'transaction' }>) {
   const states = {
     pending: { label: 'En attente', color: '#a85a10', background: '#fff4df', icon: '&#8987;' },
@@ -257,7 +324,7 @@ export function renderKobaraEmail({ subject, text, html, kind, presentation }: E
   }
   const internal = appearance.internal || purpose === 'internal' || (presentation?.type === 'otp' && presentation.internal);
   const securityNote = purpose === 'security' || isOtp ? '<p style="margin:20px 0 0;padding:16px;background:#f6f8fc;border-radius:8px;color:#44536e;font-size:13px;line-height:1.7">Kobara ne vous demandera jamais votre mot de passe par e-mail.</p>' : '';
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="color-scheme" content="light" /><title>${escapeEmailHtml(subject)}</title></head>
+  return withDarkMode(`<!doctype html><html lang="fr"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="color-scheme" content="light dark" /><meta name="supported-color-schemes" content="light dark" /><title>${escapeEmailHtml(subject)}</title></head>
 <body style="margin:0;padding:0;background:#f4f6fa;font-family:Arial,Helvetica,sans-serif;color:#101a34;letter-spacing:0">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeEmailHtml(subject)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:#f4f6fa"><tr><td align="center" style="padding:32px 12px">
@@ -272,5 +339,5 @@ ${variant === 'transaction' ? `<tr><td align="center" style="padding:12px 24px 2
 <p style="margin:0;font-size:12px;line-height:1.8"><a href="https://help.kobara.app" style="color:#ffb18c">Centre d’aide</a> · <a href="https://kobara.app/terms#security" style="color:#ffb18c">Sécurité</a> · <a href="https://kobara.app/privacy" style="color:#ffb18c">Confidentialité</a></p>
 <p style="margin:12px 0 0;font-size:12px"><a href="https://kobara.app" style="color:#ffb18c">kobara.app</a></p></td></tr>`}</table>
 <!--[if mso]></td></tr></table><![endif]-->
-</td></tr></table></body></html>`;
+</td></tr></table></body></html>`);
 }
