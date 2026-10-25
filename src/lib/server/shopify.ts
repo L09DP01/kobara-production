@@ -655,6 +655,9 @@ async function emailShopifyPaymentLink(input: {
     text: `Bonjour,\n\n${storeName}\nProduit : ${productName}\nCommande : ${orderName}\nMontant à payer : ${link.amount} HTG\n\nVotre commande est en attente de paiement. Finalisez son paiement sécurisé ici :\n${checkoutUrl}\n\nCe lien expire dans 24 heures.`,
     html: `<!doctype html><html lang="fr"><head><meta charset="utf-8"></head><body style="margin:0;background:#f4f5f7;font-family:Arial,sans-serif;color:#171b23"><div style="max-width:560px;margin:24px auto;background:#fff;padding:32px"><h1 style="font-size:24px">${escapeHtml(storeName)}</h1><p>Bonjour,</p><p>Votre commande est en attente de paiement.</p><h2 style="font-size:20px">${escapeHtml(productName)}</h2><p>Commande ${escapeHtml(orderName)}</p><p style="font-size:22px;font-weight:bold">${escapeHtml(amountLabel)}</p><p><a href="${escapeHtml(checkoutUrl)}" style="display:inline-block;background:#f65a27;color:#fff;padding:14px 22px;text-decoration:none;border-radius:6px">Finaliser le paiement</a></p><p>Ce lien expire dans 24 heures.</p><p style="font-size:12px;color:#68707d">Paiement sécurisé par Kobara.</p></div></body></html>`,
     idempotencyKey: `shopify-order-link-${link.id}`,
+    presentation: { type: 'transaction', status: 'pending', amount: Number(link.amount), currency: 'HTG',
+      reference: String(orderName), merchantName: storeName, description: productName,
+      notice: 'Ce lien expire dans 24 heures.', action: { url: checkoutUrl, label: 'Finaliser le paiement' } },
   });
   if (!result.success) {
     console.error('[Shopify] Payment link email failed.', { code: 'mail_provider_rejected', linkId: link.id });

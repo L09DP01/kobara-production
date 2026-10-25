@@ -1,4 +1,5 @@
 import { sendEmail } from './mail';
+import type { EmailPresentation } from './email/template';
 import { createAdminClient } from '@/utils/supabase/admin';
 
 export async function createNotification(
@@ -8,7 +9,7 @@ export async function createNotification(
   message: string, 
   emailDest?: string,
   resourceId?: string,
-  options?: { forceEmail?: boolean },
+  options?: { forceEmail?: boolean; presentation?: EmailPresentation },
 ) {
   const supabase = createAdminClient();
   
@@ -47,7 +48,8 @@ export async function createNotification(
       const emailResult = await sendEmail({
         to: emailDest,
         subject: title,
-        text: message
+        text: message,
+        presentation: options?.presentation,
       });
       emailSent = emailResult.success;
       emailError = emailResult.error;
@@ -341,7 +343,8 @@ export async function notifyWithdrawalSuccess(merchantId: string, email: string,
     '💸 Retrait complété',
     `Votre retrait de ${amount} ${currency} a été effectué avec succès.`,
     email,
-    withdrawalId
+    withdrawalId,
+    { presentation: { type: 'transaction', status: 'succeeded', amount, currency, reference: withdrawalId } }
   );
 }
 
@@ -353,7 +356,8 @@ export async function notifyWithdrawalFailed(merchantId: string, email: string, 
     '⚠️ Retrait échoué',
     `Votre retrait de ${amount} ${currency} a échoué. Le montant a été recrédité sur votre solde ${currency}.`,
     email,
-    withdrawalId
+    withdrawalId,
+    { presentation: { type: 'transaction', status: 'failed', amount, currency, reference: withdrawalId } }
   );
 }
 
@@ -365,7 +369,8 @@ export async function notifyWithdrawalCreated(merchantId: string, email: string,
     'Demande de retrait',
     `Votre demande de retrait de ${amount} ${currency} a été reçue et est en cours de traitement.`,
     email,
-    withdrawalId
+    withdrawalId,
+    { presentation: { type: 'transaction', status: 'pending', amount, currency, reference: withdrawalId } }
   );
 }
 
@@ -373,13 +378,15 @@ export async function notifyWithdrawalCreated(merchantId: string, email: string,
 export async function notifyB2BTransferSent(senderId: string, email: string, amount: number, receiverEmail: string) {
   const title = "Transfert B2B Envoyé";
   const message = `Vous avez envoyé avec succès un transfert B2B de ${amount.toLocaleString('fr-FR')} HTG à ${receiverEmail}.`;
-  await createNotification(senderId, 'b2b.sent', title, message, email);
+  await createNotification(senderId, 'b2b.sent', title, message, email, undefined,
+    { presentation: { type: 'transaction', status: 'succeeded', amount, currency: 'HTG' } });
 }
 
 export async function notifyB2BTransferReceived(receiverId: string, email: string, amount: number, senderName: string) {
   const title = "Transfert B2B Reçu";
   const message = `Vous avez reçu un transfert B2B de ${amount.toLocaleString('fr-FR')} HTG de la part de ${senderName}.`;
-  await createNotification(receiverId, 'b2b.received', title, message, email);
+  await createNotification(receiverId, 'b2b.received', title, message, email, undefined,
+    { presentation: { type: 'transaction', status: 'succeeded', amount, currency: 'HTG' } });
 }
 
 // ---------------------------------------------------------------------------

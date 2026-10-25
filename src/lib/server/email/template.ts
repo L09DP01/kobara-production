@@ -6,6 +6,26 @@ export type EmailDesign = {
   text: string;
   html?: string;
   kind?: 'transactional' | 'marketing';
+  presentation?: EmailPresentation;
+};
+
+export type EmailPresentation = {
+  type: 'otp';
+  code: string;
+  expiresInMinutes: number;
+  internal?: boolean;
+} | {
+  type: 'transaction';
+  status: 'pending' | 'approved' | 'succeeded' | 'failed' | 'rejected' | 'cancelled';
+  amount?: number;
+  currency?: string;
+  reference?: string;
+  date?: string;
+  method?: string;
+  merchantName?: string;
+  description?: string;
+  notice?: string;
+  action?: { url: string; label: string };
 };
 
 export const escapeEmailHtml = (value: string) => value.replace(/[&<>"']/g, character => ({
@@ -26,15 +46,15 @@ function nodeText(node: EmailNode): string {
 
 function codeBlock(code: string) {
   // A single selectable code avoids copying spaces or separators into OTP fields.
-  return `<p style="margin:28px 0;text-align:center"><code style="display:inline-block;max-width:100%;box-sizing:border-box;background:#141722;color:#ffffff;border-bottom:4px solid #ff6b00;border-radius:8px;padding:18px 12px;font-family:Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:4px">${escapeEmailHtml(code)}</code></p>`;
+  return `<p style="margin:28px 0;text-align:center;background:#fff5f0;border:1px solid #ffb18e;border-radius:8px;padding:24px 8px"><code style="display:inline-block;max-width:100%;box-sizing:border-box;color:#101d39;font-family:Arial,Helvetica,sans-serif;font-size:36px;line-height:1.5;font-weight:700;letter-spacing:0">${escapeEmailHtml(code)}</code></p>`;
 }
 
 const styles: Record<string, string> = {
   p: 'margin:0 0 20px;color:#555b6c;font-size:16px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere',
-  h1: 'margin:0 0 24px;color:#161923;font-size:28px;line-height:1.25;font-weight:700;text-align:center;overflow-wrap:anywhere',
+  h1: 'margin:0 0 24px;color:#101a34;font-size:30px;line-height:1.25;font-weight:700;text-align:left;overflow-wrap:anywhere',
   h2: 'margin:24px 0 18px;color:#161923;font-size:24px;line-height:1.3;font-weight:700;overflow-wrap:anywhere',
   h3: 'margin:24px 0 12px;color:#161923;font-size:18px;line-height:1.4;font-weight:700',
-  table: 'width:100%;table-layout:fixed;border-collapse:collapse;background:#f6f5f2;margin:20px 0',
+  table: 'width:100%;table-layout:fixed;border-collapse:collapse;background:#fafbfe;margin:20px 0',
   td: 'padding:13px 10px;border-bottom:1px solid #e5e1da;color:#555b6c;font-size:14px;line-height:1.6;vertical-align:top;overflow-wrap:anywhere;word-break:break-word',
   th: 'padding:13px 10px;border-bottom:1px solid #e5e1da;color:#161923;font-size:14px;line-height:1.6;text-align:left;overflow-wrap:anywhere',
   ul: 'padding-left:22px;margin:16px 0 24px;color:#555b6c;font-size:16px;line-height:1.7',
@@ -67,7 +87,7 @@ function restyleHtml(html: string): string {
       const isButton = /(?:background|inline-block)/i.test(node.attribs.style || '')
         && !/unsubscribe|désabonn|desabonn/i.test(text + href);
       return `<a href="${href}" style="${isButton
-        ? 'display:inline-block;box-sizing:border-box;max-width:100%;background:#ff7a1a;color:#181510;padding:16px 24px;border-radius:8px;font-size:16px;line-height:1.5;font-weight:700;text-decoration:none;text-align:center;overflow-wrap:anywhere'
+        ? 'display:inline-block;box-sizing:border-box;max-width:100%;background:#101a34;color:#ffffff;padding:15px 26px;border-radius:8px;font-size:14px;line-height:1.5;font-weight:700;text-decoration:none;text-align:center;overflow-wrap:anywhere'
         : 'color:#b84a00;text-decoration:underline;overflow-wrap:anywhere'}">${body}</a>`;
     }
     if (tag === 'img') {
@@ -112,7 +132,30 @@ export function emailAppearance(subject: string, kind?: EmailDesign['kind']) {
   return { internal, security, category, color: failed ? '#dc4353' : success ? '#13a875' : '#ff7a1a', symbol: failed ? '!' : success ? '&#10003;' : '&#8599;' };
 }
 
-export function renderKobaraEmail({ subject, text, html, kind }: EmailDesign) {
+function transactionContent(subject: string, text: string, data: Extract<EmailPresentation, { type: 'transaction' }>) {
+  const states = {
+    pending: { label: 'En attente', color: '#a85a10', background: '#fff4df', icon: '&#8987;' },
+    approved: { label: 'Approuvé · en attente d’exécution', color: '#a85a10', background: '#fff4df', icon: '&#8987;' },
+    succeeded: { label: 'Confirmé', color: '#087b56', background: '#e7f7ef', icon: '&#10003;' },
+    failed: { label: 'Échoué', color: '#b42335', background: '#fff0f1', icon: '&#10005;' },
+    rejected: { label: 'Refusé', color: '#b42335', background: '#fff0f1', icon: '&#10005;' },
+    cancelled: { label: 'Annulé', color: '#596579', background: '#eef1f6', icon: '&#8212;' },
+  };
+  const state = states[data.status];
+  if (!state) throw new Error('Invalid transaction email status');
+  const escape = escapeEmailHtml;
+  const rows = [['Référence', data.reference], ['Date', data.date], ['Méthode', data.method], ['Bénéficiaire / marchand', data.merchantName], ['Description', data.description]]
+    .filter((row): row is [string, string] => typeof row[1] === 'string' && Boolean(row[1].trim()))
+    .map(([label, value]) => `<tr><td style="${styles.td};width:44%;background:#ffffff">${label}</td><td align="right" style="${styles.td};width:56%;background:#ffffff;color:#102044;font-weight:700">${escape(value)}</td></tr>`).join('');
+  const amount = typeof data.amount === 'number' && Number.isFinite(data.amount) && data.amount >= 0 && data.currency
+    ? `<table role="presentation" width="100%" style="background:#fafbfe;border:1px solid #e7eaf0;border-radius:8px;margin:24px 0"><tr><td align="center" style="padding:24px 12px"><p style="margin:0 0 12px;color:#7a8496;font-size:12px">MONTANT DE LA TRANSACTION</p><p style="margin:0;font-size:34px;line-height:1.3;font-weight:700;color:#102044;overflow-wrap:anywhere">${escape(data.amount.toLocaleString('fr-FR'))} ${escape(data.currency)}</p></td></tr></table>` : '';
+  let actionUrl = '';
+  try { const url = new URL(data.action?.url || ''); if (['https:', 'http:'].includes(url.protocol) && !url.username && !url.password) actionUrl = safeUrl(url.href); } catch { /* Optional CTA. */ }
+  const action = actionUrl && data.action?.label.trim() ? `<p style="text-align:center;margin:26px 0"><a href="${actionUrl}" style="display:inline-block;max-width:100%;box-sizing:border-box;background:#0b1a3b;border-radius:8px;padding:15px 26px;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;overflow-wrap:anywhere">${escape(data.action.label)}</a></p>` : '';
+  return `<div style="text-align:center"><span style="display:inline-block;width:68px;height:68px;line-height:68px;border-radius:34px;background:${state.background};color:${state.color};font-size:36px">${state.icon}</span><p style="color:${state.color};font-size:12px;font-weight:700">${state.label}</p><h1 style="${styles.h1};color:#102044">${escape(subject)}</h1></div>${textContent(text)}${amount}${rows ? `<table role="presentation" width="100%" style="table-layout:fixed;border-collapse:collapse;margin-top:25px"><tr><td colspan="2" style="padding-bottom:13px;color:#102044;font-size:15px;font-weight:700">Détails de la transaction</td></tr>${rows}</table>` : ''}${data.notice ? `<p style="background:#fff4ed;border-left:3px solid #ed512b;padding:15px 17px;color:#70422f;font-size:13px;line-height:1.6;overflow-wrap:anywhere">${escape(data.notice)}</p>` : ''}${action}`;
+}
+
+export function renderKobaraEmail({ subject, text, html, kind, presentation }: EmailDesign) {
   const appearance = emailAppearance(subject, kind);
   const hasHeading = html && parseDocument(html).children.some(function hasTitle(node): boolean {
     return ('name' in node && /^h[12]$/.test(node.name) && !/^kobara(?: app)?$/i.test(nodeText(node).trim()))
@@ -120,23 +163,39 @@ export function renderKobaraEmail({ subject, text, html, kind }: EmailDesign) {
   });
   const title = hasHeading ? '' : `<h1 style="${styles.h1}">${escapeEmailHtml(subject)}</h1>`;
   const codeText = appearance.security && /code/i.test(subject) ? text.replace(/\b(\d{6})\b/g, '\n$1\n') : text;
-  const content = title + (html ? restyleHtml(html) : textContent(codeText));
-  const securityNote = appearance.security ? '<p style="margin:0 0 24px;padding:14px;background:#ffffff;border:1px solid #e5e1da;border-radius:8px;color:#555b6c;font-size:12px;line-height:1.6">Kobara ne vous demandera jamais votre mot de passe par e-mail.</p>' : '';
+  let content = title + (html ? restyleHtml(html) : textContent(codeText));
+  let variant = 'message';
+  // Legacy callers keep their real code and expiry text until explicitly typed.
+  const otpCodes = [...new Set(text.match(/\b\d{6}\b/g) || [])];
+  const isOtp = presentation?.type === 'otp' || (appearance.security && /code/i.test(subject) && otpCodes.length === 1);
+  if (isOtp) {
+    variant = 'otp';
+    if (presentation?.type === 'otp') {
+      if (!/^\d{6}$/.test(presentation.code) || !Number.isFinite(presentation.expiresInMinutes) || presentation.expiresInMinutes <= 0) throw new Error('Invalid OTP email presentation');
+      const withoutCode = text.split(presentation.code).join('');
+      content = `<h1 style="${styles.h1}">${escapeEmailHtml(subject)}</h1>${textContent(withoutCode)}${codeBlock(presentation.code)}<p style="text-align:center;color:#9a4a30;font-size:13px">Valable pendant ${presentation.expiresInMinutes} minutes</p>`;
+    }
+  }
+  if (presentation?.type === 'transaction') {
+    variant = 'transaction';
+    content = transactionContent(subject, text, presentation);
+  }
+  const internal = appearance.internal || (presentation?.type === 'otp' && presentation.internal);
+  const securityNote = appearance.security || isOtp ? '<p style="margin:20px 0 0;padding:16px;background:#f6f8fc;border-radius:8px;color:#44536e;font-size:13px;line-height:1.7">Kobara ne vous demandera jamais votre mot de passe par e-mail.</p>' : '';
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><meta name="color-scheme" content="light" /><title>${escapeEmailHtml(subject)}</title></head>
-<body style="margin:0;padding:0;background:#eeece8;font-family:Arial,Helvetica,sans-serif;color:#161923;letter-spacing:0">
+<body style="margin:0;padding:0;background:#f4f6fa;font-family:Arial,Helvetica,sans-serif;color:#101a34;letter-spacing:0">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeEmailHtml(subject)}</div>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:#eeece8"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;background:#f4f6fa"><tr><td align="center" style="padding:32px 12px">
 <!--[if mso]><table role="presentation" width="640"><tr><td><![endif]-->
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:640px;table-layout:fixed;background:#ffffff;border-radius:8px;border:1px solid #e5e1da;border-collapse:separate;overflow:hidden">
-${appearance.internal ? '<tr><td style="padding:12px;background:#ffc64b;color:#3f2c00;text-align:center;font-size:11px;font-weight:700">USAGE INTERNE · KOBARA SYSTEM CORE</td></tr>' : ''}
-<tr><td style="padding:12px 24px;background:#0c0f18;border-bottom:4px solid #ff6b00"><table role="presentation" width="100%"><tr><td><img src="https://kobara.app/logo2.png" alt="Kobara" width="200" height="133" style="display:block;width:200px;max-width:100%;height:auto;border:0;color:#ffffff;font-size:24px" /></td><td align="right" style="color:#ffba87;font-size:10px;font-weight:700">${appearance.category}</td></tr></table></td></tr>
-<tr><td align="center" style="padding:24px 24px 8px"><span aria-hidden="true" style="display:inline-block;width:52px;height:52px;line-height:52px;border-radius:26px;background:${appearance.color};color:#ffffff;font-size:28px;font-weight:700">${appearance.symbol}</span></td></tr>
-<tr><td style="padding:16px 24px 32px;overflow-wrap:anywhere">${content}</td></tr>
-<tr><td align="center" style="padding:28px 24px;background:#f6f5f2;border-top:1px solid #e5e1da">${securityNote}
-<img src="https://kobara.app/logo.png" alt="Kobara" width="160" height="107" style="display:block;width:160px;max-width:100%;height:auto;border:0;margin:0 auto 16px;color:#161923;font-size:20px" />
-<p style="margin:0 0 16px;font-size:12px;line-height:1.7;color:#71778a">${appearance.internal ? 'Message interne généré par Kobara System Core.<br />Ne pas transférer en dehors de l’équipe.' : 'Besoin d’aide ? <a href="mailto:support@kobara.app" style="color:#71778a">support@kobara.app</a>'}</p>
-<p style="margin:0 0 12px;font-size:12px;line-height:1.8"><a href="https://help.kobara.app" style="color:#71778a">Centre d’aide</a> · <a href="https://kobara.app/terms#security" style="color:#71778a">Sécurité</a> · <a href="https://kobara.app/privacy" style="color:#71778a">Confidentialité</a></p>
-<p style="margin:0;font-size:12px;color:#71778a">kobara.app</p></td></tr></table>
+<table role="presentation" data-template="${variant}" width="100%" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;table-layout:fixed;background:#ffffff;border-radius:8px;border:1px solid #e6eaf1;border-collapse:separate;overflow:hidden">
+<tr><td style="height:6px;background:#f45d2c;font-size:0;line-height:6px">&nbsp;</td></tr>
+<tr><td style="padding:12px 24px;border-bottom:1px solid #edf0f5"><table role="presentation" width="100%"><tr><td><img src="https://kobara.app/logo.png" alt="Kobara" width="200" height="133" style="display:block;width:200px;max-width:100%;height:auto;border:0;color:#101a34;font-size:24px" /></td><td align="right" style="color:#9b503b;font-size:10px;font-weight:700">${internal ? 'USAGE INTERNE · SYSTEM CORE' : appearance.category}</td></tr></table></td></tr>
+<tr><td style="padding:28px 24px 34px;overflow-wrap:anywhere">${variant !== 'transaction' ? `<p style="font-size:11px;font-weight:700;color:#e64c26;margin:0 0 14px">${isOtp ? 'Vérification de sécurité' : 'MESSAGE DE KOBARA'}</p>` : ''}${content}${securityNote}</td></tr>
+<tr><td style="padding:18px 24px 26px;background:#101a34;color:#c9d2e4">
+<img src="https://kobara.app/logo2.png" alt="Kobara" width="160" height="107" style="display:block;width:160px;max-width:100%;height:auto;border:0;margin:0 0 12px;color:#ffffff;font-size:20px" />
+<p style="margin:0 0 16px;font-size:12px;line-height:1.7;color:#c9d2e4">${internal ? 'Message interne généré par Kobara System Core.<br />Ne pas transférer en dehors de l’équipe.' : 'Vos paiements, simplifiés.<br />Besoin d’aide ? <a href="mailto:support@kobara.app" style="color:#ffb18c">support@kobara.app</a>'}</p>
+<p style="margin:0;font-size:12px;line-height:1.8"><a href="https://help.kobara.app" style="color:#ffb18c">Centre d’aide</a> · <a href="https://kobara.app/terms#security" style="color:#ffb18c">Sécurité</a> · <a href="https://kobara.app/privacy" style="color:#ffb18c">Confidentialité</a></p>
+<p style="margin:12px 0 0;font-size:12px"><a href="https://kobara.app" style="color:#ffb18c">kobara.app</a></p></td></tr></table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table></body></html>`;
 }

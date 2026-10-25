@@ -60,6 +60,9 @@ test('successful live link sends payer receipt with store sender and escaped sto
   assert.match(h.emails[0].subject, /Boutique <Demo>/);
   assert.match(h.emails[0].html, /Boutique &lt;Demo&gt;/);
   assert.equal(h.emails[0].idempotencyKey, 'customer-receipt-unit-payment');
+  assert.equal(h.emails[0].presentation.type, 'transaction');
+  assert.equal(h.emails[0].presentation.status, 'succeeded');
+  assert.equal(h.emails[0].presentation.merchantName, 'Boutique <Demo>');
 });
 
 test('receipt uses fresh metadata and never resends an already delivered receipt', async () => {

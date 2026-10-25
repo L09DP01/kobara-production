@@ -1,5 +1,17 @@
 # Kobara email design
 
+The current visual models follow the supplied OTP, message and transaction HTML.
+The light header uses the official `logo.png` (dark lettering); the dark footer
+uses `logo2.png` (white lettering). No recoloring or replacement mark is generated.
+
+Callers may pass a typed `presentation` to `sendEmail`: OTP code and real expiry,
+or transaction status, amount, currency and available details. Transaction colors
+come from this explicit status, never from the subject. Approved is still pending
+execution, not succeeded. Missing details are omitted, not filled with examples.
+The action button requires a nonempty label and an absolute HTTP(S) URL without
+embedded credentials. Unsupported URLs produce no button. Legacy message HTML
+is sanitized and retains its original links, including unsubscribe links.
+
 All outgoing single and batch messages pass through the shared renderer in
 `src/lib/server/email/template.ts`. Transport selection, recipients, subject,
 plain text, sender name, reply-to, idempotency and review-account suppression

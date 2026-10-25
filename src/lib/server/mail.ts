@@ -1,5 +1,6 @@
 import { isReviewAccount, isReviewEmail } from '@/lib/review-account';
 import { escapeEmailHtml, renderKobaraEmail } from './email/template';
+import type { EmailPresentation } from './email/template';
 // Transactional mail uses Cloudflare first; Resend handles fallback and marketing.
 
 type EmailTemplateProps = {
@@ -59,7 +60,7 @@ export function emailSenderWithName(configuredSender: string, senderName?: strin
 }
 
 async function sendEmailCore(
-  { to, subject, html, text, replyTo, idempotencyKey, senderName, kind = 'transactional' }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing' },
+  { to, subject, html, text, replyTo, idempotencyKey, senderName, kind = 'transactional', presentation }: { to: string; subject: string; html: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing'; presentation?: EmailPresentation },
 ): Promise<{ success: boolean; error?: string }> {
   if (isReviewEmail(to)) return { success: true };
   // Suppress interactive mail (invitations, support, settings) initiated by reviewers.
@@ -76,7 +77,7 @@ async function sendEmailCore(
     if (error) return { success: false, error: 'Vérification du contexte e-mail indisponible' };
     if (merchants?.some(isReviewAccount)) return { success: true };
   }
-  html = renderKobaraEmail({ subject, text, html, kind });
+  html = renderKobaraEmail({ subject, text, html, kind, presentation });
   if (kind === 'transactional') {
     const { tryCloudflareEmail } = await import('./email/cloudflare');
     const result = await tryCloudflareEmail({ to, subject, html, text, replyTo, senderName });
@@ -261,9 +262,9 @@ export async function sendTeamInviteEmail({ to, businessName, inviteLink, role }
 }
 
 // Fonction générique (pour la rétrocompatibilité)
-export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey, senderName, kind }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing' }) {
+export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey, senderName, kind, presentation }: { to: string; subject: string; html?: string; text: string; replyTo?: string; idempotencyKey?: string; senderName?: string; kind?: 'transactional' | 'marketing'; presentation?: EmailPresentation }) {
   const generatedHtml = html || '';
-  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName, kind });
+  return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName, kind, presentation });
 }
 
 export async function sendBulkEmail({

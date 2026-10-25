@@ -40,3 +40,28 @@ test('internal alerts and failure states remain distinct, no new delivery rules'
   assert.match(html, /Ne pas transférer en dehors/);
   assert.doesNotMatch(html, /unsubscribe/);
 });
+
+test('explicit OTP model uses real expiry and matching logo backgrounds', () => {
+  const html = renderKobaraEmail({ subject: 'Code de connexion', text: 'Bonjour, saisissez votre code.', presentation: { type: 'otp', code: '654321', expiresInMinutes: 12 } });
+  assert.match(html, /data-template="otp"/);
+  assert.match(html, /<code[^>]*>654321<\/code>/);
+  assert.match(html, /Valable pendant 12 minutes/);
+  assert.doesNotMatch(html, /5 minutes|Super Admin|\{\{/);
+  assert.ok(html.indexOf('logo.png') < html.indexOf('background:#101a34;color:#c9d2e4'));
+  assert.ok(html.indexOf('logo2.png') > html.indexOf('background:#101a34;color:#c9d2e4'));
+});
+
+test('transaction state comes from backend data, not a misleading subject', () => {
+  const html = renderKobaraEmail({ subject: 'Paiement reçu', text: 'Votre opération.', presentation: { type: 'transaction', status: 'failed', amount: 123.45, currency: 'HTG', reference: 'DEMO-1', merchantName: '<Boutique>', action: { url: 'javascript:alert(1)', label: 'Payer' } } });
+  assert.match(html, /data-template="transaction"/);
+  assert.match(html, /Échoué/);
+  assert.match(html, /#b42335/);
+  assert.match(html, /123,45 HTG/);
+  assert.match(html, /&lt;Boutique&gt;/);
+  assert.doesNotMatch(html, /javascript:|>Payer<|\{\{|Confirmé/);
+  for (const status of ['pending', 'approved', 'succeeded', 'failed', 'rejected', 'cancelled']) {
+    const rendered = renderKobaraEmail({ subject: 'Opération', text: '', presentation: { type: 'transaction', status, action: { url: 'https://pay.example/valid', label: 'Consulter' } } });
+    assert.match(rendered, /href="https:\/\/pay.example\/valid"/);
+    assert.doesNotMatch(rendered, /Détails de la transaction|MONTANT DE LA TRANSACTION|\{\{/);
+  }
+});

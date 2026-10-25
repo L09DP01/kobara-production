@@ -88,6 +88,7 @@ export async function generateAdminOtp(email: string) {
     await sendEmail({
       to: email,
       subject: "Code de vérification Super Admin",
+      presentation: { type: 'otp', code, expiresInMinutes: 5, internal: true },
       text: `Bonjour Administrateur,
 
 Une connexion au panneau Super Admin a été demandée.
