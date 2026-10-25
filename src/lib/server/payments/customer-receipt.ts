@@ -8,7 +8,14 @@ const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ '&': '&a
 
 export async function sendCustomerPaymentReceipt(payment: any, businessName?: string | null) {
   if (payment.environment !== 'live' || payment.status !== 'succeeded' || !payment.payment_link_id) return;
+  if (payment.metadata?.customer_receipt_sent_at) return;
   const admin = createAdminClient();
+  // Other success handlers may have changed metadata since the initial fetch.
+  const { data: current, error: currentError } = await admin.from('payments').select('*')
+    .eq('id', payment.id).eq('merchant_id', payment.merchant_id).maybeSingle();
+  if (currentError) throw currentError;
+  if (!current || current.environment !== 'live' || current.status !== 'succeeded' || !current.payment_link_id) return;
+  payment = current;
   const metadata = payment.metadata || {};
   if (metadata.customer_receipt_sent_at) return;
   // Never fall back to the merchant's email or an unrelated metadata email.
@@ -18,7 +25,10 @@ export async function sendCustomerPaymentReceipt(payment: any, businessName?: st
     customerEmail = data?.email || null;
   }
   const email = getPayerReceiptEmail(metadata, customerEmail);
-  if (!email || !businessName) return;
+  if (!email || !businessName) {
+    console.warn('[Email] Customer receipt skipped.', { paymentId: payment.id, reason: !email ? 'payer_email_missing' : 'business_name_missing' });
+    return;
+  }
   const claimedAt = new Date().toISOString();
   if (metadata.customer_receipt_claimed_at && Date.now() - Date.parse(metadata.customer_receipt_claimed_at) < 600_000) return;
   const claimedMetadata = { ...metadata, customer_receipt_claimed_at: claimedAt };

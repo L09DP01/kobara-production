@@ -8,6 +8,8 @@ test('security emails keep the exact selectable OTP and expiry', () => {
   assert.match(html, /Expire dans 10 minutes/);
   assert.match(html, /SÉCURITÉ/);
   assert.match(html, /jamais votre mot de passe/);
+  assert.match(html, /src="https:\/\/kobara.app\/logo2.png" alt="Kobara"/);
+  assert.match(html, /src="https:\/\/kobara.app\/logo.png" alt="Kobara"/);
 });
 test('existing HTML keeps links, customer details and unsubscribe without old layout', () => {
   const html = renderKobaraEmail({ subject: 'Votre commande', text: '', kind: 'marketing', html: '<html><head><style>body{width:1200px}</style></head><body><div style="width:1200px"><h1>Exemple Boutique</h1><p>Produit &amp; référence #1042</p><a href="https://pay.example/order?token=demo&amp;ref=1042" style="background:orange">Payer</a><a href="https://example.com/unsubscribe?token=demo">Se désabonner</a></div></body></html>' });

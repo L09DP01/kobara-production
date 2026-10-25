@@ -9,7 +9,7 @@ const read = file => fs.readFileSync(new URL('../' + file, import.meta.url), 'ut
 function load(file, mocks) {
   const module = { exports: {} };
   const code = ts.transpileModule(read(file), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  new Function('require', 'module', 'exports', code)(name => name in mocks ? mocks[name] : require(name), module, module.exports);
+  new Function('require', 'module', 'exports', code)(name => name in mocks ? mocks[name] : name === './email/template' ? load('src/lib/server/email/template.ts', {}) : require(name), module, module.exports);
   return module.exports;
 }
 const input = { to: 'buyer@example.com', subject: 'Order', html: '<p>Order</p>', text: 'Order', senderName: 'Example Store', replyTo: 'support@example.com' };
@@ -76,9 +76,11 @@ test('transactional transport selection and review suppression', async () => {
 });
 test('guide destinations exist and marketing remains explicitly classified', () => {
   const guide = read('src/components/dashboard/setup-guide.tsx');
-  for (const path of ['/dashboard/settings', '/dashboard/kyc', '/dashboard/webhooks', '/dashboard/payment-links', '/dashboard/api-keys']) {
+  assert.match(read('src/app/dashboard/setup-guide/actions.ts'), /redirect\(choice === 'api' \? '\/api-keys' : '\/payment-links\/create'\)/);
+  assert.doesNotMatch(guide, /href: [^\n]*'\/dashboard\//);
+  for (const path of ['/settings', '/kyc', '/webhooks', '/payment-links', '/api-keys']) {
     assert.ok(guide.includes(path));
-    assert.ok(fs.existsSync(new URL('../src/app' + path + '/page.tsx', import.meta.url)));
+    assert.ok(fs.existsSync(new URL('../src/app/dashboard' + path + '/page.tsx', import.meta.url)));
   }
   for (const file of ['campaign-service.ts', 'smart-promotions.ts']) {
     assert.match(read('src/lib/server/messaging/' + file), /kind: 'marketing'/);

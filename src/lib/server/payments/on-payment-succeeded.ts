@@ -146,12 +146,6 @@ export async function onPaymentSucceeded(paymentId: string) {
 
   // --- 2. Send Notification ---
   try {
-    const { data: merchantData } = await supabase
-      .from('merchants')
-      .select('email, business_name')
-      .eq('id', merchantId)
-      .single();
-
     if (shouldNotifyMerchantPayment(settledPayment)) {
       const { notifyPaymentSucceeded } = await import("@/lib/server/notifications");
       await notifyPaymentSucceeded({
@@ -164,10 +158,19 @@ export async function onPaymentSucceeded(paymentId: string) {
         paymentId: settledPayment.id,
       });
     }
-    const { sendCustomerPaymentReceipt } = await import('./customer-receipt');
-    await sendCustomerPaymentReceipt(settledPayment, merchantData?.business_name);
   } catch (e) {
     console.error("Notification failed:", e);
+  }
+
+  // A merchant notification failure must not prevent the payer's receipt.
+  try {
+    const { data: receiptMerchant, error: receiptMerchantError } = await supabase
+      .from('merchants').select('business_name').eq('id', merchantId).single();
+    if (receiptMerchantError) throw receiptMerchantError;
+    const { sendCustomerPaymentReceipt } = await import('./customer-receipt');
+    await sendCustomerPaymentReceipt(settledPayment, receiptMerchant?.business_name);
+  } catch {
+    console.error('[Email] Customer receipt failed.', { paymentId });
   }
 
   // --- 3. Send Signed Webhooks to Merchant Endpoints (Strict Environment Isolation) ---

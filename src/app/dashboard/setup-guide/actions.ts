@@ -34,5 +34,5 @@ export async function selectIntegrationAction(choice: Exclude<IntegrationChoice,
   }, { onConflict: 'merchant_id' });
   if (error) throw new Error('Impossible d’enregistrer ce choix.');
   revalidatePath('/dashboard');
-  redirect(choice === 'api' ? '/dashboard/api-keys' : '/dashboard/payment-links/create');
+  redirect(choice === 'api' ? '/api-keys' : '/payment-links/create');
 }
