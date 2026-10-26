@@ -3,7 +3,7 @@ import 'server-only';
 import crypto from 'crypto';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { createNotification } from '@/lib/server/notifications';
-import { getResolvedIdentityContexts, isResolvedDocumentMatch, isResolvedSessionMatch } from '@/lib/kyc-resolution-policy';
+import { getKycResolutionTimestamp, getResolvedIdentityContexts, isResolvedDocumentMatch, isResolvedSessionMatch } from '@/lib/kyc-resolution-policy';
 
 export type KycFraudSeverity = 'low' | 'medium' | 'high' | 'critical';
 
@@ -180,7 +180,7 @@ export class KycFraudEngine {
           const verifiedAt = Date.parse(row.kyc_verified_at);
           const confirmedSinceResolution = Number.isFinite(verifiedAt) && getResolvedIdentityContexts(row.id, ownerCases.data || [], existingFingerprints)
             .some(context => context.fingerprints.includes(currentDocFingerprint!) && (ownerCases.data || [])
-              .some((resolved: any) => resolved.id === context.caseId && Date.parse(resolved.resolved_at) <= verifiedAt));
+              .some((resolved: any) => resolved.id === context.caseId && getKycResolutionTimestamp(resolved) <= verifiedAt));
           return row.kyc_status === 'approved' || confirmedSinceResolution;
         });
         if (verifiedOwners.length === 1) establishedOwner = verifiedOwners[0];
@@ -729,8 +729,8 @@ export class KycFraudEngine {
       primary_verdict: primaryVerdict,
       related_verdict: relatedVerdict,
       resolution_note: note,
-      resolved_by: adminUserId,
-      resolved_at: now.toISOString(),
+      reviewed_by: adminUserId,
+      reviewed_at: now.toISOString(),
       evidence: { ...(fraudCase.evidence || {}), resolved_identity: resolvedIdentity },
       payout_status: bPayoutStatus,
       payout_amount: rMerchant ? Number(rMerchant.available_balance || 0) : 0,

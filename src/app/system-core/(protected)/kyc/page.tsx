@@ -5,6 +5,7 @@ import { Check, X, ShieldAlert, FileText, Image as ImageIcon } from "lucide-reac
 import { revalidatePath } from "next/cache";
 import { activateFreePlanAfterKyc } from "@/lib/server/plans";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { KycResolutionForm } from './resolution-form';
 
 export default async function AdminKYCPage() {
   await requireAdmin(['super_admin', 'compliance']);
@@ -60,25 +61,31 @@ export default async function AdminKYCPage() {
     .order('created_at', { ascending: false })
     .limit(30);
 
-  async function resolveFraudCase(formData: FormData) {
+  async function resolveFraudCase(_previous: { error: string }, formData: FormData) {
     'use server';
     const fraudCaseId = formData.get('fraud_case_id') as string;
     const primaryVerdict = (formData.get('primary_verdict') as 'legitimate' | 'fraudulent') || 'legitimate';
     const relatedVerdict = (formData.get('related_verdict') as 'confirmed_duplicate' | 'legitimate' | 'fraudulent') || 'confirmed_duplicate';
     const resolutionNote = (formData.get('resolution_note') as string) || 'Décision administrative AML Compliance';
-    const session = await requireAdmin(['super_admin', 'compliance']);
-
-    const { KycFraudEngine } = await import('@/lib/server/kyc/fraud-engine');
-    await KycFraudEngine.resolveFraudCase({
-      fraudCaseId,
-      adminUserId: session.user.id,
-      primaryVerdict,
-      relatedVerdict,
-      note: resolutionNote,
-    });
+    try {
+      const session = await requireAdmin(['super_admin', 'compliance']);
+      if (!fraudCaseId) return { error: 'Dossier manquant. Rechargez la page.' };
+      const { KycFraudEngine } = await import('@/lib/server/kyc/fraud-engine');
+      await KycFraudEngine.resolveFraudCase({
+        fraudCaseId,
+        adminUserId: session.user.id,
+        primaryVerdict,
+        relatedVerdict,
+        note: resolutionNote,
+      });
+    } catch {
+      console.error('[KYC] Administrative resolution failed.');
+      return { error: "La décision n'a pas pu être finalisée. Rechargez le dossier pour vérifier son état avant de réessayer. Si votre session a expiré, reconnectez-vous." };
+    }
 
     revalidatePath('/system-core/kyc');
     revalidatePath('/system-core/risk-monitoring');
+    return { error: '' };
   }
 
   async function processClosurePayoutAction(formData: FormData) {
@@ -449,7 +456,7 @@ export default async function AdminKYCPage() {
                   {/* Actions Administratives AML / CFT */}
                   {!isResolved && !isConfirmed ? (
                     <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-end gap-2">
-                      <form action={resolveFraudCase} className="inline-block">
+                      <KycResolutionForm action={resolveFraudCase}>
                         <input type="hidden" name="fraud_case_id" value={fc.id} />
                         <input type="hidden" name="primary_verdict" value="legitimate" />
                         <input type="hidden" name="related_verdict" value="confirmed_duplicate" />
@@ -457,9 +464,9 @@ export default async function AdminKYCPage() {
                         <button type="submit" className="bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-600/40 text-xs px-3 py-1.5 rounded font-bold transition-all">
                           A Légitime (Re-KYC) • B Dupliqué
                         </button>
-                      </form>
+                      </KycResolutionForm>
 
-                      <form action={resolveFraudCase} className="inline-block">
+                      <KycResolutionForm action={resolveFraudCase}>
                         <input type="hidden" name="fraud_case_id" value={fc.id} />
                         <input type="hidden" name="primary_verdict" value="fraudulent" />
                         <input type="hidden" name="related_verdict" value="legitimate" />
@@ -467,9 +474,9 @@ export default async function AdminKYCPage() {
                         <button type="submit" className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-600/40 text-xs px-3 py-1.5 rounded font-bold transition-all">
                           B Légitime (Re-KYC) • A Dupliqué
                         </button>
-                      </form>
+                      </KycResolutionForm>
 
-                      <form action={resolveFraudCase} className="inline-block">
+                      <KycResolutionForm action={resolveFraudCase}>
                         <input type="hidden" name="fraud_case_id" value={fc.id} />
                         <input type="hidden" name="primary_verdict" value="fraudulent" />
                         <input type="hidden" name="related_verdict" value="fraudulent" />
@@ -477,7 +484,7 @@ export default async function AdminKYCPage() {
                         <button type="submit" className="bg-red-600 text-white hover:bg-red-700 text-xs px-3 py-1.5 rounded font-bold transition-all shadow-md">
                           Confirmer Fraude (Clôturer les 2)
                         </button>
-                      </form>
+                      </KycResolutionForm>
                     </div>
                   ) : fc.payout_status === 'instructions_submitted' ? (
                     /* Formulaire de validation du Payout de Clôture */

@@ -50,7 +50,13 @@ function database() {
         else this.filters.push(row => !['suspended', 'closure_pending', 'closure_pending_payout', 'closed', 'permanently_closed'].includes(row.account_access));
         return this;
       },
-      update(data) { this.mode = 'update'; this.data = data; return this; },
+      update(data) {
+        if (table === 'kyc_fraud_cases') {
+          assert.equal('resolved_by' in data, false, 'KYC uses reviewed_by, not resolved_by');
+          assert.equal('resolved_at' in data, false, 'KYC uses reviewed_at, not resolved_at');
+        }
+        this.mode = 'update'; this.data = data; return this;
+      },
       insert(data) { this.mode = 'insert'; this.data = data; return this; },
       upsert(data, options) { this.mode = 'upsert'; this.data = data; this.conflict = options.onConflict; return this; },
       single() { this.one = true; return this.run(); }, maybeSingle() { this.one = true; return this.run(); },
@@ -80,6 +86,16 @@ function engine(db) {
 
 const document = number => ({ id_verifications: [{ document_number: number, issuing_state: 'HT', document_type: 'ID', warnings: [] }] });
 
+test('KYC review schema identifies the legitimate owner without legacy resolution columns', () => {
+  const row = { id: 'reviewed-case', status: 'resolved', reviewed_by: 'unit-admin', reviewed_at: '2026-02-01',
+    primary_merchant_id: 'A', related_merchant_id: 'B', primary_verdict: 'legitimate', related_verdict: 'confirmed_duplicate',
+    evidence: { resolved_identity: { fingerprints: ['unit-fingerprint'], session_ids: ['old-b'] } } };
+  assert.equal(policy.getResolvedIdentityContexts('A', [row], []).length, 1);
+  assert.equal(policy.getResolvedIdentityContexts('B', [row], []).length, 0);
+  assert.deepEqual(policy.getResolvedIdentityContexts('A', [{ ...row, reviewed_at: 'invalid' }], []), []);
+  assert.deepEqual(policy.getResolvedIdentityContexts('A', [{ ...row, reviewed_by: null }], []), []);
+});
+
 async function resolvedPair() {
   const db = database(); const api = engine(db);
   const fingerprint = api.generateDocumentFingerprint('HT', 'ID', 'UNIT-DOC-001');
@@ -91,6 +107,8 @@ async function resolvedPair() {
 test('resolution isolates old verifications, requires a fresh KYC for A and closes empty B without deleting evidence', async () => {
   const { db } = await resolvedPair();
   assert.equal(db.tables.merchants[0].account_access, 'reverify_required');
+  assert.equal(db.tables.kyc_fraud_cases[0].reviewed_by, 'unit-admin');
+  assert.ok(Number.isFinite(Date.parse(db.tables.kyc_fraud_cases[0].reviewed_at)));
   assert.equal(db.tables.merchants[0].kyc_status, 'pending_reverification');
   assert.equal(db.tables.merchants[1].account_access, 'permanently_closed');
   assert.equal(db.tables.merchants[1].status, 'suspended');
@@ -176,7 +194,7 @@ test('the protected owner can reverify despite subsequent duplicate warnings, bu
   const { db, api } = await establishedOwnerAndApplicant();
   const own = document('UNIT-DOC-001');
   own.id_verifications[0].warnings = [{ code: 'DUPLICATE_DOCUMENT', related_session_id: 'new-c' }];
-  db.tables.merchants[0].kyc_verified_at = new Date(Date.parse(db.tables.kyc_fraud_cases[0].resolved_at) + 1).toISOString();
+  db.tables.merchants[0].kyc_verified_at = new Date(Date.parse(db.tables.kyc_fraud_cases[0].reviewed_at) + 1).toISOString();
   db.tables.merchants[0].kyc_status = 'pending';
   assert.equal((await api.KycFraudEngine.analyzeDecision({ merchantId: 'A', sessionId: 'retry-a', decision: own })).isFraud, false);
   assert.equal(db.tables.merchants[0].account_access, 'active');

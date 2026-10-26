@@ -5,9 +5,17 @@ export type ResolvedIdentityContext = {
   sessionIds: string[];
 };
 
+export function getKycResolutionTimestamp(row: any): number {
+  // reviewed_* are the KYC schema fields; resolved_* support historical records only.
+  const reviewer = row.reviewed_by ?? row.resolved_by;
+  const reviewedAt = row.reviewed_at ?? row.resolved_at;
+  return reviewer && reviewedAt ? Date.parse(reviewedAt) : Number.NaN;
+}
+
 export function getResolvedIdentityContexts(merchantId: string, cases: any[], fingerprints: any[], profiles: any[] = []): ResolvedIdentityContext[] {
   return cases.flatMap(row => {
-    if (!['resolved', 'false_positive'].includes(row.status) || !row.resolved_by || !row.resolved_at) return [];
+    const resolvedTime = getKycResolutionTimestamp(row);
+    if (!['resolved', 'false_positive'].includes(row.status) || !Number.isFinite(resolvedTime)) return [];
     const primary = row.primary_merchant_id === merchantId;
     if (!primary && row.related_merchant_id !== merchantId) return [];
     const verdict = primary ? row.primary_verdict : row.related_verdict;
@@ -16,7 +24,6 @@ export function getResolvedIdentityContexts(merchantId: string, cases: any[], fi
     if (verdict !== 'legitimate' || !otherMerchantId || otherMerchantId === merchantId
       || !['fraudulent', 'confirmed_duplicate'].includes(otherVerdict)) return [];
     const archived = row.evidence?.resolved_identity;
-    const resolvedTime = Date.parse(row.resolved_at);
     // Old dossiers are recoverable only when their identity evidence is unambiguous.
     const oldFingerprints = [...new Set(fingerprints.filter(item =>
       [merchantId, otherMerchantId].includes(item.merchant_id)
