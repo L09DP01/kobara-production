@@ -8,6 +8,11 @@
   "compatibility_date": "2026-08-30",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "keep_vars": true,
+  "vars": {
+    "SES_SMTP_HOST": "email-smtp.us-east-2.amazonaws.com",
+    "SES_SMTP_PORT": "465",
+    "SES_SMTP_FROM": "Kobara <noreply@kobara.app>"
+  },
   "send_email": [{ "name": "EMAIL" }],
   "assets": {
     "directory": ".open-next/assets",

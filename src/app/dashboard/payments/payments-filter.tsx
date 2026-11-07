@@ -35,6 +35,7 @@ export function PaymentsFilter({ exportButton }: { exportButton?: React.ReactNod
         <div className="relative flex-1 min-w-0">
           <span className="material-symbols-outlined absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-text-secondary text-[18px] sm:text-[20px]">search</span>
           <input
+            aria-label="Rechercher un paiement"
             className="w-full pl-9 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 bg-surface-card border border-border-subtle rounded-xl text-xs sm:text-sm text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary shadow-sm transition-all duration-200"
             placeholder="Rechercher..."
             type="text"

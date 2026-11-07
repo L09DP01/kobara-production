@@ -1,5 +1,7 @@
 'use client'
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import { useState } from 'react';
 import { createCustomer } from './actions';
 
@@ -143,7 +145,8 @@ export function CustomersClient({ customers, stats }: { customers: any[], stats?
             <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
             <input 
               className="w-full pl-11 pr-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-all shadow-sm" 
-              placeholder="Rechercher par nom, email ou téléphone..." 
+              placeholder="Rechercher par nom, email ou téléphone..."
+              aria-label="Rechercher un client"
               type="text"
             />
           </div>
@@ -241,7 +244,7 @@ export function CustomersClient({ customers, stats }: { customers: any[], stats?
         const sortedPayments = [...payments].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
         return (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setSelectedCustomer(null)}>
+          <ModalFrame title="Details du client" onClose={() => { setSelectedCustomer(null); }}>
             <div 
               className="bg-[#0F1729] w-full max-w-3xl max-h-[90vh] rounded-3xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200 flex flex-col overflow-hidden"
               onClick={(e) => e.stopPropagation()}
@@ -365,13 +368,13 @@ export function CustomersClient({ customers, stats }: { customers: any[], stats?
                 </div>
               </div>
             </div>
-          </div>
+          </ModalFrame>
         );
       })()}
 
       {/* New Customer Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <ModalFrame title="Nouveau client" onClose={() => { setIsModalOpen(false); }}>
           <div className="bg-[#131B2C] w-full max-w-md rounded-2xl p-6 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-white">Nouveau Client</h3>
@@ -427,7 +430,7 @@ export function CustomersClient({ customers, stats }: { customers: any[], stats?
               </div>
             </form>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );

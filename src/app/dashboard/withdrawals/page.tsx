@@ -35,7 +35,8 @@ export default async function WithdrawalsPage() {
     .eq('merchant_id', merchant.id)
     .maybeSingle();
 
-  const security = settings?.security_json || {};
+  const { getAccountSecurity } = await import('@/lib/server/account-settings');
+  const { security } = await getAccountSecurity(user.id);
   const generalSettings = settings?.settings_json || {};
   const twoFactorMethod = security.two_factor_method || 'none';
   const savedMoncashNumber = generalSettings.saved_moncash_number || '';

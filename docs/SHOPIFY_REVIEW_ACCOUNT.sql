@@ -27,7 +27,10 @@ BEGIN
     upper(substr(replace(v_merchant_id::text, '-', ''), 1, 12)),
     '{"payments":false,"security":false,"transfers":false,"withdrawals":false}'::jsonb);
   INSERT INTO public.settings(merchant_id, security_json, notifications_json)
-  VALUES(v_merchant_id, '{"two_factor_method":"none"}'::jsonb, '{}'::jsonb);
+  VALUES(v_merchant_id, '{"two_factor_method":"none"}'::jsonb, '{}'::jsonb)
+  ON CONFLICT (merchant_id) DO UPDATE
+  SET security_json = COALESCE(public.settings.security_json, '{}'::jsonb) || EXCLUDED.security_json,
+      notifications_json = EXCLUDED.notifications_json;
 END;
 $$;
 COMMIT;

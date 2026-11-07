@@ -3,6 +3,7 @@ import { generateAuthenticationOptions } from '@simplewebauthn/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getWebAuthnConfig } from '@/lib/server/passkey-config';
 import { cookies } from 'next/headers';
+import { getAccountSecurity } from '@/lib/server/account-settings';
 
 export async function POST(req: Request) {
   try {
@@ -20,10 +21,9 @@ export async function POST(req: Request) {
       // 1. Get user by email if provided
       const { data: user } = await supabase.from('users').select('id, email').eq('email', email).maybeSingle();
       if (user) {
-        const { data: merchant } = await supabase.from('merchants').select('id').eq('user_id', user.id).order('created_at').order('id').limit(1).maybeSingle();
+        const { merchant, security } = await getAccountSecurity(user.id);
         if (merchant) {
-          const { data: settings } = await supabase.from('settings').select('security_json').eq('merchant_id', merchant.id).maybeSingle();
-          securityObject = settings?.security_json || {};
+          securityObject = security;
           const passkeys = securityObject.passkeys || [];
           if (passkeys.length > 0) {
             allowCredentials = passkeys.map((pk: any) => ({

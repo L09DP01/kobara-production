@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { generateText } from 'ai';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { searchVerifiedKobaraKnowledge } from '@/lib/server/whatsapp/knowledge';
-import { sendEmail } from '@/lib/server/mail';
+import { isEmailDeliveryConfigured, sendEmail } from '@/lib/server/mail';
 import { PROMOTION_SEGMENTS, isPromotionSegment, promotionToken, validatePromotionCopy, type PromotionSegment } from '@/lib/smart-promotions';
 
 export const promotionSecret = () => process.env.PROMOTION_UNSUBSCRIBE_SECRET || process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
@@ -34,7 +34,7 @@ export async function generatePromotion(segment: PromotionSegment, limit: number
 
 export async function sendSmartPromotions() {
   if (process.env.SMART_PROMOTIONS_ENABLED === 'false') return { sent: 0, skipped: 0, failed: 0 };
-  if (!process.env.RESEND_API_KEY || promotionSecret().length < 32) throw new Error('Envoi promotionnel non configuré.');
+  if (!await isEmailDeliveryConfigured('marketing') || promotionSecret().length < 32) throw new Error('Envoi promotionnel non configuré.');
   const db = createAdminClient();
   const { data: campaigns, error } = await db.from('smart_promotions').select('id,segment,subject,body').eq('status', 'approved').order('created_at').limit(5);
   if (error) throw new Error('Migration promotions indisponible.');

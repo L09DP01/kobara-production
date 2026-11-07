@@ -3,6 +3,7 @@ import { verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { getWebAuthnConfig } from '@/lib/server/passkey-config';
 import { cookies } from 'next/headers';
+import { getAccountSecurity } from '@/lib/server/account-settings';
 
 export async function POST(req: Request) {
   try {
@@ -34,20 +35,9 @@ export async function POST(req: Request) {
         .maybeSingle();
 
       if (user && user.is_active !== false) {
-        const { data: merchant } = await supabase
-          .from('merchants')
-          .select('id')
-          .eq('user_id', user.id)
-          .order('created_at').order('id').limit(1).maybeSingle();
+        const { merchant, security } = await getAccountSecurity(user.id);
 
         if (merchant) {
-          const { data: settings } = await supabase
-            .from('settings')
-            .select('security_json')
-            .eq('merchant_id', merchant.id)
-            .maybeSingle();
-
-          const security = settings?.security_json || {};
           const passkeys = security.passkeys || [];
           const foundPk = passkeys.find((pk: any) => pk.id === credentialId);
           if (foundPk) {
@@ -55,7 +45,7 @@ export async function POST(req: Request) {
             matchedMerchant = merchant;
             matchedPasskey = foundPk;
             securityObj = security;
-            if (security.auth_challenge) {
+            if (!cookieChallenge && security.auth_challenge) {
               expectedChallenge = security.auth_challenge;
             }
           }
@@ -78,7 +68,7 @@ export async function POST(req: Request) {
             matchedMerchant = { id: st.merchant_id };
             matchedPasskey = found;
             securityObj = st.security_json;
-            if (st.security_json?.auth_challenge) {
+            if (!cookieChallenge && st.security_json?.auth_challenge) {
               expectedChallenge = st.security_json.auth_challenge;
             }
             break;
@@ -103,12 +93,16 @@ export async function POST(req: Request) {
 
           if (userData && userData.is_active !== false) {
             matchedUser = userData;
+            const account = await getAccountSecurity(userData.id);
+            matchedMerchant = account.merchant;
+            securityObj = account.security;
+            matchedPasskey = account.security.passkeys?.find((key: any) => key.id === credentialId);
           }
         }
       }
     }
 
-    if (!matchedUser || !matchedPasskey) {
+    if (!matchedUser || !matchedPasskey || (cleanEmail && matchedUser.email?.toLowerCase() !== cleanEmail)) {
       return NextResponse.json({ error: 'Clé Passkey non reconnue ou aucun compte associé.' }, { status: 400 });
     }
 

@@ -473,12 +473,8 @@ L'équipe de sécurité Kobara — https://kobara.app
     summary: string,
   ) {
     const supabase = createAdminClient();
-    const { data: settings } = await supabase
-      .from('settings')
-      .select('security_json')
-      .eq('merchant_id', merchant.id)
-      .maybeSingle();
-    const security = settings?.security_json || {};
+    const { getAccountSecurity } = await import('@/lib/server/account-settings');
+    const { security } = await getAccountSecurity(merchant.user_id);
     const securityMethod = security.two_factor_method === 'totp' && security.totp_secret
       ? 'totp'
       : 'email';
@@ -916,12 +912,9 @@ L'équipe de sécurité Kobara — https://kobara.app
       }
 
       if (state.securityMethod === 'totp') {
-        const { data: settings } = await supabase
-          .from('settings')
-          .select('security_json')
-          .eq('merchant_id', merchant.id)
-          .maybeSingle();
-        const secret = settings?.security_json?.totp_secret;
+        const { getAccountSecurity } = await import('@/lib/server/account-settings');
+        const { security } = await getAccountSecurity(merchant.user_id);
+        const secret = security.totp_secret;
         const valid = secret && speakeasy.totp.verify({ secret, encoding: 'base32', token: otpCode, window: 1 });
         if (!valid) {
           await TelegramClient.sendMessage(chatId, '❌ <b>Code Authenticator invalide</b>\n\nVérifiez le code actuel puis réessayez.', { parse_mode: 'HTML' });

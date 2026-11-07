@@ -1,13 +1,13 @@
 import 'server-only';
 import { createAdminClient } from '@/utils/supabase/admin';
-import { sendEmail } from '@/lib/server/mail';
+import { isEmailDeliveryConfigured, sendEmail } from '@/lib/server/mail';
 import { activationReminderEmail, type ActivationReminderKind } from '@/lib/activation-reminder-email';
 
 type Reminder = { merchant_id: string; email: string; business_name: string; kind: ActivationReminderKind; delivery_id: string; lease_token: string };
 
 export async function processActivationReminders() {
   if (process.env.ACTIVATION_REMINDERS_ENABLED === 'false') return { disabled: true, claimed: 0, sent: 0, skipped: 0, failed: 0 };
-  if (!process.env.RESEND_API_KEY) throw new Error('activation_reminder_email_not_configured');
+  if (!await isEmailDeliveryConfigured('transactional')) throw new Error('activation_reminder_email_not_configured');
   const admin = createAdminClient();
   const { data, error } = await admin.rpc('claim_merchant_activation_reminders');
   if (error) throw new Error('activation_reminder_queue_unavailable');

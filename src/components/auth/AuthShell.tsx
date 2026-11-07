@@ -10,6 +10,12 @@ import { PublicHeader } from "@/components/marketing/PublicNavigation";
 export function AuthShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
+  if (pathname === '/login/challenge-email') {
+    return <div className="min-h-[100dvh] bg-[#07101D] font-sans text-white">
+      <main className="mx-auto flex min-h-[100dvh] w-full max-w-lg items-center px-6 py-8 sm:px-8">{children}</main>
+    </div>;
+  }
+
   if (pathname === "/login" || pathname === "/register" || pathname === "/login/challenge-totp") {
     return <div className="kobara-public min-h-[100dvh] font-sans text-[#10131D]">{children}</div>;
   }

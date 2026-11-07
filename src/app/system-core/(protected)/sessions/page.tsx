@@ -37,7 +37,7 @@ export default async function AdminSessionsPage() {
 
   return (
     <div className="space-y-6">
-      <div><h1 className="text-2xl font-bold">SESSIONS & APPAREILS</h1><p className="text-sm text-slate-500 mt-1">Historique récent des connexions web et mobiles.</p></div>
+      <div><h1 className="text-2xl font-bold">SESSIONS & APPAREILS</h1><p className="text-sm text-slate-400 mt-1">Historique récent des connexions web et mobiles.</p></div>
       <div className="overflow-x-auto bg-slate-900 border border-slate-800 rounded">
         <table className="min-w-[900px] w-full text-sm">
           <thead className="bg-slate-950/50 text-xs text-slate-500"><tr><th className="text-left p-4">Marchand / utilisateur</th><th className="text-left p-4">Appareil</th><th className="text-left p-4">Réseau</th><th className="text-left p-4">Activité</th><th className="text-left p-4">Statut</th><th className="p-4"></th></tr></thead>

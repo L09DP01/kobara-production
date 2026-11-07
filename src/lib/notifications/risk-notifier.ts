@@ -12,30 +12,18 @@ export const riskNotifier = {
       }).catch(err => console.error("Slack webhook failed", err))
     }
 
-    if (process.env.COMPLIANCE_EMAIL && process.env.SMTP_HOST) {
+    if (process.env.COMPLIANCE_EMAIL) {
       try {
-        const nodemailer = require("nodemailer")
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: Number(process.env.SMTP_PORT) === 465,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        })
-
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || '"Kobara Security" <no-reply@kobara.app>',
+        const { sendEmail } = await import('@/lib/server/mail')
+        const result = await sendEmail({
+          senderName: 'Kobara Security',
           to: process.env.COMPLIANCE_EMAIL,
           subject: `🚨 ALERTE CRITIQUE: Marchand ${merchantId.split('-')[0]} à risque (${score}/100)`,
-          html: `<p>Le marchand <strong>${merchantId}</strong> a dépassé le seuil de risque avec un score de <strong>${score}</strong>.</p>
-                 <p>Nombre d'infractions détectées : ${violations.length}</p>
-                 <p>Veuillez vous connecter au tableau de bord d'administration pour investiguer.</p>`
+          text: `Le marchand ${merchantId} a dépassé le seuil de risque avec un score de ${score}.\nNombre d'infractions : ${violations.length}.\nVeuillez consulter le tableau de bord d'administration.`
         })
-        console.log(`Email SMTP envoyé avec succès à ${process.env.COMPLIANCE_EMAIL}`)
+        if (!result.success) console.error('Envoi de l’alerte conformité échoué.')
       } catch (err) {
-        console.error("Échec de l'envoi de l'email SMTP:", err)
+        console.error("Échec de l'envoi de l'alerte conformité.")
       }
     }
   },

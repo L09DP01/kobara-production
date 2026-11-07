@@ -156,7 +156,6 @@ export async function getActiveSessions() {
   const { data, error } = await adminClient
     .from('merchant_sessions')
     .select('*')
-    .eq('merchant_id', merchant.id)
     .eq('user_id', user.id)
     .eq('is_active', true)
     .is('revoked_at', null)
@@ -219,7 +218,6 @@ export async function revokeSession(sessionId: string) {
       last_active_at: new Date().toISOString(),
     })
     .eq('id', sessionId)
-    .eq('merchant_id', merchant.id)
     .eq('user_id', user.id);
 
   if (error) {
@@ -250,7 +248,6 @@ export async function revokeOtherSessions(currentToken: string) {
       revoked_at: new Date().toISOString(),
       last_active_at: new Date().toISOString(),
     })
-    .eq('merchant_id', merchant.id)
     .eq('user_id', user.id)
     .eq('is_active', true)
     .neq('session_token', currentToken);

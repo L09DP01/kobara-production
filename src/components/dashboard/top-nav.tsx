@@ -8,13 +8,13 @@ import { performFullLogout } from '@/lib/utils/logout-client';
 import { markNotificationAsReadAction, markAllNotificationsAsReadAction } from './actions';
 import { siteConfig } from '@/config/site';
 import { MerchantReferralDialog, type MerchantReferralSummary } from './merchant-referral-dialog';
-import { Check, ChevronDown, Loader2, Plus } from 'lucide-react';
+import { Bell, BellOff, Check, ChevronDown, ChevronRight, CircleUserRound, CreditCard, Gift, Loader2, LogOut, Menu, Plus, Settings, Shield, UserCheck, BadgeCheck } from 'lucide-react';
 import { switchBusinessAction } from '@/app/dashboard/businesses/actions';
 import { NewBusinessDialog } from './new-business-dialog';
 
 const EMPTY_NOTIFICATIONS: any[] = [];
 
-export default function TopNav({ onToggleSidebar, merchant, user, initialNotifications = EMPTY_NOTIFICATIONS, accessibleMerchants = [], userRole = 'owner', referralSummary = null }: { onToggleSidebar: () => void, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string, referralSummary?: MerchantReferralSummary | null }) {
+export default function TopNav({ onToggleSidebar, sidebarOpen = false, merchant, user, initialNotifications = EMPTY_NOTIFICATIONS, accessibleMerchants = [], userRole = 'owner', referralSummary = null }: { onToggleSidebar: () => void, sidebarOpen?: boolean, merchant?: any, user?: any, initialNotifications?: any[], accessibleMerchants?: any[], userRole?: string, referralSummary?: MerchantReferralSummary | null }) {
   const router = useRouter();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -28,6 +28,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const notifButtonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { setNotifications(initialNotifications); }, [initialNotifications]);
   useEffect(() => {
     const onBusinessChange = (event: StorageEvent) => {
@@ -40,6 +41,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
     function onEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
         if (profileRef.current?.contains(document.activeElement)) profileButtonRef.current?.focus();
+        if (notifRef.current?.contains(document.activeElement)) notifButtonRef.current?.focus();
         setIsProfileOpen(false); setIsNotifOpen(false);
       }
     }
@@ -93,12 +95,12 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
 
   const getNotifStyle = (type: string) => {
     switch (type) {
-      case 'payment_received': return { icon: 'payments', bg: 'bg-status-success/20 text-status-success', dot: 'bg-status-success' };
-      case 'security_alert': return { icon: 'shield', bg: 'bg-status-error/20 text-status-error', dot: 'bg-status-error' };
+      case 'payment_received': return { icon: CreditCard, bg: 'bg-status-success/20 text-status-success', dot: 'bg-status-success' };
+      case 'security_alert': return { icon: Shield, bg: 'bg-status-error/20 text-status-error', dot: 'bg-status-error' };
       case 'kyc_reminder':
-      case 'kyc_success': return { icon: 'how_to_reg', bg: 'bg-primary-fixed/30 text-primary', dot: 'bg-primary' };
-      case 'plan_activated': return { icon: 'workspace_premium', bg: 'bg-secondary-fixed/30 text-secondary', dot: 'bg-secondary' };
-      default: return { icon: 'notifications', bg: 'bg-surface-container text-text-secondary', dot: 'bg-text-secondary' };
+      case 'kyc_success': return { icon: UserCheck, bg: 'bg-primary-fixed/30 text-primary', dot: 'bg-primary' };
+      case 'plan_activated': return { icon: BadgeCheck, bg: 'bg-secondary-fixed/30 text-secondary', dot: 'bg-secondary' };
+      default: return { icon: Bell, bg: 'bg-surface-container text-text-secondary', dot: 'bg-text-secondary' };
     }
   };
 
@@ -113,25 +115,32 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
 
   return (
     <>
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#223047] bg-[#07101D]/90 px-4 text-white backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
+    <a href="#dashboard-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-white focus:px-4 focus:py-3 focus:text-slate-950">Aller au contenu</a>
+    <header data-navigation-material className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-[#223047] bg-[#07101D]/90 px-4 text-white backdrop-blur-xl transition-colors duration-200 sm:px-6 lg:px-8">
       {/* Left: Greeting / Search */}
-      <div className="flex items-center gap-4 md:gap-6">
+      <div className="flex min-w-0 items-center gap-2 md:gap-6">
         {/* Mobile menu toggle */}
         <button 
+          id="dashboard-menu-trigger"
+          type="button"
+          aria-expanded={sidebarOpen}
+          aria-controls="dashboard-mobile-menu"
+          aria-haspopup="dialog"
           onClick={onToggleSidebar}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white lg:hidden"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white lg:hidden"
           aria-label="Ouvrir le menu"
         >
-          <span className="material-symbols-outlined">menu</span>
+          <Menu className="h-6 w-6" aria-hidden="true" />
         </button>
 
         {/* Mobile Logo */}
-        <a href={siteConfig.url} className="lg:hidden flex items-center">
+        <a href={siteConfig.url} className="flex shrink-0 items-center lg:hidden" aria-label="Accueil Kobara">
+          <img src="/Icone.png" alt="" className="h-8 w-8 object-contain min-[430px]:hidden" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/logo.png"
+            src="/logo2.png"
             alt="Kobara Logo"
-            className="h-auto w-24 object-contain"
+            className="hidden h-auto w-24 object-contain min-[430px]:block"
           />
         </a>
 
@@ -147,7 +156,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-orange-500/30 bg-orange-500/10 px-2 text-xs font-bold text-orange-300 transition-colors hover:bg-orange-500/20 lg:hidden"
               aria-label="Recevez 675 Gdes en invitant un marchand"
             >
-              <span className="material-symbols-outlined text-[17px]">redeem</span>
+              <Gift className="h-4 w-4" aria-hidden="true" />
               <span><span className="hidden min-[430px]:inline">Recevez </span>675 Gdes</span>
             </button>
           )}
@@ -155,18 +164,22 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
           {/* Notifications */}
           <div ref={notifRef} className="relative">
             <button 
-              onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className="relative flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white"
+              ref={notifButtonRef}
+              type="button"
+              aria-expanded={isNotifOpen}
+              aria-controls="dashboard-notifications"
+              onClick={() => { setIsNotifOpen(!isNotifOpen); setIsProfileOpen(false); }}
+              className="relative flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white"
               aria-label="Notifications"
             >
-              <span className="material-symbols-outlined text-[24px]">notifications</span>
+              <Bell className="h-6 w-6" aria-hidden="true" />
               {notifications.length > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 border-white animate-pulse"></span>
               )}
             </button>
             
             {isNotifOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-surface-card border border-border-subtle rounded-xl shadow-lg overflow-hidden z-50">
+              <section id="dashboard-notifications" aria-label="Notifications" className="fixed inset-x-4 top-20 z-50 max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-lg border border-border-subtle bg-surface-card shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96">
                 <div className="p-4 border-b border-border-subtle flex justify-between items-center">
                   <h3 className="font-headline-sm text-text-primary">Notifications</h3>
                   {notifications.length > 0 && (
@@ -178,16 +191,20 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                 <div className="max-h-[350px] overflow-y-auto">
                   {notifications.length === 0 ? (
                     <div className="p-8 text-center text-text-secondary">
-                      <span className="material-symbols-outlined text-4xl mb-2 opacity-30">notifications_off</span>
+                      <BellOff className="mx-auto mb-2 h-9 w-9 opacity-30" aria-hidden="true" />
                       <p className="text-sm font-medium">Aucune notification</p>
                       <p className="text-xs opacity-70 mt-1">Vous n'avez aucune notification non lue.</p>
                     </div>
                   ) : (
                     notifications.map(notif => {
                       const style = getNotifStyle(notif.type);
+                      const NotificationIcon = style.icon;
                       return (
-                        <div 
+                        <div
                           key={notif.id} 
+                          className="relative border-b border-border-subtle last:border-0"
+                        >
+                        <button type="button"
                           onClick={() => {
                             markAsRead(notif.id);
                             setIsNotifOpen(false);
@@ -196,11 +213,11 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                             else if (notif.type.includes('kyc') || notif.type.includes('security')) router.push('/settings');
                             else router.push('/dashboard');
                           }}
-                          className="block p-4 hover:bg-surface-container-lowest transition-colors border-b border-border-subtle last:border-0 relative group cursor-pointer"
+                          className="block w-full p-4 pr-16 text-left hover:bg-surface-container-lowest transition-colors"
                         >
                           <div className="flex gap-3 items-start">
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${style.bg}`}>
-                              <span className="material-symbols-outlined text-[20px]">{style.icon}</span>
+                              <NotificationIcon className="h-5 w-5" aria-hidden="true" />
                             </div>
                             <div className="min-w-0 flex-1 pr-6">
                               <p className="font-body-base text-body-base text-text-primary font-bold">{notif.title}</p>
@@ -212,39 +229,43 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                             {/* Unread indicator */}
                             <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-2 ${style.dot}`}></div>
                             
-                            {/* Hover action to dismiss */}
+                          </div>
+                        </button>
+                            {/* Kept separate from the navigation button for keyboard access. */}
                             <button 
+                              type="button"
+                              aria-label={`Marquer comme lue : ${notif.title}`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 markAsRead(notif.id);
                               }}
-                              className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 p-1.5 bg-surface-container hover:bg-border-subtle rounded-md transition-all text-text-secondary hover:text-text-primary"
+                              className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center bg-surface-container hover:bg-border-subtle rounded-md transition-colors text-text-secondary hover:text-text-primary"
                               title="Marquer comme lu et effacer"
                             >
-                              <span className="material-symbols-outlined text-[16px]">check</span>
+                              <Check className="h-4 w-4" aria-hidden="true" />
                             </button>
-                          </div>
                         </div>
                       );
                     })
                   )}
                 </div>
-              </div>
+              </section>
             )}
           </div>
 
           <Link href="/settings" className="hidden h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white sm:flex" aria-label="Paramètres">
-            <span className="material-symbols-outlined text-[24px]">settings</span>
+            <Settings className="h-6 w-6" aria-hidden="true" />
           </Link>
           
           <div ref={profileRef} className="relative sm:ml-1">
             <button 
               ref={profileButtonRef}
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              type="button"
+              onClick={() => { setIsProfileOpen(!isProfileOpen); setIsNotifOpen(false); }}
               aria-expanded={isProfileOpen}
               aria-controls="business-switcher"
               aria-label="Choisir un business"
-              className="flex min-h-10 items-center gap-3 rounded-lg transition-colors duration-150 hover:bg-white/5 focus-visible:outline focus-visible:outline-orange-400 sm:px-2"
+              className="flex min-h-11 items-center gap-3 rounded-lg transition-colors duration-150 hover:bg-white/5 focus-visible:outline focus-visible:outline-orange-400 sm:px-2"
             >
               <div className="hidden max-w-48 sm:block text-right">
                 <p className="truncate text-sm font-bold text-white leading-tight">{merchant?.business_name || 'Business'}</p>
@@ -261,7 +282,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
             </button>
 
             {isProfileOpen && (
-              <div id="business-switcher" className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-[#314158] bg-[#111C2C] py-2 text-white shadow-xl">
+              <div id="business-switcher" className="absolute right-0 z-50 mt-2 max-h-[calc(100dvh-6rem)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-[#314158] bg-[#111C2C] py-2 text-white shadow-xl">
                 <div className="mb-2 border-b border-slate-700 px-4 py-3">
                   <p className="truncate text-sm font-medium text-white">{merchant?.business_name || 'Business'} <span className="ml-2 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-300">{userRole === 'owner' ? 'Propriétaire' : userRole === 'admin' ? 'Administrateur' : 'Développeur'}</span></p>
                   {merchant?.email && <p className="truncate text-xs text-slate-400">{merchant.email}</p>}
@@ -296,14 +317,14 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                       className="hidden w-full items-center justify-between rounded-lg px-3 py-2 text-left text-body-sm text-orange-300 transition-colors hover:bg-orange-500/10 lg:flex"
                     >
                       <span className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-[18px]">redeem</span>
+                        <Gift className="h-5 w-5" aria-hidden="true" />
                         Recevez 675 Gdes
                       </span>
-                      <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                      <ChevronRight className="h-4 w-4" aria-hidden="true" />
                     </button>
                   )}
                   <Link href="/settings" className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-white transition-colors hover:bg-white/5">
-                    <span className="material-symbols-outlined text-[18px]">account_circle</span>
+                    <CircleUserRound className="h-5 w-5" aria-hidden="true" />
                     Mon profil
                   </Link>
                   <div className="mx-1 my-2 h-px bg-slate-700"></div>
@@ -312,7 +333,7 @@ export default function TopNav({ onToggleSidebar, merchant, user, initialNotific
                     disabled={isLoggingOut}
                     className="w-full text-left px-3 py-2 text-body-sm text-status-error hover:bg-status-error/10 rounded-lg transition-colors flex items-center gap-2 disabled:cursor-wait disabled:opacity-60"
                   >
-                    <span className="material-symbols-outlined text-[18px]">logout</span>
+                    <LogOut className="h-5 w-5" aria-hidden="true" />
                     {isLoggingOut ? 'Déconnexion...' : 'Déconnexion'}
                   </button>
                 </div>

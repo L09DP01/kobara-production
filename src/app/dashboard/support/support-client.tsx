@@ -9,7 +9,7 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
   const [success, setSuccess] = useState(false);
   const [formData, setFormData] = useState({
     subject: '',
-    category: 'Paiements',
+    category: 'payment',
     message: ''
   });
 
@@ -17,20 +17,23 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
     e.preventDefault();
     setLoading(true);
     
-    const res = await submitSupportTicket(formData);
-    
-    setLoading(false);
-    
-    if (res && res.error) {
-      toast.error(res.error);
-    } else {
+    try {
+      const res = await submitSupportTicket(formData);
+      if (res && res.error) {
+        toast.error(res.error);
+        return;
+      }
       setSuccess(true);
       toast.success("Votre ticket a bien été enregistré. Vous recevrez notre réponse par e-mail.");
-      setFormData({ subject: '', category: 'Paiements', message: '' });
+      setFormData({ subject: '', category: 'payment', message: '' });
       
       setTimeout(() => {
         setSuccess(false);
       }, 5000);
+    } catch {
+      toast.error("Impossible d'envoyer le message. Réessayez dans un instant.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -54,8 +57,9 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5">
-                <label className="text-body-sm font-semibold text-white">Catégorie</label>
+                <label htmlFor="support-category" className="text-body-sm font-semibold text-white">Catégorie</label>
                 <select 
+                  id="support-category"
                   required
                   value={formData.category}
                   onChange={e => setFormData({ ...formData, category: e.target.value })}
@@ -70,8 +74,9 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-body-sm font-semibold text-white">Sujet</label>
+                <label htmlFor="support-subject" className="text-body-sm font-semibold text-white">Sujet</label>
                 <input 
+                  id="support-subject"
                   required
                   type="text"
                   placeholder="Ex: Erreur lors de l'intégration API"
@@ -83,8 +88,9 @@ export function SupportClient({ merchant, user }: { merchant: any, user: any }) 
             </div>
             
             <div className="space-y-1.5">
-              <label className="text-body-sm font-semibold text-white">Votre message</label>
+              <label htmlFor="support-message" className="text-body-sm font-semibold text-white">Votre message</label>
               <textarea 
+                id="support-message"
                 required
                 rows={6}
                 placeholder="Décrivez votre problème en détail..."

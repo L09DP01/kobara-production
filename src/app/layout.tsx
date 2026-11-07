@@ -4,7 +4,6 @@ import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { cookies } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
-import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
 import { NotificationPrompt } from "@/components/notification-prompt";
 import type { Viewport } from 'next';
 import Script from 'next/script';
@@ -167,7 +166,6 @@ export default async function RootLayout({
             {children}
           </div>
           <Toaster position="top-right" richColors />
-          <PwaInstallPrompt />
           <NotificationPrompt />
         </LanguageProvider>
         <Analytics />

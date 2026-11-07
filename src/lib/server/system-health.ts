@@ -1,5 +1,8 @@
 import 'server-only';
 import { createAdminClient } from '@/utils/supabase/admin';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
+import { hasSesSmtpConfiguration } from './email/ses-smtp';
+import { getRuntimeEnvironmentValue } from './runtime-env';
 
 export type HealthCheck = { name: string; state: 'ok' | 'error' | 'unconfigured' | 'unchecked'; detail: string };
 
@@ -32,15 +35,17 @@ export async function getSystemHealthChecks(): Promise<HealthCheck[]> {
     } catch { return { name: 'Redis', state: 'error', detail: 'PING indisponible' } as HealthCheck; }
   })());
   else checks.push({ name: 'Redis', state: 'unconfigured', detail: 'Connexion Redis non configurée' });
-  const whatsappReady = ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WHATSAPP_APP_SECRET', 'WHATSAPP_VERIFY_TOKEN', 'WHATSAPP_VERIFICATION_PEPPER'].every(key => Boolean(process.env[key]));
-  if (whatsappReady && /^\d+$/.test(process.env.WHATSAPP_PHONE_NUMBER_ID!) && /^v\d+\.\d+$/.test(process.env.WHATSAPP_GRAPH_API_VERSION || 'v26.0')) remote.push(probe('WhatsApp Meta', `https://graph.facebook.com/${process.env.WHATSAPP_GRAPH_API_VERSION || 'v26.0'}/${process.env.WHATSAPP_PHONE_NUMBER_ID}?fields=id`, { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` }));
-  else checks.push({ name: 'WhatsApp Meta', state: 'unconfigured', detail: 'Paramètres WhatsApp incomplets' });
+  checks.push({ name: 'WhatsApp Kapso', state: process.env.KAPSO_API_KEY ? 'unchecked' : 'unconfigured', detail: process.env.KAPSO_API_KEY ? 'Configuré · disponibilité non testée' : 'Clé serveur Kapso manquante' });
+  let cloudflareEmailConfigured = false;
+  try { cloudflareEmailConfigured = Boolean(getCloudflareContext().env.EMAIL); } catch { /* No Worker binding in Node.js. */ }
   for (const [name, configured] of [
     ['Logs Supabase', Boolean(process.env.SUPABASE_MANAGEMENT_TOKEN && process.env.SUPABASE_PROJECT_REF)],
     ['Logs Cloudflare', Boolean(process.env.CLOUDFLARE_OBSERVABILITY_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_LOG_QUERY_ID)],
     ['IA support', Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY)],
     ['Telegram', Boolean(process.env.TELEGRAM_BOT_TOKEN)],
-    ['Envoi e-mail', Boolean(process.env.RESEND_API_KEY)],
+    ['Cloudflare e-mail transactionnel', cloudflareEmailConfigured],
+    ['Amazon SES SMTP marketing', hasSesSmtpConfiguration()],
+    ['Resend secours', Boolean(getRuntimeEnvironmentValue('RESEND_API_KEY'))],
     ['PayPal', Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET)],
     ['Crypto', Boolean(process.env.NOWPAYMENTS_API_KEY)],
   ] as const) checks.push({ name, state: configured ? 'unchecked' : 'unconfigured', detail: configured ? 'Configuré · disponibilité non testée' : 'Non configuré' });

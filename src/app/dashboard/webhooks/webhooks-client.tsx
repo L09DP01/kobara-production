@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import { useState } from 'react';
 import { addWebhookEndpoint, deleteWebhookEndpoint, resendWebhookEvent, testWebhookEndpoint } from './actions';
 import { toast } from "sonner";
@@ -253,7 +255,7 @@ export function WebhooksClient({ endpoints, events = [] }: { endpoints: any[], e
 
       {/* Add Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <ModalFrame title="Ajouter un endpoint" onClose={() => { setIsModalOpen(false); }}>
           <div className="bg-[#131b2f] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-white/10">
               <h2 className="text-lg font-bold text-white">Ajouter un endpoint</h2>
@@ -290,12 +292,12 @@ export function WebhooksClient({ endpoints, events = [] }: { endpoints: any[], e
               </div>
             </form>
           </div>
-        </div>
+        </ModalFrame>
       )}
 
       {/* Delete Confirmation Modal */}
       {confirmDeleteId && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <ModalFrame title="Supprimer le webhook" onClose={() => { setConfirmDeleteId(null); }}>
           <div className="bg-[#131b2f] border border-white/10 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 mx-auto flex items-center justify-center mb-4">
               <span className="material-symbols-outlined text-2xl text-red-500">delete_forever</span>
@@ -317,7 +319,7 @@ export function WebhooksClient({ endpoints, events = [] }: { endpoints: any[], e
               </button>
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );

@@ -77,6 +77,7 @@ export async function notifyVerifiedMerchantsOfMaintenance(
   }
 
   const result = await sendBulkEmail({
+    kind: 'transactional',
     recipients: verifiedMerchants.map((merchant) => merchant.email),
     subject,
     text: message,

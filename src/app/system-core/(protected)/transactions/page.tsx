@@ -29,7 +29,7 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <h1 className="text-2xl font-bold tracking-tight">GLOBAL LEDGER</h1>
         <form method="get" className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-          <select name="status" defaultValue={status} className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 sm:w-auto">
+          <select aria-label="Filtrer les transactions par statut" name="status" defaultValue={status} className="w-full bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-300 sm:w-auto">
             <option value="">Tous statuts</option>
             <option value="pending">En attente</option>
             <option value="succeeded">Réussi</option>
@@ -43,6 +43,7 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
             type="text" 
             defaultValue={q}
             placeholder="Référence..."
+            aria-label="Rechercher une transaction par référence"
             className="w-full bg-slate-900 border border-slate-700 rounded-md pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-red-500 transition-colors text-slate-200"
           />
           </div>

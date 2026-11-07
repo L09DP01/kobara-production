@@ -6,7 +6,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Bot, User, Send, Copy, Check, X, TerminalSquare, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 
 const CHAT_STORAGE_KEY = 'kobara_docs_chat_history_v2';
 
@@ -41,6 +42,13 @@ function parseStoredMessages(value: string): ChatMessage[] | null {
 
 export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) {
   const [isOpenMobile, setIsOpenMobile] = useState(false);
+  const reduceMotion = useReducedMotion();
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const close = () => { if (desktop.matches) setIsOpenMobile(false); };
+    desktop.addEventListener('change', close);
+    return () => desktop.removeEventListener('change', close);
+  }, []);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -48,11 +56,13 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (typeof window !== 'undefined') {
-      const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
-      if (saved) {
-        const storedMessages = parseStoredMessages(saved);
-        if (storedMessages) return storedMessages;
-      }
+      try {
+        const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+        if (saved) {
+          const storedMessages = parseStoredMessages(saved);
+          if (storedMessages) return storedMessages;
+        }
+      } catch { /* Browsers may disable storage; keep the conversation in memory. */ }
     }
     return [WELCOME_MESSAGE];
   });
@@ -107,13 +117,14 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
   };
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
   };
 
   useEffect(() => {
     scrollToBottom();
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      try { sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages)); }
+      catch { /* In-memory chat remains usable without storage. */ }
     }
   }, [messages]);
 
@@ -184,7 +195,8 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
           )}
           <button 
             onClick={() => setIsOpenMobile(false)}
-            className="md:hidden p-2 text-[#AAB3C2] hover:text-white rounded-lg hover:bg-[#1E2A38] transition-colors"
+            aria-label="Fermer l'assistant"
+            className="lg:hidden p-2 text-[#AAB3C2] hover:text-white rounded-lg hover:bg-[#1E2A38] transition-colors"
           >
             <X size={20} />
           </button>
@@ -287,9 +299,12 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
         <AnimatePresence>
           {!isOpenMobile && (
             <motion.button
-              initial={{ scale: 0, opacity: 0 }}
+              aria-label="Ouvrir l'assistant documentation"
+              aria-haspopup="dialog"
+              id="docs-assistant-trigger"
+              initial={{ scale: reduceMotion ? 1 : 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0, opacity: 0 }}
+              exit={{ scale: reduceMotion ? 1 : 0, opacity: 0 }}
               onClick={() => setIsOpenMobile(true)}
               className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#FF4A1C] text-white rounded-full shadow-[0_0_30px_rgba(255,74,28,0.4)] flex items-center justify-center hover:scale-105 transition-transform border border-white/10"
             >
@@ -299,23 +314,13 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
         </AnimatePresence>
 
         {/* Fullscreen Drawer */}
-        <AnimatePresence>
-          {isOpenMobile && (
-            <>
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black/60 z-50 backdrop-blur-sm"
-                onClick={() => setIsOpenMobile(false)}
-              />
-              <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="public-dark-panel fixed inset-x-0 bottom-0 top-[10vh] z-50 bg-[#07111F] rounded-t-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col border-t border-[#1E2A38]"
-              >
+        <DialogPrimitive.Root open={isOpenMobile} onOpenChange={setIsOpenMobile}>
+          <DialogPrimitive.Portal>
+              <DialogPrimitive.Overlay data-modal-scrim className="fixed inset-0 bg-black/65 z-50 backdrop-blur-sm lg:hidden" />
+              <DialogPrimitive.Content aria-describedby={undefined} onCloseAutoFocus={event => {
+                event.preventDefault(); document.getElementById('docs-assistant-trigger')?.focus();
+              }} className="public-dark-panel fixed inset-x-0 bottom-0 top-[10dvh] z-50 bg-[#07111F] rounded-t-3xl overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.5)] flex flex-col border-t border-[#1E2A38] lg:hidden">
+                <DialogPrimitive.Title className="sr-only">Assistant documentation Kobara</DialogPrimitive.Title>
                 {/* Handle for drawer */}
                 <div className="w-full flex justify-center py-3 absolute top-0 z-10">
                   <div className="w-12 h-1.5 bg-[#1E2A38] rounded-full" />
@@ -323,10 +328,9 @@ export function DocsAIAssistant({ currentSlug = '' }: { currentSlug?: string }) 
                 <div className="flex-1 mt-6 min-h-0">
                   {chatInterfaceNode}
                 </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+              </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
       </div>
     </>
   );

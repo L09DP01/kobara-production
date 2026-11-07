@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { normalizeHaitianPhoneNumber } from '@/lib/payment-routing';
+import { fetchPaymBalance } from './paym-balance';
 
 const PAYM_API_URL = (process.env.PAYM_API_URL || 'https://plopplop.solutionip.app').trim().replace(/\/$/, '');
 const PAYM_CLIENT_ID = (process.env.PAYM_CLIENT_ID || '').trim();
@@ -70,6 +71,12 @@ export interface PaymWithdrawalResponse {
 }
 
 export const PaymService = {
+  async getBalance() {
+    return fetchPaymBalance({
+      baseUrl: PAYM_API_URL,
+      getToken: (forceRefresh) => this.getAuthToken(forceRefresh),
+    });
+  },
   /**
    * Étape 1 : Obtenir un jeton d'authentification marchand (marchand_login_jwt)
    */
@@ -85,6 +92,9 @@ export const PaymService = {
 
     const response = await fetch(`${PAYM_API_URL}/api/auth/marchand`, {
       method: 'POST',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(15_000),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -97,8 +107,7 @@ export const PaymService = {
     if (!response.ok) {
       cachedAuthToken = null;
       authTokenExpiresAt = 0;
-      const errorText = await response.text().catch(() => '');
-      console.error("Pay'm Auth HTTP Error:", response.status, errorText);
+      console.error("Pay'm Auth HTTP Error:", response.status);
       throw new Error(`Échec d'authentification Pay'm (${response.status})`);
     }
 
@@ -115,8 +124,8 @@ export const PaymService = {
     if (!rawToken || rawToken.length < 10) {
       cachedAuthToken = null;
       authTokenExpiresAt = 0;
-      console.error("Pay'm Auth Payload sans token valide:", data);
-      throw new Error(data.message || "Impossible d'obtenir le jeton d'authentification marchand Pay'm.");
+      console.error("Pay'm Auth Payload sans token valide.");
+      throw new Error("Impossible d'obtenir le jeton d'authentification marchand Pay'm.");
     }
 
     cachedAuthToken = rawToken;

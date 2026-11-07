@@ -6,12 +6,12 @@ import { generateTelegramLinkTokenAction } from '@/app/dashboard/settings/action
 import { toast } from 'sonner';
 
 interface TelegramConnectBannerProps {
-  merchantId?: string;
+  accountId?: string;
   isTelegramLinked: boolean;
 }
 
 export function TelegramConnectBanner({
-  merchantId,
+  accountId,
   isTelegramLinked,
 }: TelegramConnectBannerProps) {
   const [isDismissed, setIsDismissed] = useState(true);
@@ -19,21 +19,21 @@ export function TelegramConnectBanner({
 
   useEffect(() => {
     // Si déjà connecté à Telegram, la bannière disparaît complètement
-    if (isTelegramLinked) {
+    if (isTelegramLinked || !accountId) {
       setIsDismissed(true);
       return;
     }
 
     // Vérifier si le marchand l'a fermée temporairement dans cette session
-    const dismissed = sessionStorage.getItem('kbr_telegram_banner_dismissed');
+    const dismissed = sessionStorage.getItem(`kbr_telegram_banner_dismissed_${accountId}`);
     if (!dismissed) {
       setIsDismissed(false);
 
       // Notification toast non-intrusive au premier chargement de la session
-      const toastPromptShown = sessionStorage.getItem('kbr_telegram_toast_prompt_shown');
+      const toastPromptShown = sessionStorage.getItem(`kbr_telegram_toast_prompt_shown_${accountId}`);
       if (!toastPromptShown) {
-        sessionStorage.setItem('kbr_telegram_toast_prompt_shown', 'true');
-        setTimeout(() => {
+        sessionStorage.setItem(`kbr_telegram_toast_prompt_shown_${accountId}`, 'true');
+        const timer = setTimeout(() => {
           toast('📱 Alertes de vente en direct sur Telegram', {
             description: 'Liez votre compte Telegram pour être notifié de chaque paiement MonCash & NatCash.',
             action: {
@@ -43,13 +43,14 @@ export function TelegramConnectBanner({
             duration: 8000,
           });
         }, 1500);
+        return () => clearTimeout(timer);
       }
     }
-  }, [isTelegramLinked]);
+  }, [isTelegramLinked, accountId]);
 
   const handleDismiss = () => {
     setIsDismissed(true);
-    sessionStorage.setItem('kbr_telegram_banner_dismissed', 'true');
+    sessionStorage.setItem(`kbr_telegram_banner_dismissed_${accountId}`, 'true');
   };
 
   const handleConnect = async () => {

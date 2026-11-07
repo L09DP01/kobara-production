@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { useEffect } from 'react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
@@ -62,24 +63,28 @@ export function DesktopSidebar({ userRole = "owner", kycApproved = false }: { us
 export function MobileSidebar({ isOpen, onClose, userRole = "owner", kycApproved = false }: { isOpen: boolean; onClose: () => void; userRole?: string; kycApproved?: boolean }) {
   const pathname = usePathname();
   useEffect(() => {
-    document.body.style.overflow = isOpen ? "hidden" : "";
-    return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
-
+    if (!isOpen) return;
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const closeOnDesktop = () => { if (desktop.matches) onClose(); };
+    closeOnDesktop();
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, [isOpen, onClose]);
   return (
-    <div className="lg:hidden">
-      <div
-        className={clsx("fixed inset-0 z-40 bg-black/65 backdrop-blur-[2px] transition-opacity duration-200", isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0")}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <aside
-        className={clsx("fixed inset-y-0 left-0 z-50 flex h-full w-72 max-w-[88vw] flex-col overflow-hidden border-r border-[#223047] bg-[#091321] text-slate-300 shadow-2xl transition-transform duration-200 ease-out", isOpen ? "translate-x-0" : "-translate-x-full")}
-        aria-hidden={!isOpen}
+    <DialogPrimitive.Root open={isOpen} onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogPrimitive.Portal>
+      <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/65 backdrop-blur-[2px] lg:hidden" />
+      <DialogPrimitive.Content
+        id="dashboard-mobile-menu"
+        aria-describedby={undefined}
+        onCloseAutoFocus={event => { event.preventDefault(); document.getElementById('dashboard-menu-trigger')?.focus(); }}
+        className="fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-72 max-w-[88vw] flex-col overflow-hidden border-r border-[#223047] bg-[#091321] text-slate-300 shadow-2xl lg:hidden"
       >
+        <DialogPrimitive.Title className="sr-only">Menu du dashboard</DialogPrimitive.Title>
         <SidebarContent pathname={pathname} onClose={onClose} userRole={userRole} kycApproved={kycApproved} />
-      </aside>
-    </div>
+      </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
@@ -93,7 +98,7 @@ export function MobileBottomNav({ onOpenMore, userRole = "owner", kycApproved = 
   ];
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 grid h-[72px] grid-cols-5 border-t border-[#223047] bg-[#091321]/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Navigation principale">
+    <nav data-navigation-material className="fixed inset-x-0 bottom-0 z-30 grid h-[calc(72px+env(safe-area-inset-bottom))] grid-cols-5 border-t border-[#223047] bg-[#091321]/95 px-2 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden" aria-label="Navigation principale">
       {items.map((item) => {
         const active = isLinkActive(pathname, item);
         const Icon = item.icon;
@@ -106,13 +111,13 @@ export function MobileBottomNav({ onOpenMore, userRole = "owner", kycApproved = 
           );
         }
         return (
-          <Link key={item.href} href={item.href} className={clsx("flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors duration-150", active ? "text-orange-400" : "text-slate-500 hover:text-slate-200")}>
+          <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined} className={clsx("flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold transition-colors duration-150", active ? "text-orange-400" : "text-slate-400 hover:text-slate-200")}>
             <Icon className="h-5 w-5" aria-hidden="true" />
             <span className="max-w-full truncate">{item.label}</span>
           </Link>
         );
       })}
-      <button type="button" onClick={onOpenMore} className="flex min-w-0 flex-col items-center justify-center gap-1 text-[10px] font-semibold text-slate-500 transition-colors duration-150 hover:text-slate-200" aria-label="Ouvrir le menu complet">
+      <button type="button" onClick={onOpenMore} className="flex min-w-0 flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-400 transition-colors duration-150 hover:text-slate-200" aria-label="Ouvrir le menu complet" aria-haspopup="dialog" aria-controls="dashboard-mobile-menu">
         <Menu className="h-5 w-5" aria-hidden="true" />
         <span>Plus</span>
       </button>
@@ -128,7 +133,7 @@ function SidebarContent({ pathname, onClose, userRole, kycApproved }: { pathname
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo2.png" alt="Kobara" className="h-auto w-28 object-contain" />
         </a>
-        <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white lg:hidden" aria-label="Fermer le menu">
+        <button type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-400 transition-colors duration-150 hover:bg-white/5 hover:text-white lg:hidden" aria-label="Fermer le menu">
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -139,7 +144,7 @@ function SidebarContent({ pathname, onClose, userRole, kycApproved }: { pathname
           if (visibleLinks.length === 0) return null;
           return (
             <section key={section.title}>
-              <h2 className="mb-2 px-3 text-[10px] font-bold uppercase text-slate-600">{section.title}</h2>
+              <h2 className="mb-2 px-3 text-[11px] font-bold uppercase text-slate-400">{section.title}</h2>
               <div className="space-y-1">
                 {visibleLinks.map((link) => {
                   const active = !link.external && isLinkActive(pathname, link);
@@ -157,6 +162,7 @@ function SidebarContent({ pathname, onClose, userRole, kycApproved }: { pathname
                     <Link
                       key={link.href}
                       href={link.href}
+                      aria-current={active ? 'page' : undefined}
                       onClick={onClose}
                       target={link.external ? "_blank" : undefined}
                       rel={link.external ? "noreferrer" : undefined}

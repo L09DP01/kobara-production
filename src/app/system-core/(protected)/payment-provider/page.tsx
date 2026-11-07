@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import { useState, useEffect } from 'react';
 import { 
   Zap, 
@@ -241,7 +243,7 @@ export default function AdminPaymentProviderPage() {
 
       {/* Confirmation Modal */}
       {pendingProviderSwitch && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <ModalFrame title="Confirmer le changement de fournisseur" onClose={() => { if (!saving) setPendingProviderSwitch(null); }}>
           <div className="bg-slate-900 border border-slate-700 rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center gap-3 text-amber-400">
               <AlertTriangle className="w-6 h-6 flex-shrink-0" />
@@ -288,7 +290,7 @@ export default function AdminPaymentProviderPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
 
       {/* Section 2 : État du SMS Gateway NatCash */}

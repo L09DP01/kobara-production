@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createAdminClient } from '@/utils/supabase/admin';
 import { TelegramClient } from './telegram-client';
+import { getMerchantAccountTelegramLink } from '@/lib/server/account-settings';
 
 export class TelegramNotifierService {
   static async notifyB2BTransferReceived(params: {
@@ -10,12 +11,7 @@ export class TelegramNotifierService {
     amount: number;
     reference: string;
   }) {
-    const supabase = createAdminClient();
-    const { data: telegramAccount } = await supabase
-      .from('merchant_telegram_accounts')
-      .select('telegram_chat_id, notifications_enabled')
-      .eq('merchant_id', params.receiverId)
-      .maybeSingle();
+    const telegramAccount = await getMerchantAccountTelegramLink(params.receiverId);
 
     if (!telegramAccount?.notifications_enabled) {
       return { success: false, reason: 'Telegram account not linked or notifications disabled' };
@@ -32,7 +28,7 @@ export class TelegramNotifierService {
       {
         parse_mode: 'HTML',
         reply_markup: {
-          inline_keyboard: [[{ text: '💰 Voir mon solde', callback_data: 'action:balance' }]],
+          inline_keyboard: [[{ text: 'Ouvrir ce business', callback_data: `business:switch:${params.receiverId}` }]],
         },
       },
     );
@@ -63,11 +59,7 @@ export class TelegramNotifierService {
     }
 
     // 2. Trouver le chat_id Telegram du marchand
-    const { data: telegramAccount } = await supabase
-      .from('merchant_telegram_accounts')
-      .select('telegram_chat_id, notifications_enabled')
-      .eq('merchant_id', payment.merchant_id)
-      .maybeSingle();
+    const telegramAccount = await getMerchantAccountTelegramLink(payment.merchant_id);
 
     if (!telegramAccount || !telegramAccount.notifications_enabled) {
       return { success: false, reason: 'Telegram account not linked or notifications disabled' };
@@ -81,9 +73,13 @@ export class TelegramNotifierService {
     const method = (payment.payment_method || 'Mobile Money').toUpperCase();
     const customerInfo = payment.customers?.name || payment.customers?.phone || payment.metadata?.customer_phone || 'Client Kobara';
     const reference = payment.transaction_reference || payment.external_reference || payment.id.substring(0, 8);
+    const businessName = String(payment.merchants?.business_name || 'Business Kobara')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     const message = `
 🟢 <b>NOUVEAU PAIEMENT REÇU (LIVE) !</b>
+
+<b>Business :</b> ${businessName}
 
 💰 <b>Montant :</b> <code>${gross.toLocaleString('fr-HT')} ${currency}</code>
 💵 <b>Net crédité :</b> <code>${net.toLocaleString('fr-HT')} ${currency}</code> ${fee > 0 ? `<i>(Frais : ${fee.toLocaleString('fr-HT')} ${currency})</i>` : ''}
@@ -99,7 +95,7 @@ Votre solde disponible réel a été mis à jour.
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '💰 Voir mon solde', callback_data: 'action:balance' }],
+          [{ text: 'Ouvrir ce business', callback_data: `business:switch:${payment.merchant_id}` }],
         ],
       },
     });
@@ -119,11 +115,7 @@ Votre solde disponible réel a été mis à jour.
 
     if (!withdrawal || withdrawal.environment === 'test') return { success: false };
 
-    const { data: telegramAccount } = await supabase
-      .from('merchant_telegram_accounts')
-      .select('telegram_chat_id, notifications_enabled')
-      .eq('merchant_id', withdrawal.merchant_id)
-      .maybeSingle();
+    const telegramAccount = await getMerchantAccountTelegramLink(withdrawal.merchant_id);
 
     if (!telegramAccount || !telegramAccount.notifications_enabled) return { success: false };
 

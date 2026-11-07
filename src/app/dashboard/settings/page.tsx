@@ -2,6 +2,8 @@ import { getCurrentUserAndMerchant } from "@/utils/supabase/auth-helper";
 import { SettingsClient } from "./settings-client";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { getMerchantPaymentMethodState } from "@/lib/server/payments/merchant-payment-methods";
+import { getAccountSecurity } from '@/lib/server/account-settings';
+import { publicAccountSecurity } from '@/lib/account-settings-policy';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,12 +67,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     }));
   const allMembers = [...ownerMember, ...filteredMembers];
   const paymentMethods = await getMerchantPaymentMethodState(merchant.id);
+  const accountSecurity = userRole === 'owner' ? await getAccountSecurity(user.id) : null;
 
   return (
     <SettingsClient 
       user={dbUser} 
       merchant={merchant} 
-      settings={settings} 
+      settings={{ ...settings, security_json: publicAccountSecurity(accountSecurity?.security) }}
       members={allMembers} 
       userRole={userRole}
       paymentMethods={paymentMethods}

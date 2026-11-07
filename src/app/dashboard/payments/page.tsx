@@ -175,7 +175,7 @@ export default async function PaymentsPage({
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-orange-400 text-[18px] sm:text-[20px]">receipt_long</span>
-            <h2 className="font-bold text-white text-sm sm:text-base">Historique des transactions</h2>
+            <h1 className="font-bold text-white text-sm sm:text-base">Historique des transactions</h1>
           </div>
           <span className="text-slate-400 text-[11px] sm:text-xs font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded-md shadow-sm">{totalResults} résultat(s)</span>
         </div>

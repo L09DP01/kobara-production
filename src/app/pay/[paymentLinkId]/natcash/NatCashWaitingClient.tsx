@@ -210,15 +210,18 @@ export function NatCashWaitingClient({
             
             {showTranscodeInput ? (
               <div className="mt-6 space-y-3 bg-white/5 p-4 rounded-xl border border-white/10 text-left">
-                <label className="text-slate-300 text-xs font-medium uppercase tracking-wider block">Numéro de Transaction (TransCode)</label>
+                <label htmlFor="natcash-transcode" className="text-slate-300 text-xs font-medium uppercase tracking-wider block">Numéro de Transaction (TransCode)</label>
                 <input 
+                  id="natcash-transcode"
+                  aria-invalid={!!claimError}
+                  aria-describedby={claimError ? 'natcash-transcode-error' : undefined}
                   type="text" 
                   value={transCode}
                   onChange={(e) => setTransCode(e.target.value)}
                   placeholder="Ex: 26062687621075"
                   className="w-full bg-[#0F1626] border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-orange-500"
                 />
-                {claimError && <p className="text-red-400 text-xs">{claimError}</p>}
+                {claimError && <p id="natcash-transcode-error" role="alert" className="text-red-400 text-xs">{claimError}</p>}
                 <div className="flex gap-2 pt-2">
                   <button 
                     onClick={() => setShowTranscodeInput(false)}

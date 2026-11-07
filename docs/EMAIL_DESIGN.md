@@ -30,7 +30,8 @@ messages receive the same branding without interpreting text as HTML.
 Campaign unsubscribe URLs and notification preferences supplied by callers are
 preserved. The renderer does not invent unsubscribe tokens, transaction details,
 expiry periods, refunds or statuses. Shopify payment emails retain the shop name,
-product, order reference and actual payment URL. Transport configuration is managed separately from the design.
+product, order reference and actual payment URL. Marketing uses SES SMTP;
+transactional mail uses Cloudflare, with Resend as backup only.
 
 Local preview (fictitious content, never sends email):
 

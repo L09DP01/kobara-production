@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 import { verifyRegistrationResponse } from '@simplewebauthn/server';
-import { getCurrentUserAndMerchant } from '@/utils/supabase/auth-helper';
+import { getCurrentAccountSecurity } from '@/lib/server/account-settings';
 import { getWebAuthnConfig } from '@/lib/server/passkey-config';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { user, merchant, supabase } = await getCurrentUserAndMerchant();
-
-    const { data: settings } = await supabase.from('settings').select('security_json').eq('merchant_id', merchant.id).single();
-    const security = settings?.security_json || {};
+    const { user, merchant, supabase, security } = await getCurrentAccountSecurity();
     const expectedChallenge = security.current_challenge;
 
     if (!expectedChallenge) {
@@ -49,7 +46,8 @@ export async function POST(req: Request) {
         current_challenge: null // Clear challenge
       };
 
-      await supabase.from('settings').update({ security_json: updatedSecurity }).eq('merchant_id', merchant.id);
+      const { error } = await supabase.from('settings').update({ security_json: updatedSecurity }).eq('merchant_id', merchant.id);
+      if (error) throw new Error('Impossible de sauvegarder la cle de securite.');
 
       // Trigger notification for added passkey
       try {

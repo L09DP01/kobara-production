@@ -2,25 +2,28 @@
 
 import { useState, useEffect } from "react";
 import { ShieldCheck, Fingerprint, X, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { ModalFrame } from '@/components/ui/modal-frame';
 
 interface PasskeyPromptModalProps {
-  merchantId?: string;
+  accountId?: string;
   hasPasskey: boolean;
 }
 
-export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModalProps) {
+export function PasskeyPromptModal({ accountId, hasPasskey }: PasskeyPromptModalProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    // If user already has a passkey or no merchantId, never show
-    if (hasPasskey || !merchantId) return;
+    if (hasPasskey || !accountId) {
+      setIsOpen(false);
+      return;
+    }
 
     // Check if prompt was already dismissed today (once per day rule)
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-    const storageKey = `kobara_passkey_prompt_${merchantId}`;
+    const storageKey = `kobara_passkey_prompt_${accountId}`;
     const lastDismissed = localStorage.getItem(storageKey);
 
     if (lastDismissed !== today) {
@@ -30,12 +33,12 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [hasPasskey, merchantId]);
+  }, [hasPasskey, accountId]);
 
   const handleDismiss = () => {
-    if (merchantId) {
+    if (accountId) {
       const today = new Date().toISOString().split("T")[0];
-      localStorage.setItem(`kobara_passkey_prompt_${merchantId}`, today);
+      localStorage.setItem(`kobara_passkey_prompt_${accountId}`, today);
     }
     setIsOpen(false);
   };
@@ -76,9 +79,9 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
       setSuccess(true);
       
       // Mark as dismissed/completed so it won't show again
-      if (merchantId) {
+      if (accountId) {
         const today = new Date().toISOString().split("T")[0];
-        localStorage.setItem(`kobara_passkey_prompt_${merchantId}`, today);
+        localStorage.setItem(`kobara_passkey_prompt_${accountId}`, today);
       }
       
       // Auto close after 2 seconds
@@ -101,23 +104,20 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+    <ModalFrame title="Securiser votre compte avec Passkey" onClose={handleDismiss}>
       <div className="relative w-full max-w-md bg-[#0B1426] border border-[#1E2A38] rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(255,74,28,0.15)] text-white overflow-hidden">
         
-        {/* Glow effect in background */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#FF4A1C]/20 rounded-full blur-3xl pointer-events-none" />
-
         {/* Close Button */}
         <button
           onClick={handleDismiss}
-          className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
+          className="absolute top-3 right-3 flex h-11 w-11 items-center justify-center text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full transition-colors"
           aria-label="Fermer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {success ? (
-          <div className="py-6 text-center space-y-4 animate-in zoom-in-95 duration-300">
+          <div role="status" className="py-6 text-center space-y-4">
             <div className="w-16 h-16 bg-[#27C93F]/10 border border-[#27C93F]/30 rounded-2xl flex items-center justify-center mx-auto text-[#27C93F]">
               <CheckCircle2 className="w-8 h-8" />
             </div>
@@ -140,7 +140,7 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
                   Recommandation Sécurité
                 </span>
               </div>
-              <h3 className="text-2xl font-black text-white tracking-tight">
+              <h3 className="pr-8 text-2xl font-black text-white">
                 Sécurisez votre compte avec Passkey
               </h3>
               <p className="mt-2 text-sm text-slate-400 leading-relaxed">
@@ -162,7 +162,7 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
 
             {/* Error Banner */}
             {error && (
-              <div className="p-3.5 bg-[#FF5F56]/10 border border-[#FF5F56]/30 rounded-xl flex items-center gap-3 text-xs text-[#FF5F56]">
+              <div role="alert" className="p-3.5 bg-[#FF5F56]/10 border border-[#FF5F56]/30 rounded-xl flex items-center gap-3 text-xs text-[#FF5F56]">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>{error}</span>
               </div>
@@ -174,6 +174,7 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
                 type="button"
                 onClick={handleAddPasskey}
                 disabled={loading}
+                aria-busy={loading}
                 className="flex-1 h-12 bg-[#FF4A1C] hover:bg-[#FF2E14] text-white rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-[0_0_20px_rgba(255,74,28,0.3)] hover:shadow-[0_0_30px_rgba(255,74,28,0.5)] active:scale-95"
               >
                 {loading ? (
@@ -200,6 +201,6 @@ export function PasskeyPromptModal({ merchantId, hasPasskey }: PasskeyPromptModa
           </div>
         )}
       </div>
-    </div>
+    </ModalFrame>
   );
 }

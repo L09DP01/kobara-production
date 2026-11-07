@@ -12,6 +12,7 @@ import { resolveMerchantContext, merchantSwitcherOptions } from '@/lib/server/me
 import Link from 'next/link';
 import { hasBusinessAccess } from '@/lib/business-creation-error';
 import { maybeActivateAdditionalBusiness } from '@/lib/server/business-activation';
+import { getAccountSecurity, getAccountTelegramLink } from '@/lib/server/account-settings';
 
 export default async function DashboardLayout({
   children,
@@ -108,11 +109,7 @@ export default async function DashboardLayout({
           .limit(10);
         notifications = notifs || [];
 
-        const { data: telegramLink } = await supabase
-          .from('merchant_telegram_accounts')
-          .select('id')
-          .eq('merchant_id', merchant.id)
-          .maybeSingle();
+        const telegramLink = userRole === 'owner' ? await getAccountTelegramLink(user.id) : null;
 
         isTelegramLinked = !!telegramLink;
 
@@ -135,7 +132,7 @@ export default async function DashboardLayout({
 
     const { data: userData } = await supabase
       .from("users")
-      .select("first_name, last_name, email")
+      .select("id, first_name, last_name, email")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -165,15 +162,10 @@ export default async function DashboardLayout({
   // -------------------------------------------------------------
   // DUAL-METHOD 2FA SECURITY ENFORCEMENT INTERCEPTION
   // -------------------------------------------------------------
-  if (merchant) {
+  if (merchant && userRole === 'owner') {
     const supabase = createAdminClient();
-    const { data: settings } = await supabase
-      .from("settings")
-      .select("*")
-      .eq("merchant_id", merchant.id)
-      .maybeSingle();
-
-    const securityJson = settings?.security_json || {};
+    const accountSecurity = await getAccountSecurity(user.id);
+    const securityJson = accountSecurity.security;
     const twoFactorMethod = securityJson.two_factor_method || 'none';
     const passkeys = securityJson.passkeys || [];
     hasPasskey = Array.isArray(passkeys) && passkeys.length > 0;
@@ -203,7 +195,7 @@ export default async function DashboardLayout({
         const { LoginSecurityService } = await import('@/lib/server/security/login-context');
         const context = LoginSecurityService.extractContext(headersList);
         const evalResult = await LoginSecurityService.evaluateLoginContext({
-          merchantId: merchant.id,
+          merchantId: accountSecurity.merchant.id,
           userId: user.id,
           context,
         });

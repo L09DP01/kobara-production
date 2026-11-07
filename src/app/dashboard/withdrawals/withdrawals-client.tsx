@@ -1,5 +1,7 @@
 'use client'
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import { useEffect, useState } from 'react';
 import { quoteCryptoWithdrawalAction, requestWithdrawal, sendWithdrawalOtpAction } from './actions';
 import { executeB2BTransfer } from './b2b-actions';
@@ -362,7 +364,7 @@ export function WithdrawalsClient({
 
       {/* Withdrawal Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <ModalFrame title="Retrait" onClose={() => { if (!loading) setIsModalOpen(false); }}>
           <div className="bg-[#131B2C] border border-white/10 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="bg-gradient-to-r from-[#1a1a2e] to-[#16213e] p-5">
               <h2 className="text-lg font-bold text-white">
@@ -637,7 +639,7 @@ export function WithdrawalsClient({
               )}
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
 
       {/* Withdrawal History */}
@@ -646,6 +648,7 @@ export function WithdrawalsClient({
           <h3 className="text-lg font-bold text-white">Historique des Retraits</h3>
           <select
             value={filterStatus}
+            aria-label="Filtrer les retraits par statut"
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/20 transition-all shadow-sm [&>option]:bg-[#131B2C]"
           >
@@ -721,7 +724,7 @@ export function WithdrawalsClient({
       </div>
       {/* QR Code Modal */}
       {isQrModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <ModalFrame title="QR Code B2B" onClose={() => { setIsQrModalOpen(false); }}>
           <div className="bg-[#131B2C] border border-white/10 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden p-6 text-center">
             <h2 className="text-xl font-bold text-white mb-2">Votre QR Code B2B</h2>
             <p className="text-slate-400 text-sm mb-6">
@@ -747,12 +750,12 @@ export function WithdrawalsClient({
               Fermer
             </button>
           </div>
-        </div>
+        </ModalFrame>
       )}
 
       {/* Withdrawal Detail Modal */}
       {selectedWithdrawal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60]">
+        <ModalFrame title="Details du retrait" onClose={() => { setSelectedWithdrawal(null); }}>
           <div className="bg-[#131B2C] border border-white/10 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-gradient-to-r from-[#1a1a2e] to-[#16213e] p-6 flex justify-between items-start">
               <div>
@@ -836,7 +839,7 @@ export function WithdrawalsClient({
               </button>
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );

@@ -36,6 +36,7 @@ export default async function AdminMerchantsPage({ searchParams }: { searchParam
             type="text" 
             defaultValue={q}
             placeholder="Nom ou e-mail..."
+            aria-label="Rechercher un marchand par nom ou e-mail"
             className="w-full bg-slate-900 border border-slate-700 rounded-md pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-red-500 transition-colors text-slate-200"
           />
         </form>

@@ -91,15 +91,15 @@ export default function DashboardLayoutClient({
       <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={userRole} kycApproved={hasKycAccess} />
 
       <div className="flex min-h-full flex-1 flex-col transition-[padding] duration-200 lg:pl-60">
-        <TopNav onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} merchant={merchant} user={user} initialNotifications={initialNotifications} accessibleMerchants={accessibleMerchants} userRole={userRole} referralSummary={referralSummary} />
+        <TopNav sidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} merchant={merchant} user={user} initialNotifications={initialNotifications} accessibleMerchants={accessibleMerchants} userRole={userRole} referralSummary={referralSummary} />
         
         {/* Telegram Connect & Community Banner (disappears if connected, closable with X) */}
-        {hasKycAccess && <TelegramConnectBanner merchantId={merchant?.id} isTelegramLinked={isTelegramLinked} />}
+        {hasKycAccess && userRole === 'owner' && <TelegramConnectBanner accountId={user?.id} isTelegramLinked={isTelegramLinked} />}
 
         {merchant && merchant.kyc_status !== 'approved' && (
           <KycRequiredBanner businessReview={!!merchant.identity_owner_merchant_id} />
         )}
-        <main className="mx-auto flex w-full max-w-[1440px] flex-1 flex-col gap-6 px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:py-8">
+        <main id="dashboard-content" tabIndex={-1} className="mx-auto flex w-full min-w-0 max-w-[1440px] flex-1 flex-col gap-6 px-4 py-6 pb-[calc(6rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>
@@ -107,7 +107,7 @@ export default function DashboardLayoutClient({
       <MobileBottomNav onOpenMore={() => setIsSidebarOpen(true)} userRole={userRole} kycApproved={hasKycAccess} />
 
       {/* Passkey Security Recommendation Popup (1x / day if user has no passkey) */}
-      {hasKycAccess && <PasskeyPromptModal merchantId={merchant?.id} hasPasskey={hasPasskey} />}
+      {hasKycAccess && userRole === 'owner' && <PasskeyPromptModal accountId={user?.id} hasPasskey={hasPasskey} />}
     </div>
   );
 }

@@ -86,6 +86,7 @@ export class LoginSecurityService {
       .from('trusted_login_contexts')
       .select('*')
       .eq('merchant_id', params.merchantId)
+      .eq('user_id', params.userId)
       .eq('is_trusted', true);
 
     // Si aucun contexte n'existe encore (premier login du compte), on initialise le contexte de confiance
@@ -284,6 +285,7 @@ L'équipe de sécurité Kobara
       .from('login_security_challenges')
       .select('*')
       .eq('merchant_id', params.merchantId)
+      .eq('user_id', params.userId)
       .is('verified_at', null)
       .order('created_at', { ascending: false })
       .limit(1);

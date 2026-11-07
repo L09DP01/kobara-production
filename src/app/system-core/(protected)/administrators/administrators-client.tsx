@@ -58,9 +58,9 @@ export default function AdministratorsClient({
       )}
 
       <form action={createAction} className="grid gap-3 border border-slate-800 bg-slate-900 p-5 md:grid-cols-4">
-        <input name="name" maxLength={120} placeholder="Nom" className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-        <input name="email" type="email" required placeholder="E-mail" className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
-        <select name="role" defaultValue="operations" className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+        <input aria-label="Nom de l'administrateur" name="name" maxLength={120} placeholder="Nom" className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+        <input aria-label="E-mail de l'administrateur" name="email" type="email" required placeholder="E-mail" className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+        <select aria-label="Rôle de l'administrateur" name="role" defaultValue="operations" className="border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
           <option value="super_admin">Super administrateur</option>
           <option value="operations">Opérations</option>
           <option value="compliance">Conformité</option>

@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
@@ -7,16 +9,23 @@ import { QRCodeSVG } from 'qrcode.react';
 export default function LinkActions({ linkId, linkUrl }: { linkId: string, linkUrl: string }) {
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [copyError, setCopyError] = useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(linkUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    setCopyError(false);
+    try {
+      await navigator.clipboard.writeText(linkUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+      setCopyError(true);
+    }
   };
 
   return (
     <>
-      <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+      <div className="flex flex-wrap items-center justify-end gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity">
         <button 
           onClick={() => setShowQR(true)}
           className="p-1.5 text-text-secondary hover:text-primary rounded hover:bg-surface-container-high transition-colors inline-flex" 
@@ -41,9 +50,11 @@ export default function LinkActions({ linkId, linkUrl }: { linkId: string, linkU
           <span className="material-symbols-outlined text-[18px]">edit</span>
         </Link>
       </div>
+      <span role="status" className="sr-only">{copied ? 'Lien copie.' : ''}</span>
+      {copyError && <p role="alert" className="max-w-xs break-words text-xs text-red-400">Copie impossible. Ouvrez le QR code ou reessayez.</p>}
 
       {showQR && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <ModalFrame title="QR Code de paiement" onClose={() => { setShowQR(false); }}>
           <div className="bg-surface-card rounded-2xl p-6 w-full max-w-xs shadow-2xl flex flex-col items-center">
             <h3 className="text-lg font-bold text-text-primary mb-4 text-center">QR Code de paiement</h3>
             
@@ -67,7 +78,7 @@ export default function LinkActions({ linkId, linkUrl }: { linkId: string, linkU
               Fermer
             </button>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </>
   );

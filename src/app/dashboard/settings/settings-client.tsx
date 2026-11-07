@@ -16,21 +16,22 @@ type Tab = 'profile' | 'paymentMethods' | 'payouts' | 'security' | 'notification
 export function SettingsClient({ user, merchant, settings, members, paymentMethods, userRole = 'owner', initialTab, kycApproved = false }: { user: any, merchant: any, settings: any, members: any[], paymentMethods: MerchantPaymentMethodState, userRole?: string, initialTab?: string, kycApproved?: boolean }) {
   const validTabs: Tab[] = ['profile', 'paymentMethods', 'payouts', 'security', 'notifications', 'team'];
   const requestedTab = validTabs.includes(initialTab as Tab) ? initialTab as Tab : 'profile';
-  const [activeTab, setActiveTab] = useState<Tab>(!kycApproved || (userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab)) ? 'profile' : requestedTab);
+  const restrictedTab = (!kycApproved && !['profile', 'security', 'notifications'].includes(requestedTab)) || (userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab));
+  const [activeTab, setActiveTab] = useState<Tab>(restrictedTab ? 'profile' : requestedTab);
   useEffect(() => {
-    setActiveTab(!kycApproved || (userRole !== 'owner' && ['paymentMethods', 'payouts', 'security'].includes(requestedTab)) ? 'profile' : requestedTab);
-  }, [requestedTab, kycApproved, userRole]);
+    setActiveTab(restrictedTab ? 'profile' : requestedTab);
+  }, [requestedTab, restrictedTab]);
 
   const tabs: { id: Tab, label: string, icon: any, desc: string, ownerOnly?: boolean }[] = [
     { id: 'profile', label: 'Profil Entreprise', icon: Store, desc: 'Logo, nom, adresse' },
     { id: 'paymentMethods', label: 'Moyens de paiement', icon: WalletCards, desc: 'Options proposées aux clients', ownerOnly: true },
     { id: 'payouts', label: 'Comptes de Retrait', icon: CreditCard, desc: 'MonCash, banques', ownerOnly: true },
-    { id: 'security', label: 'Sécurité & Sessions', icon: Shield, desc: 'Passkey, 2FA, Appareils', ownerOnly: true },
+    { id: 'security', label: 'Sécurité du compte', icon: Shield, desc: 'Passkeys, 2FA et sessions de tous vos business', ownerOnly: true },
     { id: 'notifications', label: 'Notifications', icon: Bell, desc: 'Email, push, alertes' },
     { id: 'team', label: "Membres d'équipe", icon: Users, desc: 'Rôles et accès' },
   ];
 
-  const visibleTabs = tabs.filter(t => t.id === 'profile' || (t.id === 'notifications' && userRole === 'owner') || (kycApproved && (!t.ownerOnly || userRole === 'owner')));
+  const visibleTabs = tabs.filter(t => t.id === 'profile' || (['notifications', 'security'].includes(t.id) && userRole === 'owner') || (kycApproved && (!t.ownerOnly || userRole === 'owner')));
 
   return (
     <div className="max-w-7xl mx-auto w-full space-y-8 pb-16 animate-in fade-in duration-300">
@@ -44,7 +45,7 @@ export function SettingsClient({ user, merchant, settings, members, paymentMetho
           <div>
             <h1 className="text-3xl font-black text-white tracking-tight">Paramètres</h1>
             <p className="text-slate-400 text-sm mt-1">
-              Gérez le profil de votre entreprise, la sécurité de vos accès et vos appareils connectés.
+              Le profil et les paiements concernent ce business. La sécurité, les sessions et Telegram sont communs à votre compte.
             </p>
           </div>
         </div>

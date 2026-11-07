@@ -1,5 +1,7 @@
 'use client'
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import { useState, useRef } from 'react';
 import { CheckCircle2, XCircle, Banknote, Clock, AlertTriangle, X } from "lucide-react";
 import { WithdrawalFailureInfo } from '@/components/admin/WithdrawalFailureInfo';
@@ -278,7 +280,7 @@ export function AdminWithdrawalsClient({
 
       {/* Modal de refus avec raison obligatoire */}
       {rejectModalOpen && rejectTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <ModalFrame title="Refuser le retrait" onClose={() => { setRejectModalOpen(false); }}>
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
@@ -336,7 +338,7 @@ export function AdminWithdrawalsClient({
               </button>
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );

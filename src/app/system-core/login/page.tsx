@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, ShieldCheck, Mail, KeyRound, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 export default function SystemCoreLogin() {
   const [email, setEmail] = useState('');
@@ -12,6 +12,7 @@ export default function SystemCoreLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const reduceMotion = useReducedMotion();
 
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,15 +66,15 @@ export default function SystemCoreLogin() {
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden selection:bg-red-500/30">
+    <div className="min-h-dvh bg-slate-950 flex flex-col items-center justify-center p-4 overflow-x-clip selection:bg-red-500/30">
       {/* Background Effects */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-red-600/10 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/10 blur-[120px] rounded-full pointer-events-none" />
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: reduceMotion ? 0 : 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: reduceMotion ? 0 : 0.2 }}
         className="relative z-10 w-full max-w-md"
       >
         <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 p-8 sm:p-10 rounded-2xl shadow-2xl">
@@ -91,7 +92,9 @@ export default function SystemCoreLogin() {
 
           {error && (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
+              role="alert"
+              id="admin-login-error"
+              initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               className="bg-red-500/10 border border-red-500/20 text-red-400 text-sm p-4 rounded-xl mb-6 flex items-start gap-3"
             >
@@ -103,10 +106,13 @@ export default function SystemCoreLogin() {
           {step === 'email' ? (
             <form onSubmit={handleRequestCode} className="space-y-5">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">Email administrateur</label>
+                <label htmlFor="admin-email" className="text-sm font-medium text-slate-300">Email administrateur</label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                   <input
+                    id="admin-email"
+                    aria-invalid={!!error}
+                    aria-describedby={error ? 'admin-login-error' : undefined}
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -135,8 +141,8 @@ export default function SystemCoreLogin() {
           ) : (
             <form onSubmit={handleVerifyCode} className="space-y-5">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300 flex justify-between">
-                  <span>Code de vérification</span>
+                <div className="text-sm font-medium text-slate-300 flex justify-between">
+                  <label htmlFor="admin-code">Code de vérification</label>
                   <button 
                     type="button" 
                     onClick={() => { setStep('email'); setCode(''); setError(''); }}
@@ -144,13 +150,18 @@ export default function SystemCoreLogin() {
                   >
                     Modifier
                   </button>
-                </label>
-                <p className="text-xs text-slate-500 mb-4">
+                </div>
+                <p id="admin-code-hint" className="text-xs text-slate-400 mb-4 break-words">
                   Un code à 6 chiffres a été envoyé à {email}
                 </p>
                 <div className="relative">
                   <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                   <input
+                    id="admin-code"
+                    inputMode="numeric"
+                    pattern="[0-9]{6}"
+                    aria-invalid={!!error}
+                    aria-describedby={`admin-code-hint${error ? ' admin-login-error' : ''}`}
                     type="text"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -158,7 +169,7 @@ export default function SystemCoreLogin() {
                     maxLength={6}
                     className="w-full bg-slate-950/50 border border-slate-800 rounded-xl pl-11 pr-4 py-3.5 text-center text-2xl tracking-[0.5em] focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500 transition-all text-slate-200"
                     placeholder="••••••"
-                    autoComplete="off"
+                    autoComplete="one-time-code"
                     autoFocus
                   />
                 </div>

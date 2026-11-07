@@ -19,6 +19,7 @@ import {
   normalizeBusinessName,
 } from "@/lib/business-name";
 import { normalizeSixDigitCode } from '@/lib/two-factor';
+import { getCurrentAccountSecurity, getAccountTelegramLink, getOwnedAccountMerchants } from '@/lib/server/account-settings';
 import { createPartnerToken } from '@/lib/server/partners/tokens';
 import {
   getMerchantPaymentMethodState,
@@ -493,7 +494,7 @@ async function getOrCreateSettings(supabase: any, merchantId: string) {
 }
 
 export async function sendEmailOtpAction() {
-  const { user, merchant } = await getAuthUserAndMerchant();
+  const { user, merchant } = await getCurrentAccountSecurity();
   const { headers } = await import('next/headers');
   const headersList = await headers();
   
@@ -511,7 +512,7 @@ export async function sendEmailOtpAction() {
 }
 
 export async function verifyEmailOtpAction(code: string) {
-  const { user, merchant } = await getAuthUserAndMerchant();
+  const { user, merchant } = await getCurrentAccountSecurity();
   const cookieStore = await cookies();
   const { headers } = await import('next/headers');
   const headersList = await headers();
@@ -547,7 +548,7 @@ export async function verifyEmailOtpAction(code: string) {
 }
 
 export async function generateTotpSecretAction() {
-  const { user, merchant, supabase } = await getAuthUserAndMerchant();
+  const { user, merchant, supabase, security } = await getCurrentAccountSecurity();
   const speakeasy = (await import("speakeasy")).default;
   const QRCode = (await import("qrcode")).default;
   
@@ -559,8 +560,7 @@ export async function generateTotpSecretAction() {
 
   const qrCodeDataUrl = await QRCode.toDataURL(secret.otpauth_url!);
 
-  const settings = await getOrCreateSettings(supabase, merchant.id);
-  const security = settings.security_json || {};
+  await getOrCreateSettings(supabase, merchant.id);
 
   const updatedSecurity = {
     ...security,
@@ -579,10 +579,9 @@ export async function generateTotpSecretAction() {
 }
 
 export async function verifyAndActivateTotpAction(token: string) {
-  const { user, merchant, supabase } = await getAuthUserAndMerchant();
+  const { user, merchant, supabase, security } = await getCurrentAccountSecurity();
   const speakeasy = (await import("speakeasy")).default;
-  const settings = await getOrCreateSettings(supabase, merchant.id);
-  const security = settings.security_json || {};
+  await getOrCreateSettings(supabase, merchant.id);
 
   const pendingSecret = security.pending_totp_secret;
   if (!pendingSecret) {
@@ -641,7 +640,7 @@ export async function verifyAndActivateTotpAction(token: string) {
 }
 
 export async function verifyTotpChallengeAction(code: string) {
-  const { user, merchant, supabase } = await getAuthUserAndMerchant();
+  const { user, merchant, supabase, security } = await getCurrentAccountSecurity();
   const speakeasy = (await import("speakeasy")).default;
   const cookieStore = await cookies();
   const { headers } = await import('next/headers');
@@ -654,8 +653,7 @@ export async function verifyTotpChallengeAction(code: string) {
     throw new Error("Trop de tentatives. Veuillez patienter quelques minutes avant de réessayer.");
   }
 
-  const settings = await getOrCreateSettings(supabase, merchant.id);
-  const security = settings?.security_json || {};
+  await getOrCreateSettings(supabase, merchant.id);
 
   const secret = security.totp_secret;
   if (!secret) {
@@ -692,14 +690,8 @@ export async function verifyTotpChallengeAction(code: string) {
 }
 
 export async function deletePasskeyAction(passkeyId: string) {
-  const { merchant } = await getAuthUserAndMerchant();
+  const { merchant, security } = await getCurrentAccountSecurity();
 
-  const { data: settings } = await createAdminClient().from('settings')
-    .select('security_json')
-    .eq('merchant_id', merchant.id)
-    .single();
-
-  const security = settings?.security_json || {};
   const passkeys = security.passkeys || [];
 
   const updatedPasskeys = passkeys.filter((pk: any) => pk.id !== passkeyId);
@@ -715,11 +707,10 @@ export async function deletePasskeyAction(passkeyId: string) {
 }
 
 export async function disable2faAction() {
-  const { merchant, supabase } = await getAuthUserAndMerchant();
+  const { merchant, supabase, security } = await getCurrentAccountSecurity();
   const cookieStore = await cookies();
 
-  const settings = await getOrCreateSettings(supabase, merchant.id);
-  const security = settings.security_json || {};
+  await getOrCreateSettings(supabase, merchant.id);
 
   const updatedSecurity = {
     ...security,
@@ -746,14 +737,8 @@ export async function disable2faAction() {
  * Récupère le statut de connexion Telegram du marchand
  */
 export async function getTelegramLinkStatusAction() {
-  const { merchant } = await getAuthUserAndMerchant();
-  const supabase = createAdminClient();
-
-  const { data: link } = await supabase
-    .from('merchant_telegram_accounts')
-    .select('telegram_chat_id, telegram_username, first_name, notifications_enabled, linked_at')
-    .eq('merchant_id', merchant.id)
-    .maybeSingle();
+  const { user } = await getCurrentAccountSecurity();
+  const link = await getAccountTelegramLink(user.id);
 
   return {
     linked: !!link,
@@ -769,7 +754,7 @@ export async function getTelegramLinkStatusAction() {
  * Génère un jeton sécurisé temporaire pour lier le compte Telegram
  */
 export async function generateTelegramLinkTokenAction() {
-  const { merchant } = await getAuthUserAndMerchant();
+  const { merchant } = await getCurrentAccountSecurity();
   const supabase = createAdminClient();
   const crypto = await import('crypto');
 
@@ -810,17 +795,22 @@ export async function generateTelegramLinkTokenAction() {
  * Dissocie le compte Telegram du marchand
  */
 export async function unlinkTelegramAccountAction() {
-  const { merchant } = await getAuthUserAndMerchant();
+  const { user } = await getCurrentAccountSecurity();
+  const merchants = await getOwnedAccountMerchants(user.id);
   const supabase = createAdminClient();
 
   const { error } = await supabase
     .from('merchant_telegram_accounts')
     .delete()
-    .eq('merchant_id', merchant.id);
+    .in('merchant_id', merchants.map(item => item.id));
 
   if (error) {
     throw new Error("Impossible de dissocier le compte Telegram.");
   }
+
+  const { error: tokenError } = await supabase.from('telegram_link_tokens').delete()
+    .in('merchant_id', merchants.map(item => item.id));
+  if (tokenError) throw new Error("Impossible d'invalider les anciens liens Telegram.");
 
   revalidatePath('/dashboard/settings');
   return { success: true };
@@ -830,13 +820,14 @@ export async function unlinkTelegramAccountAction() {
  * Active / désactive les notifications Telegram
  */
 export async function toggleTelegramNotificationsAction(enabled: boolean) {
-  const { merchant } = await getAuthUserAndMerchant();
+  const { user } = await getCurrentAccountSecurity();
+  const merchants = await getOwnedAccountMerchants(user.id);
   const supabase = createAdminClient();
 
   const { error } = await supabase
     .from('merchant_telegram_accounts')
     .update({ notifications_enabled: enabled })
-    .eq('merchant_id', merchant.id);
+    .in('merchant_id', merchants.map(item => item.id));
 
   if (error) {
     throw new Error("Impossible de modifier les préférences Telegram.");

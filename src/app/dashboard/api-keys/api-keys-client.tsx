@@ -1,5 +1,7 @@
 'use client'
 
+import { ModalFrame } from '@/components/ui/modal-frame';
+
 import { useState } from 'react';
 
 import Link from 'next/link';
@@ -319,7 +321,7 @@ export function ApiKeysClient({
 
       {/* Revoke Confirmation Modal */}
       {confirmRevokeId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <ModalFrame title="Revoquer la cle API" onClose={() => { setConfirmRevokeId(null); }}>
           <div className="bg-[#131b2f] w-full max-w-md rounded-3xl p-6 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mb-5 mx-auto border border-red-500/20">
               <span className="material-symbols-outlined text-[32px]">warning</span>
@@ -343,12 +345,12 @@ export function ApiKeysClient({
               </button>
             </div>
           </div>
-        </div>
+        </ModalFrame>
       )}
 
       {/* Create Key Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <ModalFrame title="Nouvelle cle Production" onClose={() => { setShowCreateModal(false); setKeyName(''); setError(null); }}>
           <div className="bg-[#131b2f] w-full max-w-md rounded-3xl p-6 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-white">Nouvelle clé Production</h3>
@@ -413,7 +415,7 @@ export function ApiKeysClient({
               </div>
             </form>
           </div>
-        </div>
+        </ModalFrame>
       )}
     </div>
   );

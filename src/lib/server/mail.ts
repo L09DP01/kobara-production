@@ -1,7 +1,7 @@
 import { isReviewAccount, isReviewEmail } from '@/lib/review-account';
 import { escapeEmailHtml, renderKobaraEmail } from './email/template';
 import type { EmailPresentation } from './email/template';
-// Transactional mail uses Cloudflare first; Resend handles fallback and marketing.
+// Cloudflare handles transactional mail; SES SMTP handles marketing. Resend is backup only.
 
 type EmailTemplateProps = {
   subject: string;
@@ -21,10 +21,7 @@ function renderEmailTemplate({ subject, greeting, paragraphs, cta, secondaryInfo
     ${alertType === 'critical' ? '<blockquote>Si vous ne reconnaissez pas cette activité, contactez immédiatement le support Kobara.</blockquote>' : ''}`;
 }
 
-// Rate limiting & Queue pour l'API Resend
-// La limite standard Resend est de 10 requêtes / seconde.
-// Nous appliquons un espacement minimum de 150ms (~6.6 emails/s max)
-// et un système de retry automatique avec backoff exponentiel sur HTTP 429.
+// Per-isolate pacing; durable campaign quotas and recipient leases remain upstream.
 
 let lastEmailSendTime = 0;
 const MIN_SEND_INTERVAL_MS = 150;
@@ -83,88 +80,14 @@ async function sendEmailCore(
     const result = await tryCloudflareEmail({ to, subject, html, text, replyTo, senderName });
     if (result.status === 'accepted') return { success: true };
     if (result.status === 'failed') return { success: false, error: result.error };
+  } else {
+    const { trySesSmtpEmail } = await import('./email/ses-smtp');
+    const result = await scheduleEmailSend(() => trySesSmtpEmail({ to, subject, html, text, replyTo, senderName }));
+    if (result.status === 'accepted') return { success: true };
+    if (result.status === 'failed') return { success: false, error: result.error };
   }
-
-  if (!process.env.RESEND_API_KEY) {
-    console.log(`[INFO] Clé RESEND_API_KEY manquante. L'e-mail a été généré en mode développement.`);
-    if (process.env.NODE_ENV === 'production') {
-      return { success: false, error: 'Service e-mail non configuré' };
-    }
-    return { success: true };
-  }
-
-  const payload = {
-    from: emailSenderWithName(process.env.RESEND_FROM_EMAIL || 'Kobara <noreply@kobara.app>', senderName),
-    to: [to],
-    subject: subject,
-    html: html,
-    text: text,
-    ...(replyTo ? { reply_to: replyTo } : {}),
-  };
-
-  const maxRetries = 4;
-  const deliveryKey = idempotencyKey || `kobara-email-${crypto.randomUUID()}`;
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const res = await scheduleEmailSend(() =>
-        fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-            'Idempotency-Key': deliveryKey,
-          },
-          body: JSON.stringify(payload)
-        })
-      );
-
-      if (res.ok) {
-        return { success: true };
-      }
-
-      const status = res.status;
-      const providerMessage = await res.text();
-
-      // Gestion spécifique du Rate Limit (429) et erreurs serveur temporaires (5xx)
-      if (status === 429 || (status >= 500 && status < 600)) {
-        if (attempt < maxRetries) {
-          const retryAfterHeader = res.headers.get('retry-after');
-          let delayMs = 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 300); // 1s, 2s, 4s + jitter
-
-          if (retryAfterHeader) {
-            const parsedSeconds = parseFloat(retryAfterHeader);
-            if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
-              delayMs = Math.ceil(parsedSeconds * 1000) + 150;
-            }
-          }
-
-          console.warn(
-            `⚠️ [RESEND RATE LIMIT ${status}] Limite atteinte pour ${to}. Tentative ${attempt}/${maxRetries} - Attente de ${delayMs}ms avant réessai...`
-          );
-          await sleep(delayMs);
-          continue;
-        }
-      }
-
-      console.error(`[RESEND ERROR] Échec de l'envoi à ${to} (${status}) :`, providerMessage);
-      return { success: false, error: `Service e-mail indisponible (${status})` };
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Erreur réseau inconnue';
-      if (attempt < maxRetries) {
-        const delayMs = 1000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 300);
-        console.warn(
-          `⚠️ [RESEND NETWORK ERROR] Exception réseau pour ${to}. Tentative ${attempt}/${maxRetries} dans ${delayMs}ms... ${errorMessage}`
-        );
-        await sleep(delayMs);
-        continue;
-      }
-
-      console.error(`[RESEND ERROR] Exception lors de l'envoi à ${to} :`, error);
-      return { success: false, error: error instanceof Error ? error.message : "Erreur réseau du service e-mail" };
-    }
-  }
-
-  return { success: false, error: "Trop de requêtes e-mail. Veuillez réessayer plus tard." };
+  const { sendResendFallback } = await import('./email/resend-fallback');
+  return scheduleEmailSend(() => sendResendFallback({ to, subject, html, text, replyTo, senderName, idempotencyKey }));
 }
 
 // ------------------------------------------------------------------
@@ -269,72 +192,44 @@ export async function sendEmail({ to, subject, html, text, replyTo, idempotencyK
   return sendEmailCore({ to, subject, html: generatedHtml, text, replyTo, idempotencyKey, senderName, kind, presentation });
 }
 
+export async function isEmailDeliveryConfigured(kind: 'transactional' | 'marketing') {
+  if (kind === 'marketing') {
+    const { hasSesSmtpConfiguration } = await import('./email/ses-smtp');
+    return hasSesSmtpConfiguration();
+  }
+  const { getRuntimeEnvironmentValue } = await import('./runtime-env');
+  const { hasCloudflareEmailBinding } = await import('./email/cloudflare');
+  return hasCloudflareEmailBinding() || Boolean(getRuntimeEnvironmentValue('RESEND_API_KEY'));
+}
+
 export async function sendBulkEmail({
   recipients,
   subject,
   text,
   html,
   idempotencyKey,
+  kind = 'marketing',
 }: {
   recipients: string[];
   subject: string;
   text: string;
   html?: string;
   idempotencyKey: string;
+  kind?: 'transactional' | 'marketing';
 }) {
   const emails = [...new Set(recipients.map((email) => email.trim().toLowerCase()).filter(Boolean))];
-  const generatedHtml = renderKobaraEmail({ subject, text, html, kind: 'marketing' });
-
-  if (!process.env.RESEND_API_KEY) {
-    return process.env.NODE_ENV === 'production'
-      ? { sent: 0, failed: emails.length, errors: ['Service e-mail non configuré'] }
-      : { sent: emails.length, failed: 0, errors: [] };
-  }
-
   let sent = 0;
   let failed = 0;
   const errors: string[] = [];
-  const from = process.env.RESEND_FROM_EMAIL || 'Kobara <noreply@kobara.app>';
-
-  for (let offset = 0; offset < emails.length; offset += 100) {
-    const batch = emails.slice(offset, offset + 100);
-    const batchNumber = Math.floor(offset / 100) + 1;
-    let delivered = false;
-
-    for (let attempt = 1; attempt <= 4; attempt++) {
-      try {
-        const response = await scheduleEmailSend(() => fetch('https://api.resend.com/emails/batch', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-            'Idempotency-Key': `${idempotencyKey}-${batchNumber}`.slice(0, 256),
-          },
-          body: JSON.stringify(batch.map((to) => ({ from, to: [to], subject, html: generatedHtml, text }))),
-        }));
-
-        if (response.ok) {
-          sent += batch.length;
-          delivered = true;
-          break;
-        }
-
-        const providerMessage = await response.text();
-        if ((response.status === 429 || response.status >= 500) && attempt < 4) {
-          await sleep(500 * Math.pow(2, attempt - 1));
-          continue;
-        }
-        errors.push(`Lot ${batchNumber}: ${response.status} ${providerMessage.slice(0, 180)}`);
-      } catch (error) {
-        if (attempt < 4) {
-          await sleep(500 * Math.pow(2, attempt - 1));
-          continue;
-        }
-        errors.push(`Lot ${batchNumber}: ${error instanceof Error ? error.message : 'Erreur réseau'}`);
-      }
-    }
-
-    if (!delivered) failed += batch.length;
+  for (let index = 0; index < emails.length; index++) {
+    try {
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${idempotencyKey}\0${emails[index]}`));
+      const deliveryKey = `bulk-email-${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')}`;
+      const result = await sendEmailCore({ to: emails[index], subject, text, html: html || '', kind,
+        idempotencyKey: deliveryKey });
+      if (result.success) sent++;
+      else { failed++; errors.push(result.error || 'Envoi e-mail échoué.'); }
+    } catch { failed++; errors.push('Envoi e-mail indisponible.'); }
   }
 
   return { sent, failed, errors };

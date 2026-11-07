@@ -19,8 +19,11 @@ function senderAddress(configured: string, overrideName?: string) {
   return name ? { email, name } : email;
 }
 
+export function hasCloudflareEmailBinding() {
+  try { return typeof getCloudflareContext().env.EMAIL?.send === 'function'; } catch { return false; }
+}
+
 export async function tryCloudflareEmail(input: EmailInput): Promise<DeliveryResult> {
-  if (getRuntimeEnvironmentValue('EMAIL_PRIMARY_PROVIDER') === 'resend') return { status: 'fallback' };
   let binding: CloudflareEnv['EMAIL'] | undefined;
   try { binding = getCloudflareContext().env.EMAIL; } catch { /* Node.js has no Workers binding. */ }
   if (!binding || typeof binding.send !== 'function') return { status: 'fallback' };

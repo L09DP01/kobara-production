@@ -3,7 +3,8 @@
 import AdminSessionManager from "@/components/admin/AdminSessionManager";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Terminal,
   Activity,
@@ -11,6 +12,7 @@ import {
   ShieldAlert,
   CreditCard,
   Banknote,
+  Landmark,
   LifeBuoy,
   SearchCode,
   LogOut,
@@ -34,10 +36,17 @@ import {
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 768px)');
+    const close = () => { if (desktop.matches) setMenuOpen(false); };
+    desktop.addEventListener('change', close);
+    return () => desktop.removeEventListener('change', close);
+  }, []);
 
   const navItems = [
     { name: "DASHBOARD", href: "/system-core/dashboard", icon: Activity },
     { name: "PAYMENT PROVIDERS", href: "/system-core/payment-provider", icon: Layers },
+    { name: "TREASURY", href: "/system-core/treasury", icon: Landmark },
     { name: "MERCHANTS", href: "/system-core/merchants", icon: Users },
     { name: "KYC REVIEW", href: "/system-core/kyc", icon: ShieldAlert },
     { name: "TRANSACTIONS", href: "/system-core/transactions", icon: CreditCard },
@@ -62,12 +71,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { name: "SMS GATEWAY", href: "/system-core/sms-gateway", icon: Terminal },
   ];
 
-  return (
-    <div className="fixed inset-0 flex min-w-0 bg-slate-950 font-mono text-slate-100 selection:bg-red-500/30">
-      <AdminSessionManager>
-        {/* Sidebar */}
-        {menuOpen && <button aria-label="Fermer le menu" onClick={() => setMenuOpen(false)} className="fixed inset-0 z-40 bg-black/60 md:hidden" />}
-        <aside className={`fixed md:static inset-y-0 left-0 z-50 w-64 border-r border-slate-800 bg-slate-900 flex flex-col transition-transform md:translate-x-0 ${menuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+  const sidebar = <>
           <div className="p-6 border-b border-slate-800 flex items-center gap-4">
             <div className="w-10 h-10 bg-red-600 rounded flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]">
               K
@@ -85,12 +89,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             <div className="text-xs font-semibold text-slate-500 mb-4 px-2 tracking-widest">MODULES</div>
             {navItems.map((item) => {
-              const isActive = pathname.startsWith(item.href);
+              const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') &&
+                !navItems.some(other => other.href !== item.href && other.href.startsWith(item.href + '/') &&
+                  (pathname === other.href || pathname.startsWith(other.href + '/'))));
               const Icon = item.icon;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
                   onClick={() => setMenuOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded transition-all text-sm tracking-wider ${
                     isActive
@@ -115,14 +122,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               TERMINATE SESSION
             </Link>
           </div>
-        </aside>
+        </>;
+
+  return (
+    <div className="fixed inset-0 flex min-w-0 bg-slate-950 font-mono text-slate-100 selection:bg-red-500/30">
+      <AdminSessionManager>
+        {/* Sidebar */}
+        <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900 md:flex">{sidebar}</aside>
+        <DialogPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>
+          <DialogPrimitive.Portal>
+            <DialogPrimitive.Overlay data-modal-scrim className="fixed inset-0 z-50 bg-black/65 md:hidden" />
+            <DialogPrimitive.Content aria-describedby={undefined} onCloseAutoFocus={event => {
+              event.preventDefault(); document.getElementById('admin-menu-trigger')?.focus();
+            }} className="fixed inset-y-0 left-0 z-50 flex w-[min(320px,90vw)] flex-col border-r border-slate-700 bg-slate-900 text-white md:hidden">
+              <DialogPrimitive.Title className="sr-only">Menu System Core</DialogPrimitive.Title>
+              {sidebar}
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
 
         {/* Main Content Area */}
         <div className="flex min-h-[100dvh] min-w-0 flex-1 flex-col overflow-hidden">
           {/* Topbar for mobile and breadcrumbs/status */}
           <header className="flex h-16 min-w-0 items-center justify-between gap-3 border-b border-slate-800 bg-slate-900/30 px-3 backdrop-blur-md sm:px-6">
             <div className="flex min-w-0 items-center gap-2 text-sm text-slate-400">
-              <button aria-label="Ouvrir le menu" onClick={() => setMenuOpen(true)} className="p-1 -ml-2 md:hidden"><Menu className="w-5 h-5" /></button>
+              <button id="admin-menu-trigger" aria-label="Ouvrir le menu" aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)} className="p-1 -ml-2 md:hidden"><Menu className="w-5 h-5" /></button>
               <Terminal className="w-4 h-4" />
               <span className="text-slate-500">~</span>
               <span className="truncate text-slate-300">{pathname.replace('/system-core', '') || '/dashboard'}</span>

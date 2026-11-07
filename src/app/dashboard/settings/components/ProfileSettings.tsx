@@ -90,6 +90,7 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <label className="text-sm font-bold text-white">Prénom</label>
             <input 
               name="first_name"
+              aria-label="Prénom"
               value={formData.first_name}
               onChange={handleChange}
               type="text" 
@@ -100,6 +101,7 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <label className="text-sm font-bold text-white">Nom</label>
             <input 
               name="last_name"
+              aria-label="Nom"
               value={formData.last_name}
               onChange={handleChange}
               type="text" 
@@ -110,6 +112,7 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <label className="text-sm font-bold text-white">Email du compte</label>
             <input 
               disabled
+              aria-label="Email du compte"
               value={user?.email || ''}
               type="email" 
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-slate-500 cursor-not-allowed shadow-sm" 
@@ -185,7 +188,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <div className="space-y-1.5">
               <label className="text-sm font-bold text-white">Nom de l'entreprise</label>
               <input 
-                name="business_name"
+              name="business_name"
+              aria-label="Nom de l'entreprise"
                 value={formData.business_name}
                 onChange={handleChange}
                 type="text" 
@@ -198,6 +202,7 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <label className="text-sm font-bold text-white">Secteur d'activité</label>
             <select 
               name="category"
+              aria-label="Secteur d'activité"
               value={formData.category}
               onChange={handleChange}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 focus:ring-1 focus:ring-orange-500 focus:border-orange-500 text-white shadow-sm transition-all appearance-none [&>option]:bg-[#131B2C]"
@@ -213,7 +218,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
         <div className="space-y-1.5 mt-4">
           <label className="text-sm font-bold text-white">Email de contact</label>
           <input 
-            name="email"
+              name="email"
+              aria-label="Email de contact"
             value={formData.email}
             onChange={handleChange}
             type="email" 
@@ -224,7 +230,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
         <div className="space-y-1.5 mt-4">
           <label className="text-sm font-bold text-white">Téléphone</label>
           <input 
-            name="phone"
+              name="phone"
+              aria-label="Téléphone"
             value={formData.phone}
             onChange={handleChange}
             type="tel" 
@@ -249,7 +256,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <div className="space-y-1.5 md:col-span-2">
               <label className="text-sm font-bold text-white">Adresse / Rue</label>
               <input 
-                name="address"
+              name="address"
+              aria-label="Adresse / Rue"
                 value={formData.address}
                 onChange={handleChange}
                 type="text" 
@@ -260,7 +268,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <div className="space-y-1.5">
               <label className="text-sm font-bold text-white">Ville</label>
               <input 
-                name="city"
+              name="city"
+              aria-label="Ville"
                 value={formData.city}
                 onChange={handleChange}
                 type="text" 
@@ -270,7 +279,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <div className="space-y-1.5">
               <label className="text-sm font-bold text-white">Département / Région</label>
               <input 
-                name="state"
+              name="state"
+              aria-label="Département / Région"
                 value={formData.state}
                 onChange={handleChange}
                 type="text" 
@@ -280,7 +290,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <div className="space-y-1.5">
               <label className="text-sm font-bold text-white">Code Postal</label>
               <input 
-                name="zipcode"
+              name="zipcode"
+              aria-label="Code Postal"
                 value={formData.zipcode}
                 onChange={handleChange}
                 type="text" 
@@ -290,7 +301,8 @@ export function ProfileSettings({ user, merchant }: { user: any, merchant: any }
             <div className="space-y-1.5">
               <label className="text-sm font-bold text-white">Pays</label>
               <input 
-                name="country"
+              name="country"
+              aria-label="Pays"
                 value={formData.country}
                 onChange={handleChange}
                 type="text" 

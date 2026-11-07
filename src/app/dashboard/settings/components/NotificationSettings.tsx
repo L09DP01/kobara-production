@@ -157,7 +157,7 @@ export function NotificationSettings({ settings }: { settings: any }) {
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-1 max-w-xl leading-relaxed">
-                Connectez votre compte marchand pour recevoir vos alertes de paiement en temps réel, consulter votre solde réel, générer des liens de paiement et demander des retraits sécurisés par OTP directement dans Telegram.
+                Une seule connexion Telegram pour tous vos business. Changez de business dans le bot pour consulter son solde, créer ses liens de paiement ou demander ses retraits sécurisés.
               </p>
             </div>
           </div>

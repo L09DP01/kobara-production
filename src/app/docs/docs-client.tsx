@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import Link from 'next/link';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSlug from 'rehype-slug';
-import { Terminal } from 'lucide-react';
+import { Check, Copy, Home, LayoutDashboard, Menu, Terminal, X } from 'lucide-react';
 
 import { DocsAIAssistant } from '@/components/docs/DocsAIAssistant';
 
@@ -20,12 +21,19 @@ export function DocsClient({
   currentSlug?: string
 }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 768px)');
+    const close = () => { if (desktop.matches) setIsMobileMenuOpen(false); };
+    desktop.addEventListener('change', close);
+    return () => desktop.removeEventListener('change', close);
+  }, []);
 
   const NavItem = ({ id, label, isSubItem = false }: { id: string, label: string, isSubItem?: boolean }) => {
     const isActive = currentSlug === id;
     return (
       <Link 
         href={`/docs/${id}`}
+        aria-current={isActive ? 'page' : undefined}
         onClick={() => setIsMobileMenuOpen(false)}
         className={clsx(
           "w-full text-left py-2.5 px-4 transition-all text-[14px] rounded-lg flex items-center gap-3",
@@ -77,6 +85,8 @@ export function DocsClient({
 
   const CodeBlock = ({ title, code, language = 'terminal' }: { title?: string, code: string, language?: string }) => {
     const displayTitle = title || (language === 'txt' || language === 'terminal' ? 'Terminal' : language.toUpperCase());
+    const [copied, setCopied] = useState(false);
+    const [copyError, setCopyError] = useState(false);
     
     return (
       <div className="bg-[#020B14] rounded-xl overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.5)] my-8 border border-[#1E2A38] relative group">
@@ -93,13 +103,19 @@ export function DocsClient({
             </span>
           </div>
           <button 
-            onClick={() => navigator.clipboard.writeText(code)}
+            onClick={async () => {
+              try { await navigator.clipboard.writeText(code); setCopied(true); setCopyError(false); }
+              catch { setCopied(false); setCopyError(true); }
+            }}
             className="text-[#AAB3C2] hover:text-[#FF4A1C] transition-colors flex items-center justify-center p-1.5 rounded-md hover:bg-[#FF4A1C]/10"
             title="Copier le code"
+            aria-label={copied ? 'Code copie' : 'Copier le code'}
           >
-            <span className="material-symbols-outlined text-[16px]">content_copy</span>
+            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
           </button>
         </div>
+        <span role="status" className="sr-only">{copied ? 'Code copie.' : ''}</span>
+        {copyError && <p role="alert" className="px-6 pt-3 text-sm text-red-300">Copie impossible. Selectionnez le code ci-dessous.</p>}
         <pre className="p-6 text-[13px] font-mono text-[#AAB3C2] overflow-x-auto leading-relaxed">
           <code>{code}</code>
         </pre>
@@ -107,78 +123,72 @@ export function DocsClient({
     );
   };
 
+  const sidebar = <>
+    <div className="px-6 py-6 border-b border-[#1E2A38] flex justify-between items-center bg-[#07111F]">
+      <Link href="https://kobara.app" className="font-bold text-xl flex items-center gap-3 text-white">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/Icone.png" alt="Kobara" className="w-8 h-8 object-contain" />
+        Kobara <span className="text-[#AAB3C2] font-normal">Docs</span>
+      </Link>
+      <button onClick={() => setIsMobileMenuOpen(false)} aria-label="Fermer le menu" className="md:hidden flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#1E2A38] text-white"><X className="size-5" /></button>
+    </div>
+    <nav aria-label="Documentation" className="flex-1 overflow-y-auto overscroll-contain px-3 py-6"><SidebarContent /></nav>
+  </>;
+
   return (
     <div className="kobara-docs min-h-[100dvh] bg-[#020B14] font-sans text-white antialiased selection:bg-[#F45D2C]/30 selection:text-white">
       <div className="flex min-h-[100dvh] bg-[#020B14] text-white">
       
-      {/* Mobile Sidebar Overlay */}
-      {isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 z-30 md:hidden backdrop-blur-sm" 
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside className={clsx(
-        "fixed flex flex-col z-40 bg-[#07111F] text-white w-[280px] left-0 top-0 bottom-0 border-r border-[#1E2A38] transition-transform duration-300 ease-in-out md:translate-x-0 md:flex shadow-2xl md:shadow-none",
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
-        {/* Header inside Sidebar */}
-        <div className="px-6 py-6 border-b border-[#1E2A38] flex justify-between items-center bg-[#07111F]">
-          <Link href="https://kobara.app" className="font-bold text-xl flex items-center gap-3 text-white">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/Icone.png" alt="Kobara" className="w-8 h-8 object-contain" />
-            Kobara <span className="text-[#AAB3C2] font-normal">Docs</span>
-          </Link>
-          <button
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="md:hidden flex items-center justify-center w-8 h-8 rounded-full bg-[#1E2A38] text-[#AAB3C2] hover:text-white transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-
-        {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto px-3 space-y-4 py-6 scrollbar-thin">
-          <SidebarContent />
-        </nav>
-      </aside>
+      <aside className="fixed hidden md:flex flex-col z-40 bg-[#07111F] text-white w-[280px] left-0 top-0 bottom-0 border-r border-[#1E2A38]">{sidebar}</aside>
+      <DialogPrimitive.Root open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay data-modal-scrim className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm md:hidden" />
+          <DialogPrimitive.Content aria-describedby={undefined} onCloseAutoFocus={event => {
+            event.preventDefault(); document.getElementById('docs-menu-trigger')?.focus();
+          }} className="fixed inset-y-0 left-0 z-50 flex w-[min(320px,90vw)] flex-col border-r border-[#1E2A38] bg-[#07111F] text-white md:hidden">
+            <DialogPrimitive.Title className="sr-only">Menu de la documentation</DialogPrimitive.Title>
+            {sidebar}
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-h-[100dvh] ml-0 md:ml-[280px] lg:mr-[450px] w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] relative">
         
         {/* Top Nav */}
-        <header className="bg-[#020B14]/95 backdrop-blur-xl border-b border-[#1E2A38] fixed top-0 right-0 lg:right-[450px] w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] flex justify-between items-center h-16 sm:h-20 px-6 sm:px-10 z-40 transition-all duration-200">
-          <div className="flex items-center gap-4 sm:gap-6">
+        <header data-navigation-material className="bg-[#020B14]/95 backdrop-blur-xl border-b border-[#1E2A38] fixed top-0 right-0 lg:right-[450px] w-full md:w-[calc(100%-280px)] lg:w-[calc(100%-280px-450px)] flex justify-between items-center gap-3 h-16 sm:h-20 px-3 sm:px-6 z-40 transition-colors duration-200">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <button 
+              id="docs-menu-trigger"
+              aria-label="Ouvrir le menu de la documentation"
+              aria-expanded={isMobileMenuOpen}
+              aria-haspopup="dialog"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden flex items-center justify-center w-10 h-10 rounded-xl bg-[#07111F] hover:bg-[#1E2A38] text-white transition-colors border border-[#1E2A38]"
             >
-              <span className="material-symbols-outlined text-[20px]">{isMobileMenuOpen ? 'close' : 'menu_open'}</span>
+              <Menu className="size-5" />
             </button>
-            <div className="flex flex-col">
-              <h2 className="text-lg sm:text-xl text-white tracking-tight font-bold">
-                <span className="md:hidden">Docs API</span>
-                <span className="hidden md:inline">Documentation API</span>
+            <div className="min-w-0 flex flex-col">
+              <h2 className="truncate text-lg text-white font-bold">
+                <span className="2xl:hidden">Docs API</span>
+                <span className="hidden 2xl:inline">Documentation API</span>
               </h2>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <a href={process.env.NEXT_PUBLIC_KOBARA_API_URL || 'https://api.kobara.app'} target="_blank" rel="noreferrer" className="hidden sm:flex text-sm text-[#AAB3C2] hover:text-white items-center gap-2 transition-colors bg-[#07111F] px-4 py-2 rounded-full border border-[#1E2A38]">
+          <div className="flex shrink-0 items-center gap-2">
+            <a href={process.env.NEXT_PUBLIC_KOBARA_API_URL || 'https://api.kobara.app'} target="_blank" rel="noreferrer" className="hidden 2xl:flex text-sm text-[#AAB3C2] hover:text-white items-center gap-2 transition-colors bg-[#07111F] px-4 py-2 rounded-full border border-[#1E2A38]">
               <span className="w-2 h-2 rounded-full bg-[#FF4A1C] animate-pulse"></span>
               API Status
             </a>
-            <div className="w-px h-6 bg-[#1E2A38] hidden sm:block mx-2"></div>
             {isAuthenticated ? (
-              <Link href="https://dashboard.kobara.app" className="bg-[#FF4A1C] hover:bg-[#FF2E14] text-white px-5 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(255,74,28,0.3)] hover:shadow-[0_0_25px_rgba(255,74,28,0.5)]">
-                <span className="material-symbols-outlined text-[18px]">dashboard</span>
+              <Link aria-label="Dashboard Kobara" href="https://dashboard.kobara.app" className="bg-[#FF4A1C] hover:bg-[#FF2E14] text-white px-3 py-2.5 rounded-full font-bold text-sm transition-colors flex items-center gap-2">
+                <LayoutDashboard aria-hidden className="size-5" />
                 <span className="hidden sm:inline">Dashboard</span>
               </Link>
             ) : (
-              <Link href="https://kobara.app" className="bg-[#07111F] hover:bg-[#1E2A38] text-white px-5 py-2.5 rounded-full font-bold text-sm transition-all flex items-center gap-2 border border-[#1E2A38]">
-                <span className="material-symbols-outlined text-[18px]">home</span>
+              <Link aria-label="Accueil Kobara" href="https://kobara.app" className="bg-[#07111F] hover:bg-[#1E2A38] text-white px-3 py-2.5 rounded-full font-bold text-sm transition-colors flex items-center gap-2 border border-[#1E2A38]">
+                <Home aria-hidden className="size-5" />
                 <span className="hidden sm:inline">Accueil</span>
               </Link>
             )}

@@ -111,18 +111,8 @@ export async function requestWithdrawal(
 
   // 2FA Verification
   {
-    const { data: settings, error: settingsError } = await supabase
-      .from('settings')
-      .select('security_json')
-      .eq('merchant_id', merchant.id)
-      .maybeSingle();
-
-    if (settingsError || !settings) {
-      console.error('[Withdrawal] Security settings unavailable:', settingsError);
-      return { error: "Impossible de charger les paramètres de sécurité du compte." };
-    }
-    
-    const security = settings?.security_json || {};
+    const { getAccountSecurity } = await import('@/lib/server/account-settings');
+    const { security } = await getAccountSecurity(merchant.user_id);
     const twoFactorMethod = security.two_factor_method || 'none';
 
     if (code2fa) {
