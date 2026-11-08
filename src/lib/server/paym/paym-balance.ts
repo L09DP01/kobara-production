@@ -47,7 +47,7 @@ export async function fetchPaymBalance(input: {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         cache: 'no-store',
-        redirect: 'error',
+        redirect: 'manual',
         signal: AbortSignal.timeout(15_000),
       });
     } catch {

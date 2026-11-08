@@ -10,6 +10,24 @@ const payload = (overrides = {}) => ({ success: true, data: {
 const json = (value, status = 200) => Response.json(value, { status });
 const config = { baseUrl: 'https://provider.example/', getToken: async () => 'test-placeholder' };
 
+test('withdrawal provider authentication uses a Workers-compatible redirect policy', () => {
+  const service = fs.readFileSync(new URL('../src/lib/server/paym/paym.service.ts', import.meta.url), 'utf8');
+  const auth = service.slice(service.indexOf('async getAuthToken('), service.indexOf('const data = await response.json()', service.indexOf('async getAuthToken(')));
+  assert.match(auth, /redirect:\s*'manual'/);
+  assert.doesNotMatch(auth, /redirect:\s*'error'/);
+  assert.match(auth, /if \(!response.ok\)/);
+});
+
+test('balance redirects are refused without forwarding the bearer token', async () => {
+  let calls = 0;
+  await assert.rejects(fetchPaymBalance({ ...config, fetcher: async (_url, init) => {
+    calls++;
+    assert.equal(init.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { Location: 'https://untrusted.example/' } });
+  } }), ProviderBalanceError);
+  assert.equal(calls, 1);
+});
+
 test('treasury requests the documented endpoint without caching or redirects and returns only approved fields', async () => {
   const result = await fetchPaymBalance({ ...config, fetcher: async (url, init) => {
     assert.equal(url, 'https://provider.example/api/marchand/balance');
@@ -17,7 +35,7 @@ test('treasury requests the documented endpoint without caching or redirects and
     assert.equal(init.headers.Authorization, 'Bearer test-placeholder');
     assert.equal(init.headers['Content-Type'], 'application/json');
     assert.equal(init.cache, 'no-store');
-    assert.equal(init.redirect, 'error');
+    assert.equal(init.redirect, 'manual');
     assert.ok(init.signal instanceof AbortSignal);
     return json({ ...payload(), token: 'must-not-be-returned' });
   } });

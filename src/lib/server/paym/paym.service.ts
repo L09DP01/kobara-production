@@ -93,7 +93,7 @@ export const PaymService = {
     const response = await fetch(`${PAYM_API_URL}/api/auth/marchand`, {
       method: 'POST',
       cache: 'no-store',
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.timeout(15_000),
       headers: {
         'Content-Type': 'application/json',
