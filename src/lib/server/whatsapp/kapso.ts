@@ -10,7 +10,7 @@ export async function kapsoRequest(path: string, method = 'GET', body?: object) 
   let response: Response;
   const startedAt = Date.now();
   try { response = await fetch(`https://api.kapso.ai/platform/v1/${path}`, {
-    method, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
+    method, redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(15000),
     headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
   }); } catch (error) {
@@ -30,6 +30,9 @@ export async function kapsoRequest(path: string, method = 'GET', body?: object) 
       : reason === 'tls' ? 'La connexion TLS du Worker vers Kapso échoue.'
       : 'La connexion réseau du Worker vers Kapso échoue. Consultez le journal [Kapso] Request failed.';
     throw new KapsoConnectionError(detail);
+  }
+  if (response.status >= 300 && response.status < 400) {
+    throw new KapsoConnectionError('Kapso renvoie une redirection refusée pour protéger la clé API.');
   }
   // Provider responses can contain content or credentials; never return raw errors to the browser.
   if (!response.ok) throw new KapsoConnectionError(response.status === 409 ? 'Le workflow a changé. Rechargez avant de réessayer.' : `Kapso refuse la requête (HTTP ${response.status}).${response.status === 401 || response.status === 403 ? ' Vérifiez les autorisations de la clé sur les workflows du projet.' : ''}`);

@@ -37,6 +37,16 @@ test('Kapso network exceptions are sanitized', async () => {
   const api = connection({ KAPSO_API_KEY: 'fixture-key' }, async () => { throw Error('secret network details'); });
   await assert.rejects(api.kapsoRequest('workflows'), error => error instanceof api.KapsoConnectionError && !error.message.includes('secret'));
 });
+test('Kapso uses Workers-compatible manual redirect mode and never forwards credentials', async () => {
+  let calls = 0;
+  const api = connection({ KAPSO_API_KEY: 'fixture-key' }, async (_url, options) => {
+    calls++;
+    assert.equal(options.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { Location: 'https://untrusted.example/collect' } });
+  });
+  await assert.rejects(api.kapsoRequest('workflows'), error => error instanceof api.KapsoConnectionError && error.message.includes('redirection'));
+  assert.equal(calls, 1);
+});
 test('Kapso distinguishes immediate network errors from actual timeouts', async () => {
   for (const [name, message, expected] of [
     ['TimeoutError', 'private timeout details', '15 secondes'],
