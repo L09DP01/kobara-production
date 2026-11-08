@@ -90,7 +90,20 @@ test('only one empty knowledge tool and no external data tools', () => {
   assert.deepEqual(config.flow_agent_mcp_servers, []);
   assert.deepEqual(config.flow_agent_function_tools, []);
 });
-test('all requested default tools enabled', () => assert.deepEqual(graph().nodes[1].data.config.enabled_default_tools, ['handoff_to_human', 'enter_waiting', 'complete_task', 'get_whatsapp_context', 'get_current_datetime']));
+test('all requested default tools and client handoff announcement are enabled', () => {
+  assert.deepEqual(graph().nodes[1].data.config.enabled_default_tools, ['handoff_to_human', 'enter_waiting', 'complete_task', 'get_whatsapp_context', 'get_current_datetime', 'send_notification_to_user']);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /Avant chaque transfert humain/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /ne suffit pas à déclencher un transfert/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /Suis les questions et explications prévues par la base/);
+});
+test('knowledge owns business procedures and escalation criteria without embedded suspension rules', () => {
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /définit les règles métier/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /applique les critères de transfert de la base/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /demande explicitement un humain/);
+  assert.doesNotMatch(policy.SUPPORT_OPERATIONAL_RULES, /ses comptes sont suspendus automatiquement|Transfert obligatoire pour plainte|KYC rejeté/);
+  assert.match(policy.SUPPORT_SYSTEM_PROMPT, /jamais un mot de passe/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /Aucun accès aux fonds/);
+});
 test('preserves the exact system prompt prefix', () => assert.ok(graph().nodes[1].data.config.system_prompt.startsWith(policy.SUPPORT_SYSTEM_PROMPT + '\n')));
 test('knowledge replacement preserves model, prompt, graph and original object', () => {
   const old = graph();
