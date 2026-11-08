@@ -8,12 +8,28 @@ export async function kapsoRequest(path: string, method = 'GET', body?: object) 
   const key = getRuntimeEnvironmentValue('KAPSO_API_KEY');
   if (!key) throw new KapsoConnectionError('KAPSO_API_KEY est absent de cet environnement Worker.');
   let response: Response;
+  const startedAt = Date.now();
   try { response = await fetch(`https://api.kapso.ai/platform/v1/${path}`, {
     method, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
     headers: { 'X-API-Key': key, 'Content-Type': 'application/json' },
     ...(body ? { body: JSON.stringify(body) } : {}),
-  }); } catch {
-    throw new KapsoConnectionError('Le Worker ne parvient pas à joindre Kapso dans le délai de 15 secondes.');
+  }); } catch (error) {
+    const name = error instanceof Error ? error.name : '';
+    const message = error instanceof Error ? error.message : '';
+    const reason = name === 'TimeoutError' || name === 'AbortError' ? 'timeout'
+      : /cache.*(unsupported|not implemented)|unsupported cache/i.test(message) ? 'unsupported_cache'
+      : /redirect/i.test(message) ? 'redirect_refused'
+      : /dns|resolve|ENOTFOUND|EAI_AGAIN/i.test(message) ? 'dns'
+      : /certificate|TLS|SSL/i.test(message) ? 'tls'
+      : 'network';
+    console.error('[Kapso] Request failed', { reason, elapsedMs: Date.now() - startedAt });
+    const detail = reason === 'timeout' ? 'Kapso ne répond pas dans le délai de 15 secondes.'
+      : reason === 'unsupported_cache' ? 'Le runtime Worker refuse les options de cache de la requête Kapso.'
+      : reason === 'redirect_refused' ? 'Kapso renvoie une redirection refusée pour protéger la clé API.'
+      : reason === 'dns' ? 'Le Worker ne peut pas résoudre le domaine API de Kapso.'
+      : reason === 'tls' ? 'La connexion TLS du Worker vers Kapso échoue.'
+      : 'La connexion réseau du Worker vers Kapso échoue. Consultez le journal [Kapso] Request failed.';
+    throw new KapsoConnectionError(detail);
   }
   // Provider responses can contain content or credentials; never return raw errors to the browser.
   if (!response.ok) throw new KapsoConnectionError(response.status === 409 ? 'Le workflow a changé. Rechargez avant de réessayer.' : `Kapso refuse la requête (HTTP ${response.status}).${response.status === 401 || response.status === 403 ? ' Vérifiez les autorisations de la clé sur les workflows du projet.' : ''}`);

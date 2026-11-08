@@ -37,6 +37,18 @@ test('Kapso network exceptions are sanitized', async () => {
   const api = connection({ KAPSO_API_KEY: 'fixture-key' }, async () => { throw Error('secret network details'); });
   await assert.rejects(api.kapsoRequest('workflows'), error => error instanceof api.KapsoConnectionError && !error.message.includes('secret'));
 });
+test('Kapso distinguishes immediate network errors from actual timeouts', async () => {
+  for (const [name, message, expected] of [
+    ['TimeoutError', 'private timeout details', '15 secondes'],
+    ['TypeError', 'Unsupported cache mode: no-store', 'cache'],
+    ['TypeError', 'Redirect encountered', 'redirection'],
+    ['TypeError', 'DNS lookup failed', 'résoudre'],
+    ['TypeError', 'TLS certificate failed', 'TLS'],
+  ]) {
+    const api = connection({ KAPSO_API_KEY: 'fixture-key' }, async () => { const error = new Error(message); error.name = name; throw error; });
+    await assert.rejects(api.kapsoRequest('workflows'), error => error instanceof api.KapsoConnectionError && error.message.includes(expected));
+  }
+});
 test('Kapso reads configuration from runtime bindings', async () => {
   const api = connection({ KAPSO_API_KEY: 'fixture-key', KAPSO_PROJECT_ID: 'fixture-project' }, async url => Response.json({ data: url.endsWith('/definition') ? { project_id: 'fixture-project', status: 'active' } : [{ id: 'fixture-workflow', name: policy.SUPPORT_WORKFLOW_NAME }] }));
   assert.equal((await api.getSupportWorkflow()).status, 'active');
