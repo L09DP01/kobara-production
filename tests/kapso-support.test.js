@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import ts from 'typescript';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 const source = file => fs.readFileSync(new URL(file, import.meta.url), 'utf8');
 function load(file, mocks = {}, globals = {}) {
@@ -105,6 +105,11 @@ test('knowledge owns business procedures and escalation criteria without embedde
   assert.match(policy.SUPPORT_OPERATIONAL_RULES, /Aucun accès aux fonds/);
 });
 test('preserves the exact system prompt prefix', () => assert.ok(graph().nodes[1].data.config.system_prompt.startsWith(policy.SUPPORT_SYSTEM_PROMPT + '\n')));
+test('integration guidance includes the official documentation without permitting invented procedures', () => {
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /Pour toute demande concernant une intégration Kobara/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /https:\/\/docs\.kobara\.app\/docs\/quickstart/);
+  assert.match(policy.SUPPORT_OPERATIONAL_RULES, /ne remplace ni ses règles ni un transfert nécessaire/);
+});
 test('knowledge replacement preserves model, prompt, graph and original object', () => {
   const old = graph();
   const updated = policy.replaceSupportKnowledge(old, 'Fait validé par Lorvens.');
@@ -167,6 +172,104 @@ test('audit failure blocks import', async () => {
 });
 test('founder imports only after audit succeeds', async () => {
   const f = actionFixture(); assert.equal((await f.run()).success, true); assert.equal(f.calls.update, 1); assert.equal(f.calls.audit, 1);
+});
+
+const handoff = load('../src/lib/server/whatsapp/kapso-handoff.ts', {
+  'server-only': {},
+  'node:crypto': { createHash, createHmac, timingSafeEqual },
+  '@/lib/sensitive-text': load('../src/lib/sensitive-text.ts'),
+});
+function handoffFixture(overrides = {}) {
+  const messages = [];
+  const values = new Map();
+  const event = { event: 'workflow.execution.handoff', project_id: 'fixture-project', workflow_id: 'fixture-workflow',
+    workflow_execution_id: 'fixture-execution', status: 'handoff', channel: 'whatsapp',
+    occurred_at: '2026-11-08T12:00:00Z', handoff: { reason: 'Nom : Test. Demande : parler a un conseiller.' } };
+  const deps = { secret: 'fixture-signing-secret', projectId: 'fixture-project', workflowId: 'fixture-workflow',
+    recipient: 'support@example.invalid', now: () => Date.parse('2026-11-08T12:01:00Z'),
+    store: { async get(key) { return values.get(key); }, async set(key, value, options) {
+      if (options.nx && values.has(key)) return null;
+      values.set(key, value); return 'OK';
+    } }, async send(message) { messages.push(message); return { success: true }; }, ...overrides };
+  const run = (payload = event, signature) => {
+    const raw = bytes(JSON.stringify(payload));
+    return handoff.handleKapsoHandoff(raw, signature === undefined ? createHmac('sha256', deps.secret).update(raw).digest('hex') : signature, deps);
+  };
+  return { deps, messages, values, event, run };
+}
+test('signed handoff sends an internal summary to configured recipient', async () => {
+  const f = handoffFixture(); assert.equal((await f.run()).status, 204);
+  assert.equal(f.messages[0].to, 'support@example.invalid');
+  assert.match(f.messages[0].text, /Demande : parler a un conseiller/);
+  assert.match(f.messages[0].text, /https:\/\/app.kapso.ai/);
+});
+test('invalid or missing signature never sends', async () => {
+  const f = handoffFixture();
+  for (const signature of [null, 'bad', '0'.repeat(64)]) assert.equal((await f.run(f.event, signature)).status, 401);
+  assert.equal(f.messages.length, 0);
+});
+test('cross-project events are rejected and other workflows ignored', async () => {
+  const f = handoffFixture();
+  assert.equal((await f.run({ ...f.event, project_id: 'other' })).status, 403);
+  assert.equal((await f.run({ ...f.event, workflow_id: 'other' })).status, 204);
+  assert.equal((await f.run({ ...f.event, event: 'workflow.execution.failed' })).status, 204);
+  assert.equal(f.messages.length, 0);
+});
+test('duplicate and concurrent handoffs send at most once', async () => {
+  const f = handoffFixture(); await Promise.all([f.run(), f.run()]); await f.run();
+  assert.equal(f.messages.length, 1);
+});
+test('a later handoff of the same execution sends a separate alert', async () => {
+  const f = handoffFixture(); await f.run(); await f.run({ ...f.event, occurred_at: '2026-11-08T12:00:30Z' });
+  assert.equal(f.messages.length, 2);
+});
+test('expired, future, non-WhatsApp and invalid handoffs do not send', async () => {
+  const f = handoffFixture();
+  for (const change of [{ occurred_at: 'invalid' }, { occurred_at: '2026-10-01T12:00:00Z' },
+    { occurred_at: '2026-11-09T12:00:00Z' }, { channel: 'email' }, { status: 'running' }, { workflow_execution_id: '../../bad' }]) {
+    assert.equal((await f.run({ ...f.event, ...change })).status, 400);
+  }
+  assert.equal(f.messages.length, 0);
+});
+test('missing configuration fails closed', async () => {
+  const f = handoffFixture({ workflowId: '' }); assert.equal((await f.run()).status, 503); assert.equal(f.messages.length, 0);
+});
+test('storage failure prevents untracked email', async () => {
+  const f = handoffFixture({ store: { async get() { throw Error('unavailable'); } } });
+  assert.equal((await f.run()).status, 503); assert.equal(f.messages.length, 0);
+});
+test('ambiguous email failure remains pending without automatic double-send', async () => {
+  let calls = 0;
+  const f = handoffFixture({ async send() { calls++; throw Error('unknown delivery'); } });
+  assert.equal((await f.run()).status, 503); assert.equal((await f.run()).status, 503); assert.equal(calls, 1);
+});
+test('known email rejection remains visible as pending, not acknowledged', async () => {
+  const f = handoffFixture({ async send() { return { success: false }; } });
+  assert.equal((await f.run()).status, 503); assert.deepEqual([...f.values.values()], ['pending']);
+});
+test('handoff summary redacts credentials and OTP labels', async () => {
+  const f = handoffFixture();
+  await f.run({ ...f.event, handoff: { reason: 'otp: 123456 password: example-password kbr_sk_live_examplefixturevalue' } });
+  assert.doesNotMatch(f.messages[0].text, /123456|example-password|kbr_sk_live_/);
+});
+function handoffRoute(env = {}) {
+  return load('../src/app/api/webhooks/kapso/route.ts', {
+    '@upstash/redis': { Redis: class {} },
+    '@/lib/server/runtime-env': { getRuntimeEnvironmentValue: name => env[name] || '' },
+    '@/lib/server/mail': { sendEmail() { throw Error('must not send'); } },
+    '@/lib/server/whatsapp/kapso-handoff': { handleKapsoHandoff() { throw Error('must not process'); } },
+  });
+}
+test('Kapso route fails closed without durable storage configuration', async () => {
+  assert.equal((await handoffRoute().POST(new Request('https://example.invalid', { method: 'POST', body: '{}' }))).status, 503);
+});
+test('Kapso route rejects oversized or absent bodies before processing', async () => {
+  const route = handoffRoute({ UPSTASH_REDIS_REST_URL: 'https://example.invalid', UPSTASH_REDIS_REST_TOKEN: 'fixture-token' });
+  assert.equal((await route.POST(new Request('https://example.invalid', { method: 'POST' }))).status, 400);
+  assert.equal((await route.POST(new Request('https://example.invalid', { method: 'POST', body: 'x'.repeat(65537) }))).status, 413);
+});
+test('Kapso receiver bypasses session routing like other signed provider webhooks', () => {
+  assert.match(source('../src/lib/server/request-proxy.ts'), /url\.pathname === '\/api\/webhooks\/kapso'/);
 });
 test('support explicitly sends each answer before waiting', () => {
   const definition = policy.createSupportDefinition('fixture-openai-model');
