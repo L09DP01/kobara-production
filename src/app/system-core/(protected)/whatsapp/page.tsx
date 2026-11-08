@@ -1,17 +1,20 @@
 import Link from 'next/link';
 import { BookOpen, ExternalLink } from 'lucide-react';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { getSupportWorkflow } from '@/lib/server/whatsapp/kapso';
+import { getSupportWorkflow, KapsoConnectionError } from '@/lib/server/whatsapp/kapso';
 
 export const dynamic = 'force-dynamic';
 
 export default async function WhatsAppAdminPage() {
   await requireAdmin(['super_admin', 'operations', 'support']);
   let workflow;
-  try { workflow = await getSupportWorkflow(); } catch { /* Do not expose provider errors or credentials. */ }
+  let connectionError = 'Connexion Kapso interrompue. Consultez les journaux serveur ou réessayez.';
+  try { workflow = await getSupportWorkflow(); } catch (error) {
+    if (error instanceof KapsoConnectionError) connectionError = error.message;
+  }
   return <div className="space-y-6 text-slate-100">
     <header><h1 className="text-2xl font-bold">Support WhatsApp</h1><p className="mt-2 text-slate-300">Kobara · Kapso</p></header>
-    {!workflow && <p role="alert" className="rounded border border-amber-500/40 p-4 text-amber-200">La connexion à Kapso a échoué. Vérifiez le secret KAPSO_API_KEY du Worker, son accès au projet Kobara et la présence du workflow Kobara Support WhatsApp, puis rechargez cette page. Le modèle ne peut pas être vérifié tant que la connexion échoue.</p>}
+    {!workflow && <p role="alert" className="rounded border border-amber-500/40 p-4 text-amber-200">{connectionError}</p>}
     <dl className="grid gap-5 border-y border-slate-700 py-5 sm:grid-cols-3">
       <div><dt className="text-sm text-slate-400">Workflow</dt><dd className="mt-1 font-semibold">{workflow ? workflow.status === 'draft' ? 'Brouillon' : workflow.status : 'Indisponible'}</dd></div>
       <div><dt className="text-sm text-slate-400">Modèle</dt><dd className="mt-1 font-semibold">{workflow?.definition?.nodes?.find((node: any) => node.data?.node_type === 'agent')?.data?.config?.provider_model_name || 'Non vérifié'}</dd></div>

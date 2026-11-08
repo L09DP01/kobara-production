@@ -18,6 +18,30 @@ const policy = load('../src/lib/kapso-support-policy.ts');
 const bytes = text => new TextEncoder().encode(text);
 const graph = () => policy.createSupportDefinition('fixture-openai-model');
 
+function connection(env, fetch) {
+  return load('../src/lib/server/whatsapp/kapso.ts', {
+    'server-only': {},
+    '@/lib/server/runtime-env': { getRuntimeEnvironmentValue: name => env[name] || '' },
+    '@/lib/kapso-support-policy': policy,
+  }, { fetch });
+}
+test('Kapso missing project fails before any network request', async () => {
+  const api = connection({}, () => { throw Error('must not call'); });
+  await assert.rejects(api.getSupportWorkflow(), error => error instanceof api.KapsoConnectionError && error.message.includes('KAPSO_PROJECT_ID'));
+});
+test('Kapso reports HTTP refusal without exposing provider response or key', async () => {
+  const api = connection({ KAPSO_API_KEY: 'fixture-key', KAPSO_PROJECT_ID: 'fixture-project' }, async () => new Response('private provider details', { status: 403 }));
+  await assert.rejects(api.getSupportWorkflow(), error => error instanceof api.KapsoConnectionError && error.message.includes('403') && !error.message.includes('private') && !error.message.includes('fixture-key'));
+});
+test('Kapso network exceptions are sanitized', async () => {
+  const api = connection({ KAPSO_API_KEY: 'fixture-key' }, async () => { throw Error('secret network details'); });
+  await assert.rejects(api.kapsoRequest('workflows'), error => error instanceof api.KapsoConnectionError && !error.message.includes('secret'));
+});
+test('Kapso reads configuration from runtime bindings', async () => {
+  const api = connection({ KAPSO_API_KEY: 'fixture-key', KAPSO_PROJECT_ID: 'fixture-project' }, async url => Response.json({ data: url.endsWith('/definition') ? { project_id: 'fixture-project', status: 'active' } : [{ id: 'fixture-workflow', name: policy.SUPPORT_WORKFLOW_NAME }] }));
+  assert.equal((await api.getSupportWorkflow()).status, 'active');
+});
+
 for (const name of ['official.txt', 'official.md', 'OFFICIAL.MD']) test(`accepts ${name}`, () => {
   assert.equal(policy.validateKnowledgeFile(name, bytes('Fait officiel.')), 'Fait officiel.');
 });
