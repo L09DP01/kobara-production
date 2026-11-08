@@ -1,6 +1,8 @@
 import { createSupportDefinition, SUPPORT_WORKFLOW_NAME } from '../src/lib/kapso-support-policy.ts';
 
-const projectId = '27701d63-735a-44f3-8982-9a52b22cf1a4';
+const projectId = process.env.KAPSO_PROJECT_ID?.trim();
+const sandboxPhoneNumberId = process.env.KAPSO_SANDBOX_PHONE_NUMBER_ID?.trim();
+if (!projectId || !sandboxPhoneNumberId) throw new Error('Missing KAPSO_PROJECT_ID or KAPSO_SANDBOX_PHONE_NUMBER_ID');
 async function request(path, method = 'GET', body) {
   if (!process.env.KAPSO_API_KEY) throw new Error('Missing KAPSO_API_KEY');
   const response = await fetch(`https://api.kapso.ai/platform/v1/${path}`, {
@@ -18,7 +20,7 @@ async function request(path, method = 'GET', body) {
 
 const numbers = await request('whatsapp/phone_numbers');
 // This installation is intentionally bound to the existing Kobara sandbox, never its live number.
-const sandbox = numbers.find(number => number.kind === 'sandbox' && number.id === '597907523413541');
+const sandbox = numbers.find(number => number.kind === 'sandbox' && number.id === sandboxPhoneNumberId);
 if (!sandbox) throw new Error('Expected Kobara sandbox missing; no changes made.');
 const workflows = await request('workflows');
 let workflow = workflows.find(item => item.name === SUPPORT_WORKFLOW_NAME);

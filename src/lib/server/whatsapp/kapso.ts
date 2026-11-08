@@ -1,8 +1,9 @@
 import 'server-only';
+import { getRuntimeEnvironmentValue } from '@/lib/server/runtime-env';
 import { SUPPORT_WORKFLOW_NAME, replaceSupportKnowledge } from '@/lib/kapso-support-policy';
 
 export async function kapsoRequest(path: string, method = 'GET', body?: object) {
-  const key = process.env.KAPSO_API_KEY;
+  const key = getRuntimeEnvironmentValue('KAPSO_API_KEY');
   if (!key) throw new Error('Clé serveur Kapso manquante.');
   const response = await fetch(`https://api.kapso.ai/platform/v1/${path}`, {
     method, redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(15000),
@@ -15,11 +16,13 @@ export async function kapsoRequest(path: string, method = 'GET', body?: object) 
 }
 
 export async function getSupportWorkflow() {
+  const projectId = getRuntimeEnvironmentValue('KAPSO_PROJECT_ID');
+  if (!projectId) throw new Error('Configuration serveur KAPSO_PROJECT_ID manquante.');
   const workflows = await kapsoRequest('workflows');
   const matches = workflows.filter((item: any) => item.name === SUPPORT_WORKFLOW_NAME);
   if (matches.length !== 1) throw new Error('Le brouillon de support Kapso doit être configuré avant import.');
   const workflow = await kapsoRequest(`workflows/${encodeURIComponent(matches[0].id)}/definition`);
-  if (workflow.project_id !== (process.env.KAPSO_PROJECT_ID || '27701d63-735a-44f3-8982-9a52b22cf1a4')) throw new Error('Le projet Kapso ne correspond pas à la configuration serveur.');
+  if (workflow.project_id !== projectId) throw new Error('Le projet Kapso ne correspond pas à la configuration serveur.');
   return workflow;
 }
 
