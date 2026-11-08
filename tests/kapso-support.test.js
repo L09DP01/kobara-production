@@ -168,3 +168,10 @@ test('audit failure blocks import', async () => {
 test('founder imports only after audit succeeds', async () => {
   const f = actionFixture(); assert.equal((await f.run()).success, true); assert.equal(f.calls.update, 1); assert.equal(f.calls.audit, 1);
 });
+test('support explicitly sends each answer before waiting', () => {
+  const definition = policy.createSupportDefinition('fixture-openai-model');
+  const config = definition.nodes.find(node => node.data.node_type === 'agent').data.config;
+  assert.equal(config.message_delivery_mode, 'tool_only');
+  assert.match(config.system_prompt, /Attends la confirmation de send_notification_to_user avant d'appeler enter_waiting/);
+  assert.match(config.system_prompt, /N'utilise pas complete_task pour une réponse normale/);
+});
