@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 import { getServerTranslation } from "@/lib/server/i18n";
 import { LegalDocumentShell } from "@/components/marketing/LegalDocumentShell";
+import { LegalMarkdown } from "@/components/marketing/LegalMarkdown";
 import { getPublishedCgu } from '@/lib/server/cgu-publication';
 
 export async function generateMetadata() {
@@ -20,7 +21,7 @@ export default async function TermsPage() {
     const label = language === 'en' ? 'Last updated' : language === 'ht' ? 'Dènye mizajou' : 'Dernière mise à jour';
     return <LegalDocumentShell language={language} activePath="/terms" title={published.title}
       lastUpdated={`${label} : ${date} · ${published.version}`} intro=""
-      sections={[{ id: 'terms-content', title: published.title, content: <div className="whitespace-pre-wrap break-words">{published.content}</div> }]} />;
+      sections={[{ id: 'terms-content', content: <LegalMarkdown content={published.content} /> }]} />;
   }
 
   const content = {

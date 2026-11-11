@@ -7,7 +7,7 @@ import { PublicHeader } from "@/components/marketing/PublicNavigation";
 
 type LegalSection = {
   id: string;
-  title: string;
+  title?: string;
   content: ReactNode;
 };
 
@@ -71,13 +71,13 @@ export function LegalDocumentShell({ language, activePath, title, lastUpdated, i
           <header className="border-b border-[#DDD7D3] pb-10">
             <p className="text-xs font-bold text-[#8A6960]">{lastUpdated}</p>
             <h1 className="mt-4 text-4xl font-extrabold leading-tight text-[#10131D] sm:text-5xl">{title}</h1>
-            <p className="mt-5 whitespace-pre-line text-base leading-7 text-[#4F5158] sm:text-lg sm:leading-8">{intro}</p>
+            {intro && <p className="mt-5 whitespace-pre-line text-base leading-7 text-[#4F5158] sm:text-lg sm:leading-8">{intro}</p>}
           </header>
 
           <div className="legal-copy">
             {sections.map((section) => (
               <section key={section.id} id={section.id} className="scroll-mt-28 border-b border-[#DDD7D3] py-10 last:border-b-0 sm:py-12">
-                <h2 className="mb-6 text-2xl font-extrabold leading-snug text-[#10131D]">{section.title}</h2>
+                {section.title && <h2 className="mb-6 text-2xl font-extrabold leading-snug text-[#10131D]">{section.title}</h2>}
                 <div className="text-[15px] leading-7 text-[#4F5158]">{section.content}</div>
               </section>
             ))}

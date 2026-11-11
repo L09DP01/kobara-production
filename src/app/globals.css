@@ -378,7 +378,51 @@ body {
 }
 
 .legal-copy :is(p, li, td) {
+  overflow-wrap: anywhere;
   color: #4F5158;
+}
+
+.legal-copy .legal-markdown > * + * {
+  margin-block-start: 1rem;
+}
+
+.legal-copy .legal-markdown :is(h2, h3, h4, h5, h6) {
+  color: #10131d;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.legal-copy .legal-markdown h2 {
+  margin-block-start: 2rem;
+  font-size: 1.5rem;
+}
+
+.legal-copy .legal-markdown h3 {
+  margin-block-start: 1.5rem;
+  font-size: 1.125rem;
+}
+
+.legal-copy .legal-markdown ul { list-style: disc; }
+.legal-copy .legal-markdown ol { list-style: decimal; }
+
+.legal-copy .legal-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid #ddd7d3;
+  border-radius: 0.5rem;
+}
+
+.legal-copy .legal-table-scroll table {
+  width: 100%;
+  min-width: 24rem;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.legal-copy .legal-table-scroll :is(th, td) {
+  padding: 0.625rem 0.875rem;
+  border-bottom: 1px solid #ddd7d3;
+  vertical-align: top;
 }
 
 .legal-copy :is(h3, h4, strong) {
@@ -402,12 +446,17 @@ body {
 }
 
 .legal-copy table {
-  min-width: 640px;
+  min-width: 24rem;
   background: #FFFFFF;
 }
 
 .legal-copy :is(th, td) {
   border-color: #DDD7D3 !important;
+  vertical-align: top;
+}
+
+.legal-copy td {
+  color: #4f5158 !important;
 }
 
 .legal-copy th {
