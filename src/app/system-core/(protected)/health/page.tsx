@@ -4,7 +4,8 @@ import { getPaymentProviderConfig } from '@/lib/server/payments/gateway';
 import { getMaintenanceState } from '@/lib/server/maintenance';
 import { isMaintenanceActive } from '@/lib/maintenance-state';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { setPlatformMaintenance } from './maintenance-actions';
+import { setPlatformMaintenance, setShopifyNavigationHidden } from './maintenance-actions';
+import { getShopifyNavigationHidden } from '@/lib/server/shopify-navigation';
 import Link from 'next/link';
 import { getSystemHealthChecks } from '@/lib/server/system-health';
 
@@ -13,13 +14,14 @@ export const dynamic = 'force-dynamic';
 export default async function SystemHealthPage() {
   const adminSession = await requireAdmin();
   const supabase = createAdminClient();
-  const [merchantResult, paymentResult, settingsResult, providerConfig, maintenance, serviceChecks] = await Promise.all([
+  const [merchantResult, paymentResult, settingsResult, providerConfig, maintenance, serviceChecks, shopifyHidden] = await Promise.all([
     supabase.from('merchants').select('*', { count: 'exact', head: true }),
     supabase.from('payments').select('*', { count: 'exact', head: true }).eq('environment', 'live'),
     supabase.from('system_settings').select('key', { count: 'exact', head: true }),
     getPaymentProviderConfig().catch(() => null),
     getMaintenanceState(),
     getSystemHealthChecks(),
+    getShopifyNavigationHidden(),
   ]);
   const maintenanceActive = isMaintenanceActive(maintenance);
   const canManageMaintenance = adminSession.user.role === 'super_admin';
@@ -47,6 +49,19 @@ export default async function SystemHealthPage() {
     <div className="flex flex-wrap gap-4 text-sm text-orange-400"><Link href="/system-core/logs/supabase">Logs Supabase</Link><Link href="/system-core/logs/cloudflare">Logs Cloudflare</Link><Link href="/system-core/logs">Logs application</Link><a href="/system-core/health">Actualiser</a></div>
     <p className="text-sm text-slate-300">{serviceChecks.some(check => check.state === 'error') ? 'État global : dégradé' : maintenanceActive ? 'État global : maintenance' : 'Contrôles exécutés : disponibles'} · {serviceChecks.filter(check => check.state === 'ok').length} contrôles réussis · {serviceChecks.filter(check => check.state === 'error').length} erreurs · {serviceChecks.filter(check => check.state === 'unconfigured' || check.state === 'unchecked').length} services à vérifier</p>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{serviceChecks.map(check => <div key={check.name} className="border border-slate-800 rounded p-4"><div className={`text-sm font-bold ${check.state === 'ok' ? 'text-emerald-300' : check.state === 'error' ? 'text-red-300' : 'text-amber-300'}`}>{check.name}</div><p className="mt-2 text-xs text-slate-300">{check.detail}</p></div>)}</div>
+    <section className="flex flex-wrap items-center justify-between gap-4 rounded border border-slate-700 p-5">
+      <div>
+        <h2 className="font-bold">Menu Shopify des marchands</h2>
+        <p className="mt-2 text-sm text-slate-300">{shopifyHidden === null ? 'Réglage indisponible' : shopifyHidden ? 'Masqué pour tous les marchands' : 'Visible selon les droits du marchand'}</p>
+      </div>
+      {canManageMaintenance && shopifyHidden !== null && (
+        <form action={setShopifyNavigationHidden.bind(null, !shopifyHidden)}>
+          <button type="submit" className="rounded border border-orange-500/50 px-4 py-2 text-sm font-bold text-orange-300 hover:bg-orange-500/10">
+            {shopifyHidden ? 'Afficher Shopify' : 'Masquer Shopify'}
+          </button>
+        </form>
+      )}
+    </section>
     <section className={`border rounded p-5 ${maintenanceActive ? 'border-red-500/50 bg-red-950/20' : 'border-amber-500/40 bg-amber-950/10'}`}>
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div>

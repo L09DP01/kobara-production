@@ -51,16 +51,16 @@ function isLinkActive(pathname: string | null, link: SidebarLink) {
   return pathname?.startsWith(link.href) ?? false;
 }
 
-export function DesktopSidebar({ userRole = "owner", kycApproved = false }: { userRole?: string; kycApproved?: boolean }) {
+export function DesktopSidebar({ userRole = "owner", kycApproved = false, shopifyHidden = false }: { userRole?: string; kycApproved?: boolean; shopifyHidden?: boolean }) {
   const pathname = usePathname();
   return (
     <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-[#223047] bg-[#091321] text-slate-300 lg:flex">
-      <SidebarContent pathname={pathname} onClose={() => {}} userRole={userRole} kycApproved={kycApproved} />
+      <SidebarContent pathname={pathname} onClose={() => {}} userRole={userRole} kycApproved={kycApproved} shopifyHidden={shopifyHidden} />
     </aside>
   );
 }
 
-export function MobileSidebar({ isOpen, onClose, userRole = "owner", kycApproved = false }: { isOpen: boolean; onClose: () => void; userRole?: string; kycApproved?: boolean }) {
+export function MobileSidebar({ isOpen, onClose, userRole = "owner", kycApproved = false, shopifyHidden = false }: { isOpen: boolean; onClose: () => void; userRole?: string; kycApproved?: boolean; shopifyHidden?: boolean }) {
   const pathname = usePathname();
   useEffect(() => {
     if (!isOpen) return;
@@ -81,7 +81,7 @@ export function MobileSidebar({ isOpen, onClose, userRole = "owner", kycApproved
         className="fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-72 max-w-[88vw] flex-col overflow-hidden border-r border-[#223047] bg-[#091321] text-slate-300 shadow-2xl lg:hidden"
       >
         <DialogPrimitive.Title className="sr-only">Menu du dashboard</DialogPrimitive.Title>
-        <SidebarContent pathname={pathname} onClose={onClose} userRole={userRole} kycApproved={kycApproved} />
+        <SidebarContent pathname={pathname} onClose={onClose} userRole={userRole} kycApproved={kycApproved} shopifyHidden={shopifyHidden} />
       </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -125,7 +125,7 @@ export function MobileBottomNav({ onOpenMore, userRole = "owner", kycApproved = 
   );
 }
 
-function SidebarContent({ pathname, onClose, userRole, kycApproved }: { pathname: string | null; onClose: () => void; userRole: string; kycApproved: boolean }) {
+function SidebarContent({ pathname, onClose, userRole, kycApproved, shopifyHidden }: { pathname: string | null; onClose: () => void; userRole: string; kycApproved: boolean; shopifyHidden: boolean }) {
   return (
     <>
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-[#223047] px-5">
@@ -140,7 +140,8 @@ function SidebarContent({ pathname, onClose, userRole, kycApproved }: { pathname
 
       <nav className="scrollbar-hide flex-1 space-y-5 overflow-y-auto px-3 py-5" aria-label="Menu du dashboard">
         {SIDEBAR_SECTIONS.map((section) => {
-          const visibleLinks = section.links.filter((link) => !link.ownerOnly || userRole === "owner");
+          const visibleLinks = section.links.filter((link) =>
+            (!link.ownerOnly || userRole === "owner") && (!shopifyHidden || link.href !== "/integrations/shopify"));
           if (visibleLinks.length === 0) return null;
           return (
             <section key={section.title}>

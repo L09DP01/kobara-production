@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getRuntimeEnvironmentValue } from '@/lib/server/runtime-env';
 
 type EmailInput = { to: string; subject: string; html: string; text: string; replyTo?: string; senderName?: string };
-type DeliveryResult = { status: 'accepted' | 'fallback' | 'failed'; error?: string };
+type DeliveryResult = { status: 'accepted' | 'fallback' | 'failed'; error?: string; retryableQuota?: boolean };
 
 const FALLBACK_ERRORS = new Set([
   'E_SENDER_NOT_VERIFIED', 'E_SENDER_DOMAIN_NOT_AVAILABLE',
@@ -45,7 +45,11 @@ export async function tryCloudflareEmail(input: EmailInput): Promise<DeliveryRes
   } catch (error) {
     const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
     console.warn('[Email] Cloudflare send refused or uncertain', { code: code || 'UNKNOWN' });
-    if (FALLBACK_ERRORS.has(code)) return { status: 'fallback' };
+    if (FALLBACK_ERRORS.has(code)) {
+      return code === 'E_RATE_LIMIT_EXCEEDED' || code === 'E_DAILY_LIMIT_EXCEEDED'
+        ? { status: 'fallback', retryableQuota: true }
+        : { status: 'fallback' };
+    }
     // Suppression, binding recipient restrictions and account suspensions must
     // not be bypassed through another provider. Unknown outcomes may be accepted.
     return { status: 'failed', error: code.startsWith('E_')

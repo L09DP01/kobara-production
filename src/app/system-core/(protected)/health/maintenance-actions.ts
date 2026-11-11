@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { SHOPIFY_NAVIGATION_KEY } from '@/lib/server/shopify-navigation';
 import { randomUUID } from 'node:crypto';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { createAdminClient } from '@/utils/supabase/admin';
@@ -63,6 +64,28 @@ export async function setPlatformMaintenance(enabled: boolean) {
   revalidatePath('/system-core/health');
   revalidatePath('/system-core/alerts');
   revalidatePath('/system-core/dashboard');
+}
+
+export async function setShopifyNavigationHidden(hidden: boolean) {
+  const session = await requireAdmin(['super_admin']);
+  if (typeof hidden !== 'boolean') throw new Error('Réglage Shopify invalide.');
+  const admin = createAdminClient();
+  const { error } = await admin.from('system_settings').upsert({
+    key: SHOPIFY_NAVIGATION_KEY,
+    value: { hidden },
+    updated_at: new Date().toISOString(),
+    updated_by: session.user.id,
+  }, { onConflict: 'key' });
+  if (error) throw new Error('Impossible d’enregistrer la visibilité Shopify.');
+  const { error: auditError } = await admin.from('audit_logs').insert({
+    admin_id: session.user.id,
+    action: 'system.shopify_navigation_updated',
+    entity_type: 'system_settings',
+    metadata: { hidden },
+  });
+  if (auditError) console.error('Shopify navigation audit write failed');
+  revalidatePath('/system-core/health');
+  revalidatePath('/dashboard', 'layout');
 }
 
 export async function savePlatformAlertSettings(formData: FormData) {

@@ -21,6 +21,7 @@ export default function DashboardLayoutClient({
   hasPasskey = false,
   isTelegramLinked = false,
   kycApproved,
+  shopifyHidden = false,
   referralSummary = null,
 }: {
   children: React.ReactNode;
@@ -33,6 +34,7 @@ export default function DashboardLayoutClient({
   hasPasskey?: boolean;
   isTelegramLinked?: boolean;
   kycApproved?: boolean;
+  shopifyHidden?: boolean;
   referralSummary?: MerchantReferralSummary | null;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -87,8 +89,8 @@ export default function DashboardLayoutClient({
 
   return (
     <div className="kobara-dashboard-shell relative flex min-h-[100dvh] flex-1 flex-col bg-[#07101D] font-body-base text-body-base text-white antialiased">
-      <DesktopSidebar userRole={userRole} kycApproved={hasKycAccess} />
-      <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={userRole} kycApproved={hasKycAccess} />
+      <DesktopSidebar userRole={userRole} kycApproved={hasKycAccess} shopifyHidden={shopifyHidden} />
+      <MobileSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} userRole={userRole} kycApproved={hasKycAccess} shopifyHidden={shopifyHidden} />
 
       <div className="flex min-h-full flex-1 flex-col transition-[padding] duration-200 lg:pl-60">
         <TopNav sidebarOpen={isSidebarOpen} onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} merchant={merchant} user={user} initialNotifications={initialNotifications} accessibleMerchants={accessibleMerchants} userRole={userRole} referralSummary={referralSummary} />

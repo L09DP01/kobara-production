@@ -1,4 +1,5 @@
 import DashboardLayoutClient from "@/components/dashboard/dashboard-layout-client";
+import { getShopifyNavigationHidden } from '@/lib/server/shopify-navigation';
 import { createAdminClient } from "@/utils/supabase/admin";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -293,6 +294,7 @@ export default async function DashboardLayout({
         hasPasskey={hasPasskey}
         isTelegramLinked={isTelegramLinked}
         kycApproved={isKycApproved}
+        shopifyHidden={(await getShopifyNavigationHidden()) === true}
         referralSummary={referralSummary}
       >
         {merchant?.shopify_review_mode === true && <div role="status" className="border-b border-amber-800 bg-amber-950/20 p-4 text-sm text-amber-200">Démonstration Shopify : KYC simulé, paiements Test uniquement. Aucun fonds réel, aucun retrait, aucun e-mail Kobara.</div>}

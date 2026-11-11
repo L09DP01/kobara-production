@@ -1,6 +1,7 @@
 const endpoints = [
   '/api/cron/merchant-activation',
   '/api/cron/smart-promotions',
+  '/api/cron/cgu-notices',
 ];
 
 export async function runEmailSchedule(controller, env, ctx, dispatch, logger = console) {

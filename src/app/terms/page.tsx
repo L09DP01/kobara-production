@@ -1,6 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 import { getServerTranslation } from "@/lib/server/i18n";
 import { LegalDocumentShell } from "@/components/marketing/LegalDocumentShell";
+import { getPublishedCgu } from '@/lib/server/cgu-publication';
 
 export async function generateMetadata() {
   const { t } = await getServerTranslation();
@@ -12,11 +13,20 @@ export async function generateMetadata() {
 
 export default async function TermsPage() {
   const { language } = await getServerTranslation();
+  const published = await getPublishedCgu();
+  if (published) {
+    const locale = language === 'en' ? 'en-US' : 'fr-HT';
+    const date = new Date(published.published_at).toLocaleDateString(locale, { dateStyle: 'long', timeZone: 'America/Port-au-Prince' });
+    const label = language === 'en' ? 'Last updated' : language === 'ht' ? 'Dènye mizajou' : 'Dernière mise à jour';
+    return <LegalDocumentShell language={language} activePath="/terms" title={published.title}
+      lastUpdated={`${label} : ${date} · ${published.version}`} intro=""
+      sections={[{ id: 'terms-content', title: published.title, content: <div className="whitespace-pre-wrap break-words">{published.content}</div> }]} />;
+  }
 
   const content = {
     fr: {
       title: "Conditions Générales d'Utilisation",
-      lastUpdated: "Dernière mise à jour : 12 juin 2026",
+      lastUpdated: "Dernière mise à jour : 11 novembre 2026",
       intro: "Bienvenue sur Kobara. En accédant à notre plateforme et en utilisant notre API de paiement, vous acceptez les présentes Conditions Générales d'Utilisation dans leur intégralité. Lisez-les attentivement avant d'utiliser nos services.\n\n⚠ Kobara est une passerelle technologique de paiement. Kobara n'est pas une banque, ne détient pas de licence bancaire, et n'est pas un établissement financier agréé. Kobara facilite techniquement les transactions via le réseau MonCash, opéré par Digicel Haiti S.A., selon leurs propres conditions générales.",
       sections: [
         {
@@ -161,7 +171,7 @@ export default async function TermsPage() {
               </div>
               <div>
                 <h3 className="text-white font-bold text-lg mb-2">4.2 Frais de traitement</h3>
-                <p>Des frais de traitement sont appliqués à chaque transaction réussie. La structure tarifaire applicable à votre compte est définie dans votre contrat marchand ou dans la grille tarifaire consultable sur votre tableau de bord. À titre indicatif, le modèle standard applicable est de 2,9% du montant brut de la transaction, susceptible de varier selon votre volume mensuel et votre type de compte.</p>
+                <p>Kobara ne propose aucun plan d’abonnement et ne facture aucun abonnement mensuel. Le tarif standard par paiement réussi est de 3,9 % du montant brut pour MonCash et NatCash, et de 3,5 % + 0,70 USD pour les cartes bancaires lorsque ce moyen est activé. Pour les autres moyens ou les conditions négociées, consultez le tarif applicable à votre compte avant l’opération.</p>
                 <p className="mt-2">Les frais sont automatiquement déduits du montant crédité à votre Solde. Kobara se réserve le droit de modifier sa grille tarifaire avec un préavis de 30 jours.</p>
               </div>
               <div>
@@ -220,14 +230,15 @@ export default async function TermsPage() {
             <div className="space-y-6">
               <div>
                 <h3 className="text-white font-bold text-lg mb-2">6.1 Éligibilité au retrait</h3>
+                <p className="mb-2">Les frais de retrait sont distincts des frais d’encaissement. Un retrait MonCash ou NatCash est facturé à 5 % du montant brut demandé. Pour Zelle ou PayPal, selon disponibilité, un retrait depuis le solde USD est facturé à 2 %. Depuis le solde HTG, le montant est converti au taux de 142 HTG pour 1 USD sans frais de retrait supplémentaires. Le tableau de bord présente le montant net avant confirmation.</p>
                 <p>Les demandes de retrait sont disponibles pour tout Marchand disposant d'un compte KYC vérifié et actif, et d'un Solde disponible supérieur au seuil minimum applicable (consultable sur votre tableau de bord Kobara).</p>
               </div>
               <div>
                 <h3 className="text-white font-bold text-lg mb-2">6.2 Destinations de retrait</h3>
                 <p>Les retraits peuvent être effectués vers :</p>
                 <ul className="list-disc pl-5 mt-2 space-y-1">
-                  <li>Votre compte MonCash principal enregistré et vérifié</li>
-                  <li>Un compte bancaire haïtien vérifié (selon disponibilité et conditions applicables)</li>
+                  <li>Un portefeuille MonCash ou NatCash compatible avec le retrait demandé.</li>
+                  <li>Zelle ou PayPal depuis le tableau de bord, lorsque le moyen est disponible sur le compte. Ces deux moyens ne sont pas proposés par l’API publique de retrait.</li>
                 </ul>
               </div>
               <div>
@@ -384,7 +395,7 @@ export default async function TermsPage() {
     },
     en: {
       title: "Terms of Service",
-      lastUpdated: "Last updated: June 12, 2026",
+      lastUpdated: "Last updated: November 11, 2026",
       intro: "Welcome to Kobara. By using our payment infrastructure, you agree to the following terms designed to ensure a safe, reliable ecosystem compliant with Haitian regulations.",
       sections: [
         {
@@ -394,8 +405,8 @@ export default async function TermsPage() {
         },
         {
           id: "payments",
-          title: "2. MonCash Payment Processing",
-          content: <p>Kobara acts as a technology gateway facilitating payments via the MonCash network. We are not a bank. Collected funds are subject to fixed processing fees (e.g., 2.9%). Transactions may be blocked by our algorithms if suspicious activity is detected (anti-fraud).</p>,
+          title: "2. Payment Processing and Fees",
+          content: <><p>Kobara is a payment technology gateway, not a bank. There are no subscription plans or monthly subscription fees. Standard fees per successful payment are 3.9% for MonCash and NatCash, and 3.5% + USD 0.70 for enabled card payments. Check your account for other payment methods or negotiated terms.</p><p className="mt-2">Withdrawal fees are separate: 5% of the gross amount for MonCash and NatCash. Where available, Zelle and PayPal withdrawals cost 2% from a USD balance; from an HTG balance, the conversion rate is 142 HTG per USD with no additional withdrawal fee. Review the net payout before confirming.</p></>,
         },
         {
           id: "withdrawals",
@@ -411,7 +422,7 @@ export default async function TermsPage() {
     },
     ht: {
       title: "Kondisyon Itilizasyon",
-      lastUpdated: "Dènye mizajou: 12 Jen 2026",
+      lastUpdated: "Dènye mizajou: 11 novanm 2026",
       intro: "Byenvini sou Kobara. Lè w sèvi ak platfòm peman nou an, ou aksepte kondisyon sa yo ki fèt pou garanti yon sistèm ki an sekirite, fyab, epi ki respekte lwa peyi Dayiti.",
       sections: [
         {
@@ -421,8 +432,8 @@ export default async function TermsPage() {
         },
         {
           id: "payments",
-          title: "2. Pwosesis Peman MonCash",
-          content: <p>Kobara se yon pon teknolojik ki fasilite peman sou rezo MonCash la. Nou pa yon bank. Gen frè fiks k ap aplike sou lajan ou resevwa yo (egzanp: 2.9%). Sistèm nou an ka bloke tranzaksyon si li wè gen aktivite sispèk (anti-fwod).</p>,
+          title: "2. Tretman peman ak frè",
+          content: <><p>Kobara fasilite peman, men li pa yon bank. Pa gen plan abònman ni frè abònman chak mwa. Sou chak peman ki reyisi, frè nòmal la se 3,9 % pou MonCash ak NatCash, epi 3,5 % + 0,70 USD pou peman pa kat lè opsyon an aktive. Gade tarif kont ou pou lòt mwayen oswa kondisyon espesyal.</p><p className="mt-2">Frè retrè yo separe: 5 % sou montan brit pou MonCash ak NatCash. Lè Zelle oswa PayPal disponib, retrè sou solde USD koute 2 %. Sou solde HTG, konvèsyon an fèt a 142 HTG pou 1 USD, san frè retrè anplis. Verifye montan nèt la anvan ou konfime.</p></>,
         },
         {
           id: "withdrawals",

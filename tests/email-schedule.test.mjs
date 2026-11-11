@@ -6,7 +6,7 @@ const event = { cron: '17 * * * *' };
 const env = { CRON_SECRET: 'test-only-placeholder' };
 const logger = { info() {}, error() {} };
 
-test('schedule dispatches both authenticated jobs with Worker bindings and context', async () => {
+test('schedule dispatches authenticated jobs with Worker bindings and context', async () => {
   const calls = [];
   const ctx = {};
   await runEmailSchedule(event, env, ctx, async (request, bindings, context) => {
@@ -17,7 +17,7 @@ test('schedule dispatches both authenticated jobs with Worker bindings and conte
     assert.equal(context, ctx);
     return new Response('{}');
   }, logger);
-  assert.deepEqual(calls, ['/api/cron/merchant-activation', '/api/cron/smart-promotions']);
+  assert.deepEqual(calls, ['/api/cron/merchant-activation', '/api/cron/smart-promotions', '/api/cron/cgu-notices']);
 });
 
 test('missing credentials and unexpected schedules fail before dispatch', async () => {
@@ -49,7 +49,7 @@ test('failure of one job does not skip the other or leak response details', asyn
     calls.push(request.url);
     return new Response('private-recipient@example.invalid', { status: calls.length === 1 ? 500 : 200 });
   }, sink), /jobs failed/);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
   assert.ok(logs.every((line) => !line.includes('private-recipient') && !line.includes(env.CRON_SECRET)));
 });
 
@@ -58,6 +58,6 @@ test('dispatch exceptions are sanitized and mark the invocation failed', async (
   await assert.rejects(runEmailSchedule(event, env, {}, async () => {
     throw new Error(env.CRON_SECRET);
   }, { info() {}, error: (line) => logs.push(line) }), /jobs failed/);
-  assert.equal(logs.length, 2);
+  assert.equal(logs.length, 3);
   assert.ok(logs.every((line) => !line.includes(env.CRON_SECRET)));
 });
