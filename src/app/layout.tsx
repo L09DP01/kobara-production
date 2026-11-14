@@ -4,7 +4,6 @@ import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { cookies } from "next/headers";
 import { Toaster } from "@/components/ui/sonner";
-import { NotificationPrompt } from "@/components/notification-prompt";
 import type { Viewport } from 'next';
 import Script from 'next/script';
 import { Analytics } from "@vercel/analytics/next";
@@ -166,7 +165,6 @@ export default async function RootLayout({
             {children}
           </div>
           <Toaster position="top-right" richColors />
-          <NotificationPrompt />
         </LanguageProvider>
         <Analytics />
         <style dangerouslySetInnerHTML={{ __html: `

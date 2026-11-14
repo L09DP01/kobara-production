@@ -42,6 +42,14 @@ export default function DashboardLayoutClient({
 
   // Apply dark theme to body to prevent white backgrounds from parent paddings
   useEffect(() => {
+    const revalidateOnRestore = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener('pageshow', revalidateOnRestore);
+    return () => window.removeEventListener('pageshow', revalidateOnRestore);
+  }, []);
+
+  useEffect(() => {
     if (!isGuest) {
       document.body.style.backgroundColor = '#07101D';
     }

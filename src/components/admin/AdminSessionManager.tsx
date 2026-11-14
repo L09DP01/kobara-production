@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 export default function AdminSessionManager({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isClient, setIsClient] = useState(false);
 
@@ -15,8 +13,7 @@ export default function AdminSessionManager({ children }: { children: React.Reac
     try {
       await fetch('/api/admin/auth/logout', { method: 'POST' });
     } catch (e) { }
-    router.push('/system-core/login?reason=timeout');
-    router.refresh();
+    window.location.replace('/system-core/login?reason=timeout');
   };
 
   const refreshSession = async () => {
@@ -37,6 +34,10 @@ export default function AdminSessionManager({ children }: { children: React.Reac
 
   useEffect(() => {
     setIsClient(true);
+    const revalidateOnRestore = (event: PageTransitionEvent) => {
+      if (event.persisted) window.location.reload();
+    };
+    window.addEventListener('pageshow', revalidateOnRestore);
     resetTimeout();
     
     // Initialiser un timer pour rafraîchir le JWT côté serveur chaque minute
@@ -58,6 +59,7 @@ export default function AdminSessionManager({ children }: { children: React.Reac
     events.forEach(evt => window.addEventListener(evt, handleActivity));
 
     return () => {
+      window.removeEventListener('pageshow', revalidateOnRestore);
       events.forEach(evt => window.removeEventListener(evt, handleActivity));
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       clearInterval(refreshInterval);

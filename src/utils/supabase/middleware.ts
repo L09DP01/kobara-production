@@ -23,6 +23,8 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const hostname = request.headers.get("host")?.split(":")[0] || request.nextUrl.hostname;
+  const isSystemCore = pathname === '/system-core' || pathname.startsWith('/system-core/');
+  if (isSystemCore || sessionToken) supabaseResponse.headers.set('Cache-Control', 'private, no-store');
 
   if (pathname.startsWith('/kyc/mobile')) {
     return supabaseResponse;
@@ -134,7 +136,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Expire authenticated sessions after 20 minutes without user activity.
-  if (userLoggedIn) {
+  if (userLoggedIn && !isSystemCore) {
     const lastActivity = request.cookies.get('kobara_last_activity')?.value;
     const now = Date.now();
 
@@ -157,14 +159,20 @@ export async function updateSession(request: NextRequest) {
           'kbr_2fa_email_ok',
           'kbr_2fa_totp_ok',
         ];
-        for (const name of cookiesToClear) {
-          response.cookies.set(name, '', { domain: cookieDomain, maxAge: 0, path: '/' });
+        const tokenNames = request.cookies.getAll().map(c => c.name).filter(name =>
+          /^(?:__Secure-)?(?:next-auth|authjs)\.session-token(?:\.\d+)?$/.test(name));
+        for (const name of new Set([...cookiesToClear, ...tokenNames])) {
+          const expired = `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${cookieDomain === '.kobara.app' ? '; Secure' : ''}`;
+          response.headers.append('Set-Cookie', expired);
+          response.headers.append('Set-Cookie', `${expired}; Domain=${cookieDomain}`);
         }
+        response.headers.set('Cache-Control', 'private, no-store');
         return response;
     }
 
     // Mettre à jour le timestamp d'activité
     const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.headers.set('Cache-Control', 'private, no-store');
     const cookieDomain = hostname.includes('localhost') || hostname.includes('local') ? 'localhost' : '.kobara.app';
     response.cookies.set('kobara_last_activity', now.toString(), {
       domain: cookieDomain,
