@@ -3,7 +3,7 @@
 import AdminSessionManager from "@/components/admin/AdminSessionManager";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
   Terminal,
@@ -17,7 +17,6 @@ import {
   SearchCode,
   LogOut,
   Mail,
-  Tag,
   Layers,
   ReceiptText,
   MonitorSmartphone,
@@ -57,20 +56,31 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     { name: "SUPPORT", href: "/system-core/support", icon: LifeBuoy },
     { name: "SHOPIFY PRIVACY", href: "/system-core/shopify-privacy", icon: ShieldAlert },
     { name: "MOTEUR CGU", href: "/system-core/legal/cgu-rules", icon: ScrollText },
-    { name: "WHATSAPP", href: "/system-core/whatsapp", icon: MessageCircleMore },
     { name: "SYSTEM LOGS", href: "/system-core/logs", icon: ScrollText },
-    { name: "SUPABASE LOGS", href: "/system-core/logs/supabase", icon: ScrollText },
-    { name: "CLOUDFLARE LOGS", href: "/system-core/logs/cloudflare", icon: ScrollText },
-    { name: "AUDIT LOGS", href: "/system-core/audit", icon: SearchCode },
     { name: "SESSIONS", href: "/system-core/sessions", icon: MonitorSmartphone },
     { name: "ADMINISTRATORS", href: "/system-core/administrators", icon: UserCog },
     { name: "SYSTEM HEALTH", href: "/system-core/health", icon: HeartPulse },
     { name: "ALERTS & MAINTENANCE", href: "/system-core/alerts", icon: BellRing },
-    { name: "MESSAGING", href: "/system-core/messaging", icon: Mail },
-    { name: "PROMOTIONS IA", href: "/system-core/smart-promotions", icon: Mail },
-    { name: "PROMO CODES", href: "/system-core/promo-codes", icon: Tag },
-    { name: "SMS GATEWAY", href: "/system-core/sms-gateway", icon: Terminal },
   ];
+
+  const groups = [
+    { href: "/system-core/support", label: "Support", links: [
+      { href: "/system-core/support", label: "Tickets", icon: LifeBuoy },
+      { href: "/system-core/whatsapp", label: "WhatsApp", icon: MessageCircleMore },
+      { href: "/system-core/messaging", label: "Messages", icon: Mail },
+      { href: "/system-core/smart-promotions", label: "Promotions IA", icon: Mail },
+    ] },
+    { href: "/system-core/logs", label: "Journaux", links: [
+      { href: "/system-core/logs", label: "Application", icon: ScrollText },
+      { href: "/system-core/logs/supabase", label: "Supabase", icon: ScrollText },
+      { href: "/system-core/logs/cloudflare", label: "Cloudflare", icon: ScrollText },
+      { href: "/system-core/audit", label: "Audit", icon: SearchCode },
+    ] },
+  ];
+  const matches = (href: string) => pathname === href || pathname.startsWith(href + '/');
+  const activeGroup = groups.find(group => group.links.some(link => matches(link.href)));
+  const activeChild = activeGroup?.links.filter(link => matches(link.href))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   const sidebar = <>
           <div className="p-6 border-b border-slate-800 flex items-center gap-4">
@@ -90,15 +100,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
             <div className="text-xs font-semibold text-slate-500 mb-4 px-2 tracking-widest">MODULES</div>
             {navItems.map((item) => {
-              const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') &&
+              const isActive = activeGroup?.href === item.href || pathname === item.href || (pathname.startsWith(item.href + '/') &&
                 !navItems.some(other => other.href !== item.href && other.href.startsWith(item.href + '/') &&
                   (pathname === other.href || pathname.startsWith(other.href + '/'))));
               const Icon = item.icon;
               return (
+                <Fragment key={item.href}>
                 <Link
                   key={item.href}
                   href={item.href}
-                  aria-current={isActive ? 'page' : undefined}
+                  aria-current={pathname === item.href ? 'page' : undefined}
                   onClick={() => setMenuOpen(false)}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded transition-all text-sm tracking-wider ${
                     isActive
@@ -109,6 +120,20 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <Icon className="w-4 h-4" />
                   {item.name}
                 </Link>
+                {activeGroup?.href === item.href && (
+                  <ul aria-label={activeGroup.label} className="ml-5 space-y-1 border-l border-slate-700 pl-2">
+                    {activeGroup.links.map(({ href, label, icon: SubIcon }) => (
+                      <li key={href}>
+                        <Link href={href} aria-current={activeChild === href ? 'page' : undefined}
+                          onClick={() => setMenuOpen(false)}
+                          className={`flex min-h-10 items-center gap-2 rounded px-3 text-sm ${activeChild === href ? 'text-red-300 bg-red-950/40' : 'text-slate-300 hover:bg-slate-800'}`}>
+                          <SubIcon className="h-4 w-4 shrink-0" aria-hidden="true" />{label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                </Fragment>
               );
             })}
           </nav>
@@ -127,7 +152,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="fixed inset-0 flex min-w-0 bg-slate-950 font-mono text-slate-100 selection:bg-red-500/30">
-      <AdminSessionManager>
+          <AdminSessionManager>
         {/* Sidebar */}
         <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900 md:flex">{sidebar}</aside>
         <DialogPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>

@@ -1,39 +1,46 @@
 import { createAdminClient } from "@/utils/supabase/admin";
-import { Activity, ArrowUpRight, Banknote, Power, ShieldAlert, Users } from "lucide-react";
+import { Activity, ArrowUpRight, Banknote, ShieldAlert, Users } from "lucide-react";
+import Link from 'next/link';
 import { getMaintenanceState } from '@/lib/server/maintenance';
 import { isMaintenanceActive } from '@/lib/maintenance-state';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { setPlatformMaintenance } from '../health/maintenance-actions';
 
 export default async function AdminDashboardPage() {
   const supabase = createAdminClient();
-  const [maintenance, adminSession] = await Promise.all([
+  const [maintenance] = await Promise.all([
     getMaintenanceState(),
     requireAdmin(),
   ]);
   const maintenanceActive = isMaintenanceActive(maintenance);
-  const maintenanceAction = setPlatformMaintenance.bind(null, !maintenanceActive);
 
   // Fetch basic stats
   const { count: merchantCount, error: merchantError } = await supabase.from('merchants').select('*', { count: 'exact', head: true });
   const { count: kycPending, error: kycError } = await supabase.from('merchants').select('*', { count: 'exact', head: true }).eq('kyc_status', 'in_review');
   
   // Calculate Volume and Revenue (Paiements LIVE uniquement)
-  const { data: payments, error: paymentsError } = await supabase
-    .from('payments')
-    .select('amount, fee_amount, created_at')
-    .eq('status', 'succeeded')
-    .eq('environment', 'live');
-  
-  const totalVolume = payments?.reduce((acc, curr) => acc + Number(curr.amount || 0), 0) || 0;
-  const totalRevenue = payments?.reduce((acc, curr) => acc + Number(curr.fee_amount || 0), 0) || 0;
+  const payments: Array<{ amount: number; fee_amount: number | null; created_at: string; currency: string }> = [];
+  let paymentsError = false;
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from('payments')
+      .select('amount, fee_amount, created_at, currency')
+      .eq('status', 'succeeded').eq('environment', 'live')
+      .order('id').range(offset, offset + 499);
+    if (error) { paymentsError = true; break; }
+    payments.push(...(data || []));
+    if (!data || data.length < 500) break;
+  }
+  const htgPayments = payments.filter(payment => payment.currency === 'HTG');
+  const totalVolume = htgPayments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+  const totalRevenue = htgPayments.reduce((acc, curr) => acc + Number(curr.fee_amount || 0), 0);
+  const usdVolume = payments.filter(p => p.currency === 'USD').reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  const usdFees = payments.filter(p => p.currency === 'USD').reduce((sum, p) => sum + Number(p.fee_amount || 0), 0);
   const systemHealthy = !merchantError && !kycError && !paymentsError;
   const today = new Date();
   const volumeByDay = Array.from({ length: 30 }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (29 - index));
     const key = date.toISOString().slice(0, 10);
-    const volume = (payments || []).filter(payment => String(payment.created_at).slice(0, 10) === key).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const volume = htgPayments.filter(payment => String(payment.created_at).slice(0, 10) === key).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
     return { key, label: date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), volume };
   });
   const maxDailyVolume = Math.max(1, ...volumeByDay.map(day => day.volume));
@@ -55,20 +62,10 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className={`flex flex-col gap-4 border p-4 md:flex-row md:items-center md:justify-between ${maintenanceActive ? 'border-red-500/50 bg-red-950/20' : 'border-amber-500/30 bg-amber-950/10'}`}>
-        <div className="flex items-start gap-3">
-          <Power className={`mt-0.5 h-5 w-5 ${maintenanceActive ? 'text-red-400' : 'text-amber-400'}`} />
-          <div>
-            <p className="text-sm font-bold">{maintenanceActive ? 'SERVICES CLIENTS SUSPENDUS' : 'MAINTENANCE PROGRAMMÉE · DIMANCHE 17 H'}</p>
-            <p className="mt-1 text-xs text-slate-400">{maintenanceActive ? maintenance.maintenance_message : maintenance.message}</p>
-          </div>
-        </div>
-        <form action={maintenanceAction} className="w-full md:w-auto">
-          <button type="submit" disabled={adminSession.user.role !== 'super_admin'} className={`w-full px-4 py-2.5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40 md:min-w-52 ${maintenanceActive ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-red-600 hover:bg-red-500'}`}>
-            {maintenanceActive ? 'RÉACTIVER LES SERVICES' : 'SUSPENDRE MAINTENANT'}
-          </button>
-        </form>
-      </div>
+      {maintenanceActive && <div role="status" className="border border-red-500/50 bg-red-950/20 p-4">
+        <Link href="/system-core/alerts" className="font-bold text-red-300 underline">Services clients suspendus</Link>
+        <p className="mt-1 text-sm text-slate-300">{maintenance.maintenance_message}</p>
+      </div>}
       
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -81,7 +78,8 @@ export default async function AdminDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-slate-500" />
           </div>
           <div className="text-slate-400 text-xs font-semibold mb-1 tracking-wider">TOTAL VOLUME (HTG)</div>
-          <div className="text-2xl font-bold text-slate-100">{totalVolume.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-slate-100">{paymentsError ? 'Indisponible' : totalVolume.toLocaleString() + ' HTG'}</div>
+          {!paymentsError && <div className="text-sm text-slate-300">{usdVolume.toLocaleString()} USD</div>}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl relative overflow-hidden group">
@@ -93,7 +91,8 @@ export default async function AdminDashboardPage() {
             <ArrowUpRight className="w-4 h-4 text-slate-500" />
           </div>
           <div className="text-slate-400 text-xs font-semibold mb-1 tracking-wider">KOBARA REVENUE</div>
-          <div className="text-2xl font-bold text-slate-100">{totalRevenue.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-slate-100">{paymentsError ? 'Indisponible' : totalRevenue.toLocaleString() + ' HTG'}</div>
+          {!paymentsError && <div className="text-sm text-slate-300">{usdFees.toLocaleString()} USD</div>}
         </div>
 
         <div className="bg-slate-900 border border-slate-800 p-5 rounded-xl relative overflow-hidden group">
@@ -124,7 +123,7 @@ export default async function AdminDashboardPage() {
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 flex flex-col">
           <h2 className="text-sm font-bold text-slate-300 mb-6 tracking-wider">TRANSACTION VOLUME (30 DAYS)</h2>
           <div className="h-64 flex items-end gap-1 border-b border-slate-700/50 pt-4" aria-label="Volume des transactions sur 30 jours">
-            {volumeByDay.map(day => <div key={day.key} title={`${day.label}: ${day.volume.toLocaleString('fr-FR')} HTG`} className="flex-1 min-w-0 bg-blue-500/70 hover:bg-blue-400 transition-colors" style={{ height: `${Math.max(day.volume > 0 ? 4 : 1, (day.volume / maxDailyVolume) * 100)}%` }} />)}
+            {paymentsError ? <p>Volume indisponible</p> : volumeByDay.map(day => <div key={day.key} title={`${day.label}: ${day.volume.toLocaleString('fr-FR')} HTG`} className="flex-1 min-w-0 bg-blue-500/70 hover:bg-blue-400 transition-colors" style={{ height: `${Math.max(day.volume > 0 ? 4 : 1, (day.volume / maxDailyVolume) * 100)}%` }} />)}
           </div>
           <div className="flex justify-between text-[10px] text-slate-600 mt-2"><span>{volumeByDay[0].label}</span><span>{volumeByDay[volumeByDay.length - 1].label}</span></div>
         </div>

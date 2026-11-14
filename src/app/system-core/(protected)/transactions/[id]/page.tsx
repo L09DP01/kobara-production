@@ -6,8 +6,7 @@ import { updatePendingPayment } from '../actions';
 
 const errorMessages: Record<string, string> = {
   status: 'Choisissez un statut et confirmez la verification du paiement.',
-  reference: 'Le code de référence doit contenir entre 4 et 64 lettres ou chiffres.',
-  method: 'Cette méthode de paiement ne peut pas être sélectionnée.',
+  read_failed: "Impossible de vérifier le statut actuel. Réessayez.",
   not_found: 'Ce paiement Live est introuvable.',
   not_pending: "Ce paiement n'est plus en attente et ne peut plus être modifié.",
   update_failed: "La correction n'a pas pu être enregistrée.",
@@ -36,7 +35,10 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
 
   const fields = [
     ['Référence Kobara', payment.kobara_reference],
+    ['Code de référence', payment.reference_code || payment.metadata?.reference_code],
     ['Référence externe', payment.external_reference],
+    ['Nom du client', payment.customer_name || payment.metadata?.customer_name || payment.metadata?.customer?.name],
+    ['Téléphone du client', payment.customer_phone || payment.metadata?.customer_phone || payment.metadata?.customer?.phone],
     ['Méthode', payment.payment_method],
     ['Fournisseur', payment.provider],
     ['Environnement', payment.environment],
@@ -50,7 +52,7 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start gap-3 sm:gap-4">
-        <Link href="/system-core/transactions" className="p-2 border border-slate-700 rounded text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></Link>
+        <Link href="/system-core/transactions" aria-label="Retour aux transactions" className="p-2 border border-slate-700 rounded text-slate-400 hover:text-white"><ArrowLeft className="w-4 h-4" /></Link>
         <div><h1 className="text-xl font-bold">TRANSACTION</h1><p className="text-xs text-slate-500 font-mono mt-1 break-all">{payment.id}</p></div>
         <div className="ml-auto flex items-center gap-2">
           <span className="px-2 py-1 text-xs font-bold rounded border border-slate-700">{payment.status?.toUpperCase()}</span>
@@ -77,32 +79,6 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
           </div>
           <form action={updatePendingPayment} className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <input type="hidden" name="payment_id" value={id} />
-            <label className="space-y-1.5 text-xs text-slate-400">Code de référence
-              <input readOnly value={payment.reference_code || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
-            </label>
-            <label className="space-y-1.5 text-xs text-slate-400">Référence externe
-              <input readOnly value={payment.external_reference || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
-            </label>
-            <label className="space-y-1.5 text-xs text-slate-400">Méthode
-              <select disabled defaultValue={payment.payment_method || payment.provider || 'moncash'} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400">
-                <option value="moncash">MonCash</option>
-                <option value="moncash_ussd">MonCash USSD</option>
-                <option value="natcash">NatCash</option>
-                <option value="paypal">PayPal</option>
-                <option value="card">Carte</option>
-                <option value="carte">Carte (API)</option>
-                <option value="apple_pay">Apple Pay</option>
-                <option value="google_pay">Google Pay</option>
-                <option value="balance">Solde Kobara</option>
-                <option value="kobara">Transfert Kobara</option>
-              </select>
-            </label>
-            <label className="space-y-1.5 text-xs text-slate-400">Nom du client
-              <input readOnly value={payment.metadata?.customer_name || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
-            </label>
-            <label className="space-y-1.5 text-xs text-slate-400 md:col-span-2">Téléphone du client
-              <input readOnly value={payment.metadata?.customer_phone || ''} className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-400" />
-            </label>
             <label className="space-y-1.5 text-xs text-slate-400 md:col-span-2">Statut du paiement
               <select name="status" required defaultValue="" className="w-full rounded border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white">
                 <option value="" disabled>En attente : choisir le nouveau statut</option>

@@ -30,12 +30,13 @@ export async function updatePendingPayment(formData: FormData) {
   const admin = createAdminClient();
   const { data: current, error: readError } = await admin
     .from('payments')
-    .select('id, merchant_id, status, environment, reference_code, external_reference, payment_method, metadata')
+    .select('merchant_id, status')
     .eq('id', paymentId)
     .eq('environment', 'live')
     .maybeSingle();
 
-  if (readError || !current) redirect(transactionUrl(paymentId, { error: 'not_found' }));
+  if (readError) redirect(transactionUrl(paymentId, { edit: '1', error: 'read_failed' }));
+  if (!current) redirect(transactionUrl(paymentId, { error: 'not_found' }));
   if (current.status !== 'pending') redirect(transactionUrl(paymentId, { error: 'not_pending' }));
 
   const changes = {
@@ -52,7 +53,8 @@ export async function updatePendingPayment(formData: FormData) {
     .select('id')
     .maybeSingle();
 
-  if (updateError || !updated) redirect(transactionUrl(paymentId, { error: 'update_failed' }));
+  if (updateError) redirect(transactionUrl(paymentId, { edit: '1', error: 'update_failed' }));
+  if (!updated) redirect(transactionUrl(paymentId, { error: 'not_pending' }));
 
   const { error: auditError } = await admin.from('audit_logs').insert({
     admin_id: session.user.id,
