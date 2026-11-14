@@ -20,7 +20,10 @@ export function sanitizeLog(value: unknown): string {
 }
 
 async function readJson(url: string, token: string, body?: unknown) {
-  const response = await fetch(url, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(10000) });
+  const response = await fetch(url, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), redirect: 'manual', cache: 'no-store', signal: AbortSignal.timeout(10000) });
+  if ((response.status >= 300 && response.status < 400) || response.type === 'opaqueredirect') {
+    throw new Error('API fournisseur : redirection refusée.');
+  }
   if (!response.ok) throw new Error(`API fournisseur : HTTP ${response.status}`);
   return response.json();
 }
