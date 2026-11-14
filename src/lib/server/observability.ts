@@ -30,14 +30,19 @@ async function readJson(url: string, token: string, body?: unknown) {
 
 export async function readProviderLogs(provider: 'supabase' | 'cloudflare'): Promise<LogResult> {
   await requireAdmin(['super_admin', 'operations']);
-  const now = Date.now();
+  return collectProviderLogs(provider);
+}
+
+// Server-only collector. Callers must authenticate before invoking it.
+export async function collectProviderLogs(provider: 'supabase' | 'cloudflare', now = Date.now(), minutes = 60): Promise<LogResult> {
+  const start = now - minutes * 60000;
   try {
     if (provider === 'supabase') {
       const token = process.env.SUPABASE_MANAGEMENT_TOKEN;
       const ref = process.env.SUPABASE_PROJECT_REF;
       if (!token || !ref) return { state: 'unconfigured', detail: 'Accès aux logs Supabase non configuré : SUPABASE_MANAGEMENT_TOKEN et SUPABASE_PROJECT_REF.', rows: [] };
       if (!/^[a-z0-9]+$/.test(ref)) throw new Error('Référence projet invalide');
-      const query = new URLSearchParams({ sql: 'SELECT timestamp, event_message, source FROM logs ORDER BY timestamp DESC LIMIT 100', iso_timestamp_start: new Date(now - 3600000).toISOString(), iso_timestamp_end: new Date(now).toISOString() });
+      const query = new URLSearchParams({ sql: 'SELECT timestamp, event_message, source FROM logs ORDER BY timestamp DESC LIMIT 100', iso_timestamp_start: new Date(start).toISOString(), iso_timestamp_end: new Date(now).toISOString() });
       const data = await readJson(`https://api.supabase.com/v1/projects/${ref}/analytics/endpoints/logs?${query}`, token);
       if (data.error) throw new Error('Requête de logs Supabase refusée');
       if (!Array.isArray(data.result)) throw new Error('Format de logs Supabase inattendu');
@@ -48,7 +53,7 @@ export async function readProviderLogs(provider: 'supabase' | 'cloudflare'): Pro
     const queryId = process.env.CLOUDFLARE_LOG_QUERY_ID;
     if (!token || !account || !queryId) return { state: 'unconfigured', detail: 'Accès aux logs Cloudflare non configuré : CLOUDFLARE_OBSERVABILITY_TOKEN, CLOUDFLARE_ACCOUNT_ID et CLOUDFLARE_LOG_QUERY_ID (requête enregistrée limitée au Worker Kobara).', rows: [] };
     if (!/^[a-f0-9]{32}$/i.test(account)) throw new Error('Compte Cloudflare invalide');
-    const data = await readJson(`https://api.cloudflare.com/client/v4/accounts/${account}/workers/observability/telemetry/query`, token, { queryId, timeframe: { from: now - 3600000, to: now }, view: 'events', limit: 100 });
+    const data = await readJson(`https://api.cloudflare.com/client/v4/accounts/${account}/workers/observability/telemetry/query`, token, { queryId, timeframe: { from: start, to: now }, view: 'events', limit: 100 });
     if (!data.success || data.errors?.length) throw new Error('Requête de logs Cloudflare refusée');
     const events = data.result?.events?.events;
     if (!Array.isArray(events)) throw new Error('Format de logs Cloudflare inattendu : la requête doit afficher des événements');

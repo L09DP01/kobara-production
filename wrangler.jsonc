@@ -3,7 +3,7 @@
   "name": "kobara-production",
   "main": "cloudflare-worker.mjs",
   "triggers": {
-    "crons": ["17 * * * *"]
+    "crons": ["17 * * * *", "* * * * *"]
   },
   "compatibility_date": "2026-08-30",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
