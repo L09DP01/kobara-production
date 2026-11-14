@@ -11,6 +11,7 @@ export function sanitizeLog(value: unknown): string {
     if (/TOKEN|SECRET|PASSWORD|API_KEY|PEPPER|SMTP_PASS/i.test(key) && secret && secret.length >= 8) text = text.split(secret).join('[SECRET MASQUE]');
   }
   return text.replace(/\bBearer\s+\S+/gi, 'Bearer [MASQUE]')
+    .replace(/(https?:\/\/[^\s"'?]+)\?[^\s"']+/gi, '$1?[PARAMETRES MASQUES]')
     .replace(/\b(?:kbr_(?:sk|pk)_(?:live|test)_|sk_live_|sk_test_|sb_secret_|EAAP)[\w.-]+/g, '[SECRET MASQUE]')
     .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[JWT MASQUE]')
     .replace(/((?:password|secret|token|api[_-]?key|authorization|cookie)["']?\s*[:=]\s*)["']?[^\s,;}]+/gi, '$1[MASQUE]')
@@ -19,7 +20,7 @@ export function sanitizeLog(value: unknown): string {
 }
 
 async function readJson(url: string, token: string, body?: unknown) {
-  const response = await fetch(url, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), cache: 'no-store', signal: AbortSignal.timeout(10000) });
+  const response = await fetch(url, { method: body ? 'POST' : 'GET', headers: { Authorization: `Bearer ${token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}), redirect: 'error', cache: 'no-store', signal: AbortSignal.timeout(10000) });
   if (!response.ok) throw new Error(`API fournisseur : HTTP ${response.status}`);
   return response.json();
 }
