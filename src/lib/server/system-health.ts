@@ -3,14 +3,16 @@ import { createAdminClient } from '@/utils/supabase/admin';
 import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { hasSesSmtpConfiguration } from './email/ses-smtp';
 import { getRuntimeEnvironmentValue } from './runtime-env';
+import { readProviderLogs } from './observability';
 
 export type HealthCheck = { name: string; state: 'ok' | 'error' | 'unconfigured' | 'unchecked'; detail: string };
 
-async function probe(name: string, url: string, headers?: Record<string, string>): Promise<HealthCheck> {
+async function probe(name: string, url: string, headers?: Record<string, string>, body?: object, validate?: (data: any) => boolean): Promise<HealthCheck> {
   const started = Date.now();
   try {
-    const response = await fetch(url, { headers, cache: 'no-store', signal: AbortSignal.timeout(6000), redirect: 'error' });
-    return { name, state: response.ok ? 'ok' : 'error', detail: `HTTP ${response.status} · ${Date.now() - started} ms` };
+    const response = await fetch(url, { headers, ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}), cache: 'no-store', signal: AbortSignal.timeout(6000), redirect: 'manual' });
+    const ok = response.ok && (!validate || validate(await response.json()));
+    return { name, state: ok ? 'ok' : 'error', detail: ok ? `Réponse confirmée · ${Date.now() - started} ms` : response.ok ? 'Réponse de test inattendue' : `HTTP ${response.status}` };
   } catch { return { name, state: 'error', detail: 'Connexion impossible ou délai dépassé' }; }
 }
 
@@ -35,19 +37,31 @@ export async function getSystemHealthChecks(): Promise<HealthCheck[]> {
     } catch { return { name: 'Redis', state: 'error', detail: 'PING indisponible' } as HealthCheck; }
   })());
   else checks.push({ name: 'Redis', state: 'unconfigured', detail: 'Connexion Redis non configurée' });
-  checks.push({ name: 'WhatsApp Kapso', state: process.env.KAPSO_API_KEY ? 'unchecked' : 'unconfigured', detail: process.env.KAPSO_API_KEY ? 'Configuré · disponibilité non testée' : 'Clé serveur Kapso manquante' });
+  for (const [provider, name] of [['supabase', 'Logs Supabase'], ['cloudflare', 'Logs Cloudflare']] as const) {
+    remote.push(readProviderLogs(provider).then(result => ({
+      name, state: result.state, detail: result.state === 'ok' ? `Lecture confirmée · ${result.rows.length} événements` : result.detail,
+    })).catch(() => ({ name, state: 'unchecked', detail: 'Contrôle réservé aux administrateurs autorisés à lire les journaux' })));
+  }
+  const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (telegramToken && /^\d+:[\w-]+$/.test(telegramToken)) {
+    remote.push(probe('Telegram', `https://api.telegram.org/bot${telegramToken}/getMe`, undefined, undefined, data => data?.ok === true && data.result?.is_bot === true));
+  } else checks.push({ name: 'Telegram', state: telegramToken ? 'error' : 'unconfigured', detail: telegramToken ? 'Format du jeton invalide' : 'Jeton manquant' });
+  const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  if (geminiKey) {
+    remote.push(probe('Gemini', 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      { 'x-goog-api-key': geminiKey, 'Content-Type': 'application/json' },
+      { contents: [{ parts: [{ text: 'Reply only: OK' }] }], generationConfig: { maxOutputTokens: 32, thinkingConfig: { thinkingBudget: 0 } } },
+      data => data?.candidates?.some((candidate: any) => candidate.content?.parts?.some((part: any) => typeof part.text === 'string' && part.text.trim())) === true));
+  } else checks.push({ name: 'Gemini', state: 'unconfigured', detail: 'Clé serveur manquante' });
   let cloudflareEmailConfigured = false;
   try { cloudflareEmailConfigured = Boolean(getCloudflareContext().env.EMAIL); } catch { /* No Worker binding in Node.js. */ }
   for (const [name, configured] of [
-    ['Logs Supabase', Boolean(process.env.SUPABASE_MANAGEMENT_TOKEN && process.env.SUPABASE_PROJECT_REF)],
-    ['Logs Cloudflare', Boolean(process.env.CLOUDFLARE_OBSERVABILITY_TOKEN && process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_LOG_QUERY_ID)],
-    ['IA support', Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY)],
-    ['Telegram', Boolean(process.env.TELEGRAM_BOT_TOKEN)],
     ['Cloudflare e-mail transactionnel', cloudflareEmailConfigured],
     ['Amazon SES SMTP marketing', hasSesSmtpConfiguration()],
     ['Resend secours', Boolean(getRuntimeEnvironmentValue('RESEND_API_KEY'))],
     ['PayPal', Boolean(process.env.PAYPAL_CLIENT_ID && process.env.PAYPAL_CLIENT_SECRET)],
     ['Crypto', Boolean(process.env.NOWPAYMENTS_API_KEY)],
-  ] as const) checks.push({ name, state: configured ? 'unchecked' : 'unconfigured', detail: configured ? 'Configuré · disponibilité non testée' : 'Non configuré' });
+  ] as const) checks.push({ name, state: configured ? 'unchecked' : 'unconfigured', detail: configured ? 'À vérifier avec un test de bout en bout' : 'Non configuré' });
+  checks.push({ name: 'WhatsApp Kapso', state: process.env.KAPSO_API_KEY ? 'unchecked' : 'unconfigured', detail: process.env.KAPSO_API_KEY ? 'À vérifier avec un message de test' : 'Clé serveur Kapso manquante' });
   return [...checks, ...await Promise.all(remote)];
 }
