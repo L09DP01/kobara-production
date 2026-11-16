@@ -121,7 +121,7 @@ export const PaymService = {
       (data.data && typeof data.data.marchand_token === 'string' && data.data.marchand_token.trim()) ||
       null;
 
-    if (!rawToken || rawToken.length < 10) {
+    if (data.success === false || !rawToken || rawToken.length < 10) {
       cachedAuthToken = null;
       authTokenExpiresAt = 0;
       console.error("Pay'm Auth Payload sans token valide.");

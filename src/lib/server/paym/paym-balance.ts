@@ -42,10 +42,10 @@ export async function fetchPaymBalance(input: {
   for (let attempt = 0; attempt < 2; attempt++) {
     let response: Response;
     try {
-      const token = await input.getToken(attempt === 1);
+      const token = await input.getToken(true);
       response = await fetcher(`${input.baseUrl.replace(/\/$/, '')}/api/marchand/balance`, {
         method: 'GET',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'X-Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         cache: 'no-store',
         redirect: 'manual',
         signal: AbortSignal.timeout(15_000),
