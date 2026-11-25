@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { getMaintenanceState } from '@/lib/server/maintenance';
 import { isMaintenanceActive } from '@/lib/maintenance-state';
 import { requireAdmin } from '@/lib/auth/require-admin';
+import { HAITI_TIME_ZONE, haitiDayKey } from '@/lib/haiti-time';
 
 export default async function AdminDashboardPage() {
   const supabase = createAdminClient();
@@ -18,11 +19,11 @@ export default async function AdminDashboardPage() {
   const { count: kycPending, error: kycError } = await supabase.from('merchants').select('*', { count: 'exact', head: true }).eq('kyc_status', 'in_review');
   
   // Calculate Volume and Revenue (Paiements LIVE uniquement)
-  const payments: Array<{ amount: number; fee_amount: number | null; created_at: string; currency: string }> = [];
+  const payments: Array<{ amount: number; fee_amount: number | null; paid_at: string | null; currency: string }> = [];
   let paymentsError = false;
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabase.from('payments')
-      .select('amount, fee_amount, created_at, currency')
+      .select('amount, fee_amount, paid_at, currency')
       .eq('status', 'succeeded').eq('environment', 'live')
       .order('id').range(offset, offset + 499);
     if (error) { paymentsError = true; break; }
@@ -35,13 +36,20 @@ export default async function AdminDashboardPage() {
   const usdVolume = payments.filter(p => p.currency === 'USD').reduce((sum, p) => sum + Number(p.amount || 0), 0);
   const usdFees = payments.filter(p => p.currency === 'USD').reduce((sum, p) => sum + Number(p.fee_amount || 0), 0);
   const systemHealthy = !merchantError && !kycError && !paymentsError;
-  const today = new Date();
+  const dailyTotals = new Map<string, number>();
+  for (const payment of htgPayments) {
+    if (!payment.paid_at) continue;
+    const key = haitiDayKey(new Date(payment.paid_at));
+    dailyTotals.set(key, (dailyTotals.get(key) || 0) + Number(payment.amount || 0));
+  }
+  // Use UTC only for calendar arithmetic on Haiti's local date, not to group payments.
+  const today = new Date(`${haitiDayKey(new Date())}T00:00:00Z`);
   const volumeByDay = Array.from({ length: 30 }, (_, index) => {
     const date = new Date(today);
-    date.setDate(today.getDate() - (29 - index));
+    date.setUTCDate(today.getUTCDate() - (29 - index));
     const key = date.toISOString().slice(0, 10);
-    const volume = htgPayments.filter(payment => String(payment.created_at).slice(0, 10) === key).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-    return { key, label: date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }), volume };
+    const volume = dailyTotals.get(key) || 0;
+    return { key, label: date.toLocaleDateString('fr-FR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' }), volume };
   });
   const maxDailyVolume = Math.max(1, ...volumeByDay.map(day => day.volume));
 
@@ -77,7 +85,7 @@ export default async function AdminDashboardPage() {
             </div>
             <ArrowUpRight className="w-4 h-4 text-slate-500" />
           </div>
-          <div className="text-slate-400 text-xs font-semibold mb-1 tracking-wider">TOTAL VOLUME (HTG)</div>
+          <div className="text-slate-400 text-xs font-semibold mb-1 tracking-wider">VOLUME DES PAIEMENTS RÉUSSIS</div>
           <div className="text-2xl font-bold text-slate-100">{paymentsError ? 'Indisponible' : totalVolume.toLocaleString() + ' HTG'}</div>
           {!paymentsError && <div className="text-sm text-slate-300">{usdVolume.toLocaleString()} USD</div>}
         </div>
@@ -121,7 +129,7 @@ export default async function AdminDashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
         <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 flex flex-col">
-          <h2 className="text-sm font-bold text-slate-300 mb-6 tracking-wider">TRANSACTION VOLUME (30 DAYS)</h2>
+          <h2 className="text-sm font-bold text-slate-300 mb-6 tracking-wider">VOLUME HTG SUR 30 JOURS (HEURE D’HAÏTI)</h2>
           <div className="h-64 flex items-end gap-1 border-b border-slate-700/50 pt-4" aria-label="Volume des transactions sur 30 jours">
             {paymentsError ? <p>Volume indisponible</p> : volumeByDay.map(day => <div key={day.key} title={`${day.label}: ${day.volume.toLocaleString('fr-FR')} HTG`} className="flex-1 min-w-0 bg-blue-500/70 hover:bg-blue-400 transition-colors" style={{ height: `${Math.max(day.volume > 0 ? 4 : 1, (day.volume / maxDailyVolume) * 100)}%` }} />)}
           </div>
@@ -136,7 +144,7 @@ export default async function AdminDashboardPage() {
               <div key={merchant.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 border border-slate-800/50">
                 <div>
                   <div className="text-sm font-semibold text-slate-200">{merchant.business_name || 'Unnamed Business'}</div>
-                  <div className="text-xs text-slate-500">{new Date(merchant.created_at).toLocaleDateString()}</div>
+                  <div className="text-xs text-slate-500">{new Date(merchant.created_at).toLocaleDateString('fr-FR', { timeZone: HAITI_TIME_ZONE })}</div>
                 </div>
                 <div className="text-xs px-2 py-1 bg-slate-800 text-slate-400 rounded">NEW</div>
               </div>

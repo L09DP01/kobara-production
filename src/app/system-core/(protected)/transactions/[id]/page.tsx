@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, Pencil, Save, X } from 'lucide-react';
 import { createAdminClient } from '@/utils/supabase/admin';
 import { updatePendingPayment } from '../actions';
+import { formatHaitiDateTime } from '@/lib/haiti-time';
 
 const errorMessages: Record<string, string> = {
   status: 'Choisissez un statut et confirmez la verification du paiement.',
@@ -45,8 +46,8 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
     ['Montant brut', `${Number(payment.amount || 0).toLocaleString('fr-FR')} HTG`],
     ['Frais', `${Number(payment.fee_amount || 0).toLocaleString('fr-FR')} HTG`],
     ['Net', `${Number(payment.net_amount || 0).toLocaleString('fr-FR')} HTG`],
-    ['Créé', new Date(payment.created_at).toLocaleString('fr-FR')],
-    ['Payé', payment.paid_at ? new Date(payment.paid_at).toLocaleString('fr-FR') : '—'],
+    ['Créé (Haïti)', formatHaitiDateTime(payment.created_at)],
+    ['Payé (Haïti)', payment.paid_at ? formatHaitiDateTime(payment.paid_at) : '—'],
   ];
 
   return (
@@ -116,7 +117,7 @@ export default async function AdminTransactionDetail({ params, searchParams }: {
         <h2 className="text-sm font-bold text-slate-400 mb-4">CHRONOLOGIE</h2>
         {[...(audits || []).map((a) => ({ id: a.id, at: a.created_at, title: a.action, detail: a.metadata })), ...relatedWebhooks.map((w) => ({ id: w.id, at: w.created_at, title: `Webhook ${w.delivery_status}`, detail: { event: w.event_type, retries: w.retry_count } }))]
           .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-          .map(item => <div key={item.id} className="border-l border-slate-700 pl-4 py-2"><div className="text-xs font-bold text-slate-200">{item.title}</div><div className="text-[10px] text-slate-500">{new Date(item.at).toLocaleString('fr-FR')}</div><pre className="text-[10px] text-slate-500 mt-1 whitespace-pre-wrap">{JSON.stringify(item.detail)}</pre></div>)}
+          .map(item => <div key={item.id} className="border-l border-slate-700 pl-4 py-2"><div className="text-xs font-bold text-slate-200">{item.title}</div><div className="text-[10px] text-slate-500">{formatHaitiDateTime(item.at)}</div><pre className="text-[10px] text-slate-500 mt-1 whitespace-pre-wrap">{JSON.stringify(item.detail)}</pre></div>)}
         {(audits || []).length === 0 && relatedWebhooks.length === 0 && <p className="text-sm text-slate-500">Aucun événement associé.</p>}
       </section>
     </div>

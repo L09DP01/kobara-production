@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/utils/supabase/admin";
 import { Search, ArrowDownLeft, ArrowUpRight, Pencil } from "lucide-react";
 import Link from "next/link";
+import { formatHaitiDateTime } from '@/lib/haiti-time';
 
 export default async function AdminTransactionsPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; page?: string }> }) {
   const supabase = createAdminClient();
@@ -93,7 +94,7 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
                   </span>
                 </td>
                 <td className="px-6 py-4 text-slate-400 font-mono text-xs">
-                  {new Date(p.created_at).toLocaleString()}
+                  {formatHaitiDateTime(p.created_at)}
                 </td>
                 <td className="px-4 py-4 text-right">
                   {p.status === 'pending' ? (
