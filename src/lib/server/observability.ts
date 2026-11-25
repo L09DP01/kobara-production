@@ -1,7 +1,7 @@
 import 'server-only';
 import { requireAdmin } from '@/lib/auth/require-admin';
 
-export type ProviderLog = { id: string; time: string; source: string; level: string; message: string };
+export type ProviderLog = { id: string; time: string; source: string; level: string; message: string; httpStatus?: number; requestId?: string };
 export type LogResult = { state: 'ok' | 'unconfigured' | 'error'; detail: string; rows: ProviderLog[] };
 
 export function sanitizeLog(value: unknown): string {
@@ -14,7 +14,7 @@ export function sanitizeLog(value: unknown): string {
     .replace(/(https?:\/\/[^\s"'?]+)\?[^\s"']+/gi, '$1?[PARAMETRES MASQUES]')
     .replace(/\b(?:kbr_(?:sk|pk)_(?:live|test)_|sk_live_|sk_test_|sb_secret_|EAAP)[\w.-]+/g, '[SECRET MASQUE]')
     .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[JWT MASQUE]')
-    .replace(/((?:password|secret|token|api[_-]?key|authorization|cookie)["']?\s*[:=]\s*)["']?[^\s,;}]+/gi, '$1[MASQUE]')
+    .replace(/((?:password|secret|token|api[_-]?key|authorization|cookie|x-webhook-signature)["']?\s*[:=]\s*)["']?[^\s,;}]+/gi, '$1[MASQUE]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[EMAIL MASQUE]')
     .slice(0, 2000);
 }
@@ -57,7 +57,32 @@ export async function collectProviderLogs(provider: 'supabase' | 'cloudflare', n
     if (!data.success || data.errors?.length) throw new Error('Requête de logs Cloudflare refusée');
     const events = data.result?.events?.events;
     if (!Array.isArray(events)) throw new Error('Format de logs Cloudflare inattendu : la requête doit afficher des événements');
-    return { state: 'ok', detail: 'Dernières 60 minutes · 100 événements maximum', rows: events.slice(0, 100).map((event: any, i: number) => { const meta = event.$metadata || {}; return { id: String(meta.id || i), time: String(event.timestamp || meta.startTime || ''), source: String(meta.service || 'cloudflare'), level: String(meta.level || (meta.error ? 'error' : 'info')), message: sanitizeLog(meta.message || meta.error || event.source?.message || 'Invocation') }; }) };
+    const rows: ProviderLog[] = events.slice(0, 100).map((event: any, i: number) => {
+      const meta = event.$metadata ?? event.source?.$metadata ?? {};
+      const worker = event.$workers ?? event.source?.$workers ?? {};
+      const status = worker.event?.response?.status;
+      const httpStatus = Number.isInteger(status) && status >= 100 && status <= 599 ? status : undefined;
+      const rawMessage = String(meta.message || meta.error || event.source?.message || 'Invocation');
+      const limiterFallback = /^(Rate limiting error:|Upstash RateLimit error, failing open to memory:)/i.test(rawMessage);
+      let level = String(meta.level || event.source?.level || (meta.error ? 'error' : 'info')).toLowerCase();
+      if ((worker.outcome && worker.outcome !== 'ok') || (httpStatus && httpStatus >= 500)) {
+        level = 'error';
+      } else if (limiterFallback || (httpStatus && httpStatus >= 400)) {
+        level = 'warning';
+      }
+      const rawTime = event.timestamp ?? (meta.timestampNs ? Number(meta.timestampNs) / 1e6 : meta.startTime);
+      const date = new Date(rawTime ?? NaN);
+      return {
+        id: String(meta.id || i),
+        time: Number.isFinite(date.getTime()) ? date.toISOString() : '',
+        source: sanitizeLog(meta.service || 'cloudflare'),
+        level: sanitizeLog(level),
+        message: limiterFallback ? 'Upstash Redis : limiteur indisponible (voir le statut HTTP de l’invocation associée).' : sanitizeLog(rawMessage),
+        httpStatus,
+        requestId: typeof meta.requestId === 'string' && /^[a-f0-9]{16,64}$/i.test(meta.requestId) ? meta.requestId : undefined,
+      };
+    });
+    return { state: 'ok', detail: 'Dernières 60 minutes · 100 événements maximum', rows };
   } catch (error) {
     return { state: 'error', detail: error instanceof Error ? sanitizeLog(error.message) : 'Lecture des logs indisponible', rows: [] };
   }
