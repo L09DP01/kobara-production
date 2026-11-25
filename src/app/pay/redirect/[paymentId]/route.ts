@@ -27,7 +27,7 @@ export async function GET(
   const supabase = createAdminClient();
   const { data: payment } = await supabase
     .from('payments')
-    .select('id, status, provider, payment_method, reference_code, metadata')
+    .select('id, status, provider, payment_method, reference_code, metadata, api_key_origin')
     .eq('id', paymentId)
     .maybeSingle();
 
@@ -36,6 +36,9 @@ export async function GET(
   }
 
   if (payment.status === 'succeeded') {
+    if (payment.api_key_origin) {
+      return NextResponse.redirect(new URL(`/api/payments/return?payment_id=${encodeURIComponent(payment.id)}`, request.url), 303);
+    }
     return NextResponse.redirect(new URL(`/pay/processing?payment_id=${encodeURIComponent(payment.id)}`, request.url));
   }
 

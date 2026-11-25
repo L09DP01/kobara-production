@@ -4,6 +4,15 @@ import { confirmPaymPayment } from '@/lib/server/payments/confirm-paym-payment';
 
 const RETURN_COOKIE = 'kobara_payment_return';
 
+function merchantUrl(value: string | null | undefined) {
+  try {
+    const url = new URL(value || '');
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function firstValue(source: Record<string, unknown> | URLSearchParams, names: string[]) {
   for (const name of names) {
     const raw = source instanceof URLSearchParams ? source.get(name) : source[name];
@@ -40,12 +49,48 @@ async function handleReturn(request: NextRequest) {
     || request.cookies.get(RETURN_COOKIE)?.value
     || null;
 
+  let isApiPayment = false;
   try {
-    const result = await confirmPaymPayment({ reference, transactionId, paymentId });
+    const lookup = { reference, transactionId, paymentId };
+    const result = await confirmPaymPayment(lookup);
+    isApiPayment = Boolean(result.payment?.api_key_origin);
+    if (isApiPayment && result.payment && result.status === 'pending') {
+      const retryUrl = request.nextUrl.clone();
+      retryUrl.search = '';
+      retryUrl.searchParams.set('payment_id', result.payment.id);
+      const expired = result.payment.expires_at !== null
+        && Date.parse(result.payment.expires_at) <= Date.now();
+      if (!expired) {
+        const response = request.method !== 'GET' || request.nextUrl.search !== retryUrl.search
+          ? NextResponse.redirect(retryUrl, 303)
+          : new NextResponse(null, {
+            status: 202,
+            headers: { Refresh: `5; url=${retryUrl.pathname}${retryUrl.search}`, 'Retry-After': '5' },
+          });
+        response.headers.set('Cache-Control', 'no-store');
+        return response;
+      }
+      const cancelUrl = merchantUrl(result.payment.error_url);
+      const response = cancelUrl
+        ? NextResponse.redirect(cancelUrl, 303)
+        : NextResponse.json({ status: 'expired' }, { status: 410 });
+      response.headers.set('Cache-Control', 'no-store');
+      return response;
+    }
+
+    const merchantDestination = merchantUrl(result.status === 'succeeded'
+      ? result.payment?.success_url
+      : result.status === 'failed' ? result.payment?.error_url : null);
     const destination = result.payment
       ? `https://pay.kobara.app/processing?payment_id=${encodeURIComponent(result.payment.id)}`
       : 'https://pay.kobara.app/error?reason=payment_not_found';
-    const response = NextResponse.redirect(destination, 303);
+    const response = !isApiPayment
+      ? NextResponse.redirect(destination, 303)
+      : merchantDestination
+        ? NextResponse.redirect(merchantDestination, 303)
+        : NextResponse.json({ status: result.status, message: result.message }, {
+          status: result.status === 'succeeded' ? 200 : 422,
+        });
     response.headers.set('Cache-Control', 'no-store');
     response.cookies.set(RETURN_COOKIE, '', {
       httpOnly: true,
@@ -61,7 +106,12 @@ async function handleReturn(request: NextRequest) {
       event: 'payment_return_failed',
       message: error instanceof Error ? error.message : String(error),
     }));
-    return NextResponse.redirect('https://pay.kobara.app/error?reason=verification_failed', 303);
+    return isApiPayment
+      ? NextResponse.json({ status: 'verification_unavailable' }, {
+        status: 503,
+        headers: { 'Cache-Control': 'no-store', 'Retry-After': '3' },
+      })
+      : NextResponse.redirect('https://pay.kobara.app/error?reason=verification_failed', 303);
   }
 }
 

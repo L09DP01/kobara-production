@@ -15,6 +15,7 @@ type PaymPayment = {
   provider: string | null;
   payment_method: string | null;
   reference_code: string | null;
+  api_key_origin: string | null;
   success_url: string | null;
   error_url: string | null;
   metadata: Record<string, unknown> | null;
@@ -32,7 +33,7 @@ async function findPaymPayment(input: {
   paymentId?: string | null;
 }) {
   const supabase = createAdminClient();
-  const columns = 'id, amount, status, created_at, expires_at, environment, kobara_reference, provider, payment_method, reference_code, success_url, error_url, metadata';
+  const columns = 'id, amount, status, created_at, expires_at, environment, kobara_reference, provider, payment_method, reference_code, api_key_origin, success_url, error_url, metadata';
 
   if (input.paymentId) {
     return supabase.from('payments').select(columns).eq('id', input.paymentId).maybeSingle();
