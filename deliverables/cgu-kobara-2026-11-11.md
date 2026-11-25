@@ -1,6 +1,3 @@
-# Conditions Générales d'Utilisation
-
-Dernière mise à jour : 11 novembre 2026
 
 Bienvenue sur Kobara. En accédant à notre plateforme et en utilisant notre API de paiement, vous acceptez les présentes Conditions Générales d'Utilisation dans leur intégralité. Lisez-les attentivement avant d'utiliser nos services.
 

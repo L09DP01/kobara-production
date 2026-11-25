@@ -60,23 +60,6 @@ export async function GET(
           ? 'failed'
           : currentStatus;
 
-      if (confirmation.status === 'pending' && currentStatus === 'pending') {
-        const tenMinuteDeadline = new Date(payment.created_at).getTime() + 10 * 60 * 1000;
-        if (Date.now() >= tenMinuteDeadline) {
-          currentStatus = 'expired';
-          await supabase.from('payments').update({ status: 'expired' }).eq('id', paymentId).eq('status', 'pending');
-        }
-      }
-    }
-
-    // For other processors, apply the local checkout expiration normally.
-    if (currentStatus === 'pending' && !isPaymProvider && payment.expires_at) {
-      const expiresAt = new Date(payment.expires_at);
-      if (new Date() > expiresAt) {
-        currentStatus = 'expired';
-        await supabase.from('payments').update({ status: 'expired' }).eq('id', paymentId);
-        return NextResponse.json({ status: 'expired' });
-      }
     }
 
     let responsePayment = payment;

@@ -41,22 +41,21 @@ function PaymentProcessingContent() {
           finish(result.redirectUrl || `/pay/error?reason=${result.status}`);
           return;
         }
-        if (!response.ok) setMessage('Vérification temporairement indisponible. Nouvelle tentative...');
+        setMessage(!response.ok
+          ? 'Vérification temporairement indisponible. Nouvelle tentative...'
+          : Date.now() >= deadline
+            ? 'La confirmation prend plus de temps que prévu. Ne relancez pas le paiement.'
+            : 'Nous attendons la confirmation sécurisée de votre paiement.');
       } catch {
         setMessage('Connexion temporairement interrompue. Nouvelle tentative...');
       }
 
-      if (Date.now() >= deadline) {
-        finish('/pay/error?reason=expired');
-        return;
-      }
-      pollTimer = setTimeout(poll, 3000);
+      if (!stopped) pollTimer = setTimeout(poll, Date.now() >= deadline ? 10000 : 3000);
     };
 
     const countdownTimer = setInterval(() => {
       const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       setSecondsLeft(remaining);
-      if (remaining === 0 && !stopped) finish('/pay/error?reason=expired');
     }, 1000);
     poll();
 
@@ -82,14 +81,14 @@ function PaymentProcessingContent() {
         <div className="mt-8 border-y border-white/10 py-5">
           <div className="flex items-center justify-center gap-2 text-slate-300">
             <Clock3 className="h-4 w-4 text-orange-500" />
-            <span className="font-mono text-xl font-bold tabular-nums">{minutes}:{seconds}</span>
+            <span className="font-mono text-xl font-bold tabular-nums">{secondsLeft > 0 ? `${minutes}:${seconds}` : 'En attente'}</span>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Vérification automatique toutes les 3 secondes</p>
+          <p className="mt-2 text-xs text-slate-500">Vérification automatique</p>
         </div>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">
           <ShieldCheck className="h-4 w-4" />
-          Ne fermez pas cette page pendant la validation.
+          Vous pouvez actualiser cette page sans relancer le paiement.
         </div>
       </section>
     </main>
